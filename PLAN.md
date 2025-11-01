@@ -8,6 +8,7 @@ Build a Telegram bot using the grammY framework that monitors group messages and
 - Listen to all messages in the group
 - Collect and store messages in memory
 - Use grammY framework for Telegram API interactions
+- Use **Bun** as the JavaScript runtime (faster than Node.js with built-in TypeScript support)
 
 ---
 
@@ -15,22 +16,24 @@ Build a Telegram bot using the grammY framework that monitors group messages and
 
 ### Phase 1: Project Setup
 
-#### 1.1 Initialize Node.js Project
-- Create `package.json` with project metadata
-- Set up TypeScript for type safety
-- Configure `tsconfig.json` for TypeScript compilation
-- Add build and development scripts
+#### 1.1 Initialize Bun Project
+- Initialize with `bun init` to create `package.json`
+- Set up TypeScript (Bun has built-in TypeScript support, no compilation needed)
+- Configure `tsconfig.json` for IDE support and type checking
+- Add development scripts
 
 #### 1.2 Install Dependencies
 - **Core dependencies:**
   - `grammy` - Telegram Bot framework
-  - `dotenv` - Environment variable management
 
 - **Development dependencies:**
-  - `typescript` - TypeScript compiler
-  - `@types/node` - Node.js type definitions
-  - `tsx` - TypeScript execution for development
-  - `nodemon` - Auto-restart during development
+  - `@types/bun` - Bun type definitions (optional, for better IDE support)
+
+**Note:** Bun has built-in support for:
+- TypeScript execution (no tsx/ts-node needed)
+- Environment variables (auto-loads .env files, no dotenv needed)
+- Fast package installation (replaces npm/yarn)
+- Hot reloading with `--watch` flag (no nodemon needed)
 
 #### 1.3 Environment Configuration
 - Create `.env.example` template file
@@ -132,9 +135,10 @@ Create `src/middleware/`:
 
 #### 5.1 Production Configuration
 - Add production-ready logging
-- Configure process management (PM2 or similar)
+- Configure process management (PM2, systemd, or Bun's built-in process management)
 - Add graceful shutdown handling
 - Implement memory management warnings
+- Consider using `bun --smol` for reduced memory usage in production
 
 #### 5.2 Deployment Options
 - Document deployment to:
@@ -166,7 +170,8 @@ HalakaBot/
 ├── .env                    # Environment variables (git-ignored)
 ├── .env.example            # Environment template
 ├── .gitignore             # Git ignore rules
-├── package.json           # Node.js dependencies
+├── package.json           # Project dependencies
+├── bun.lockb              # Bun lock file (binary format)
 ├── tsconfig.json          # TypeScript configuration
 ├── README.md              # Project documentation
 └── PLAN.md               # This file
