@@ -1,0 +1,19 @@
+{
+  "name": "halakabot",
+  "version": "1.0.0",
+  "description": "Telegram bot with Grammy that listens to reactions",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "keywords": ["telegram", "bot", "grammy", "bun"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "grammy": "^1.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}
