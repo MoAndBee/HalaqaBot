@@ -1,9 +1,11 @@
 import type { Bot, Context } from "grammy";
 import type { MessageService } from "../services/message.service";
+import type { StorageService } from "../services/storage.service";
 
 export function registerMessageHandler(
   bot: Bot,
   messageService: MessageService,
+  storage: StorageService,
 ) {
   bot.on("message", async (ctx: Context) => {
     const message = ctx.message;
@@ -43,7 +45,8 @@ export function registerMessageHandler(
       caption: message.caption,
     });
 
-    // Store the message author for later reference
+    // Store the message author and text for later reference
+    const messageText = message.text || message.caption;
     messageService.storeMessageAuthor(
       ctx.chat!.id,
       postId,
@@ -53,6 +56,7 @@ export function registerMessageHandler(
         first_name: ctx.from!.first_name,
         username: ctx.from!.username,
       },
+      messageText,
     );
   });
 }

@@ -74,7 +74,7 @@ export class MessageService {
     return messageAuthor;
   }
 
-  storeMessageAuthor(chatId: number, postId: number, messageId: number, user: User): void {
-    this.storage.addMessageAuthor(chatId, postId, messageId, user);
+  storeMessageAuthor(chatId: number, postId: number, messageId: number, user: User, messageText?: string): void {
+    this.storage.addMessageAuthor(chatId, postId, messageId, user, messageText);
   }
 }

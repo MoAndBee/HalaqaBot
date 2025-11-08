@@ -3,8 +3,10 @@ import { loadConfig } from "./config/environment";
 import { StorageService } from "./services/storage.service";
 import { MessageService } from "./services/message.service";
 import { UserListService } from "./services/user-list.service";
+import { ClassificationService } from "./services/classification.service";
 import { registerMessageHandler } from "./handlers/message.handler";
 import { registerReactionHandler } from "./handlers/reaction.handler";
+import { registerAutoClassifyHandler } from "./handlers/auto-classify.handler";
 
 // Load and validate configuration
 const config = loadConfig();
@@ -13,13 +15,15 @@ const config = loadConfig();
 const storage = new StorageService("data/bot.sqlite");
 const messageService = new MessageService(storage, config.forwardChatId);
 const userListService = new UserListService(storage);
+const classificationService = new ClassificationService();
 
 // Create bot instance
 const bot = new Bot(config.botToken);
 
 // Register event handlers
 registerReactionHandler(bot, messageService, userListService, storage);
-registerMessageHandler(bot, messageService);
+registerAutoClassifyHandler(bot, classificationService, messageService, userListService, storage, config);
+registerMessageHandler(bot, messageService, storage);
 
 // Handle errors
 bot.catch((err) => {

@@ -53,43 +53,13 @@ export function registerReactionHandler(
       );
 
       if (messageAuthor) {
-        // Add user to list and check if it changed
-        const listChanged = userListService.addUserIfNew(chatId, postId, messageAuthor);
-
-        if (listChanged) {
-          console.log("\n📝 User added to list!");
-        } else {
-          console.log("\n📝 User already in list");
-        }
-
-        // Print the current list to console
-        userListService.printUserListToConsole(chatId, postId);
-
-        // Send updated list to the chat if it changed
-        if (listChanged) {
-          // Delete the previous list message if it exists
-          const previousMessageId = storage.getLastListMessage(chatId, postId);
-          if (previousMessageId) {
-            try {
-              await ctx.api.deleteMessage(chatId, previousMessageId);
-              console.log("Deleted previous list message");
-            } catch (error) {
-              console.log("Could not delete previous list message:", error);
-            }
-          }
-
-          // Send new list message
-          const userList = userListService.getUserList(chatId, postId);
-          const listMessage = userListService.formatUserList(userList);
-
-          const sentMessage = await ctx.api.sendMessage(
-            chatId,
-            `📋 القائمة:\n\n${listMessage}`,
-          );
-
-          // Store the new message ID for future deletion
-          storage.setLastListMessage(chatId, postId, sentMessage.message_id);
-        }
+        // Update the user list in chat
+        await userListService.updateUserListInChat(
+          chatId,
+          postId,
+          messageAuthor,
+          ctx.api
+        );
       }
     }
   });

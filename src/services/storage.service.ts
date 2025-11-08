@@ -19,6 +19,7 @@ export class StorageService {
         user_id INTEGER NOT NULL,
         first_name TEXT NOT NULL,
         username TEXT,
+        message_text TEXT,
         PRIMARY KEY (chat_id, post_id, message_id)
       )
     `);
@@ -44,6 +45,18 @@ export class StorageService {
       )
     `);
 
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS message_classifications (
+        chat_id INTEGER NOT NULL,
+        post_id INTEGER NOT NULL,
+        message_id INTEGER NOT NULL,
+        contains_name INTEGER NOT NULL,
+        detected_names TEXT,
+        classified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (chat_id, post_id, message_id)
+      )
+    `);
+
     // Create indexes for faster lookups
     this.db.run(
       "CREATE INDEX IF NOT EXISTS idx_message_authors_chat_post ON message_authors(chat_id, post_id)",
@@ -51,13 +64,16 @@ export class StorageService {
     this.db.run(
       "CREATE INDEX IF NOT EXISTS idx_user_lists_chat_post ON user_lists(chat_id, post_id)",
     );
+    this.db.run(
+      "CREATE INDEX IF NOT EXISTS idx_classifications_chat_post ON message_classifications(chat_id, post_id)",
+    );
   }
 
   // Message Authors
-  addMessageAuthor(chatId: number, postId: number, messageId: number, user: User): void {
+  addMessageAuthor(chatId: number, postId: number, messageId: number, user: User, messageText?: string): void {
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO message_authors (chat_id, post_id, message_id, user_id, first_name, username)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO message_authors (chat_id, post_id, message_id, user_id, first_name, username, message_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       chatId,
@@ -66,6 +82,7 @@ export class StorageService {
       user.id,
       user.first_name,
       user.username || null,
+      messageText || null,
     );
   }
 
@@ -181,6 +198,82 @@ export class StorageService {
       DELETE FROM last_list_messages WHERE chat_id = ? AND post_id = ?
     `);
     stmt.run(chatId, postId);
+  }
+
+  // Message Classifications
+  storeClassification(
+    chatId: number,
+    postId: number,
+    messageId: number,
+    containsName: boolean,
+    detectedNames: string[]
+  ): void {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO message_classifications (chat_id, post_id, message_id, contains_name, detected_names)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      chatId,
+      postId,
+      messageId,
+      containsName ? 1 : 0,
+      JSON.stringify(detectedNames)
+    );
+  }
+
+  getClassification(
+    chatId: number,
+    postId: number,
+    messageId: number
+  ): { containsName: boolean; detectedNames: string[] } | null {
+    const stmt = this.db.prepare(`
+      SELECT contains_name, detected_names
+      FROM message_classifications
+      WHERE chat_id = ? AND post_id = ? AND message_id = ?
+    `);
+    const row = stmt.get(chatId, postId, messageId) as any;
+
+    if (!row) return null;
+
+    return {
+      containsName: row.contains_name === 1,
+      detectedNames: JSON.parse(row.detected_names || "[]"),
+    };
+  }
+
+  getUnclassifiedMessages(chatId: number, postId: number): Array<{
+    messageId: number;
+    text: string;
+    user: User;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT DISTINCT ma.message_id, ma.user_id, ma.first_name, ma.username, ma.message_text
+      FROM message_authors ma
+      WHERE ma.chat_id = ?
+        AND ma.post_id = ?
+        AND ma.user_id NOT IN (
+          SELECT user_id
+          FROM user_lists
+          WHERE chat_id = ? AND post_id = ?
+        )
+        AND ma.message_id NOT IN (
+          SELECT message_id
+          FROM message_classifications
+          WHERE chat_id = ? AND post_id = ?
+        )
+      ORDER BY ma.message_id ASC
+    `);
+    const rows = stmt.all(chatId, postId, chatId, postId, chatId, postId) as any[];
+
+    return rows.map((row) => ({
+      messageId: row.message_id,
+      text: row.message_text || "",
+      user: {
+        id: row.user_id,
+        first_name: row.first_name,
+        username: row.username,
+      },
+    }));
   }
 
   close(): void {

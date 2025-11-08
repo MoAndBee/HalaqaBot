@@ -1,11 +1,15 @@
 export interface Config {
   botToken: string;
   forwardChatId: string;
+  groqApiKey: string;
+  autoReactionEmoji: "❤" | "👍" | "👎" | "🔥" | "🥰";
 }
 
 export function loadConfig(): Config {
   const botToken = process.env.BOT_TOKEN;
   const forwardChatId = process.env.FORWARD_CHAT_ID;
+  const groqApiKey = process.env.GROQ_API_KEY;
+  const autoReactionEmoji = (process.env.AUTO_REACTION_EMOJI || "❤") as "❤" | "👍" | "👎" | "🔥" | "🥰";
 
   if (!botToken) {
     console.error("Error: BOT_TOKEN environment variable is not set");
@@ -23,8 +27,18 @@ export function loadConfig(): Config {
     process.exit(1);
   }
 
+  if (!groqApiKey) {
+    console.error("Error: GROQ_API_KEY environment variable is not set");
+    console.error(
+      "Please set GROQ_API_KEY to your Groq API key from https://console.groq.com/",
+    );
+    process.exit(1);
+  }
+
   return {
     botToken,
     forwardChatId,
+    groqApiKey,
+    autoReactionEmoji,
   };
 }
