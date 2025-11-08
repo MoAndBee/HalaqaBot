@@ -16,11 +16,6 @@ export function registerReactionHandler(
         id: ctx.messageReaction!.chat.id,
         type: ctx.messageReaction!.chat.type,
       },
-      user: {
-        id: ctx.messageReaction!.user.id,
-        first_name: ctx.messageReaction!.user.first_name,
-        username: ctx.messageReaction!.user.username,
-      },
       message_id: ctx.messageReaction!.message_id,
       date: new Date(ctx.messageReaction!.date * 1000).toISOString(),
       old_reaction: ctx.messageReaction!.old_reaction,
@@ -40,16 +35,26 @@ export function registerReactionHandler(
       const chatId = ctx.messageReaction!.chat.id;
       const messageId = ctx.messageReaction!.message_id;
 
+      // Try to find the post ID from the database
+      const postId = storage.getPostIdForMessage(chatId, messageId);
+
+      // If message not in database, ignore the reaction
+      if (!postId) {
+        console.log(`⚠️  Message ${messageId} not found in database, ignoring reaction`);
+        return;
+      }
+
       // Get the message author (from storage or via forwarding)
       const messageAuthor = await messageService.getMessageAuthor(
         ctx.api,
         chatId,
+        postId,
         messageId,
       );
 
       if (messageAuthor) {
         // Add user to list and check if it changed
-        const listChanged = userListService.addUserIfNew(chatId, messageAuthor);
+        const listChanged = userListService.addUserIfNew(chatId, postId, messageAuthor);
 
         if (listChanged) {
           console.log("\n📝 User added to list!");
@@ -58,12 +63,12 @@ export function registerReactionHandler(
         }
 
         // Print the current list to console
-        userListService.printUserListToConsole(chatId);
+        userListService.printUserListToConsole(chatId, postId);
 
         // Send updated list to the chat if it changed
         if (listChanged) {
           // Delete the previous list message if it exists
-          const previousMessageId = storage.getLastListMessage(chatId);
+          const previousMessageId = storage.getLastListMessage(chatId, postId);
           if (previousMessageId) {
             try {
               await ctx.api.deleteMessage(chatId, previousMessageId);
@@ -74,7 +79,7 @@ export function registerReactionHandler(
           }
 
           // Send new list message
-          const userList = userListService.getUserList(chatId);
+          const userList = userListService.getUserList(chatId, postId);
           const listMessage = userListService.formatUserList(userList);
 
           const sentMessage = await ctx.api.sendMessage(
@@ -83,7 +88,7 @@ export function registerReactionHandler(
           );
 
           // Store the new message ID for future deletion
-          storage.setLastListMessage(chatId, sentMessage.message_id);
+          storage.setLastListMessage(chatId, postId, sentMessage.message_id);
         }
       }
     }

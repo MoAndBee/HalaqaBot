@@ -11,10 +11,11 @@ export class MessageService {
   async getMessageAuthor(
     api: Api,
     chatId: number,
+    postId: number,
     messageId: number,
   ): Promise<User | null> {
     // Try to get from storage first
-    let messageAuthor = this.storage.getMessageAuthor(chatId, messageId);
+    let messageAuthor = this.storage.getMessageAuthor(chatId, postId, messageId);
 
     if (messageAuthor) {
       return messageAuthor;
@@ -47,7 +48,7 @@ export class MessageService {
           console.log("Found message author from forward:", messageAuthor);
 
           // Store it for future use
-          this.storage.addMessageAuthor(chatId, messageId, messageAuthor);
+          this.storage.addMessageAuthor(chatId, postId, messageId, messageAuthor);
         } else if (origin.type === "hidden_user") {
           console.log(
             "⚠️  Message author has privacy settings enabled (hidden user)",
@@ -73,7 +74,7 @@ export class MessageService {
     return messageAuthor;
   }
 
-  storeMessageAuthor(chatId: number, messageId: number, user: User): void {
-    this.storage.addMessageAuthor(chatId, messageId, user);
+  storeMessageAuthor(chatId: number, postId: number, messageId: number, user: User): void {
+    this.storage.addMessageAuthor(chatId, postId, messageId, user);
   }
 }

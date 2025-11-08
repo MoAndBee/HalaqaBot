@@ -5,7 +5,6 @@ import { MessageService } from "./services/message.service";
 import { UserListService } from "./services/user-list.service";
 import { registerMessageHandler } from "./handlers/message.handler";
 import { registerReactionHandler } from "./handlers/reaction.handler";
-import { registerCommandHandler } from "./handlers/command.handler";
 
 // Load and validate configuration
 const config = loadConfig();
@@ -19,7 +18,6 @@ const userListService = new UserListService(storage);
 const bot = new Bot(config.botToken);
 
 // Register event handlers
-registerCommandHandler(bot, userListService);
 registerReactionHandler(bot, messageService, userListService, storage);
 registerMessageHandler(bot, messageService);
 
@@ -31,10 +29,10 @@ bot.catch((err) => {
 // Start the bot
 console.log("Starting bot...");
 bot.start({
-  allowed_updates: ["message", "message_reaction"],
+  allowed_updates: ["message", "message_reaction", "channel_post"],
   onStart: (botInfo) => {
     console.log(`Bot @${botInfo.username} is running!`);
-    console.log("Listening for reactions...");
+    console.log("Listening for reactions and channel posts...");
   },
 });
 
