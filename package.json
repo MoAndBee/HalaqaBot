@@ -2,20 +2,24 @@
   "name": "halakabot",
   "version": "1.0.0",
   "description": "Telegram bot with Grammy that listens to reactions",
-  "main": "src/index.ts",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "bun run src/index.ts",
-    "start": "bun run src/index.ts"
+    "start": "bun run src/index.ts",
+    "dev:bot": "bun --filter @halakabot/bot dev",
+    "dev:web": "bun --filter @halakabot/web dev",
+    "dev:all": "bun --filter @halakabot/bot dev & bun --filter @halakabot/web dev",
+    "build": "bun run build:db && bun run build:bot && bun run build:web",
+    "build:db": "bun --filter @halakabot/db build",
+    "build:bot": "bun --filter @halakabot/bot build",
+    "build:web": "bun --filter @halakabot/web build"
   },
-  "keywords": ["telegram", "bot", "grammy", "bun"],
+  "keywords": ["telegram", "bot", "grammy", "bun", "monorepo"],
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "@ai-sdk/groq": "^2.0.28",
-    "ai": "^5.0.89",
-    "grammy": "^1.30.0",
-    "zod": "^4.1.12"
-  },
   "devDependencies": {
     "@types/bun": "^1.3.1",
     "@types/node": "^22.0.0"

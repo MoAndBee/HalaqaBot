@@ -1,10 +1,10 @@
 import { Database } from "bun:sqlite";
-import type { User } from "../types";
+import type { User } from "./types";
 
 export class StorageService {
   private db: Database;
 
-  constructor(dbPath: string ) {
+  constructor(dbPath: string = "data/bot.sqlite") {
     this.db = new Database(dbPath, { create: true });
     this.initializeDatabase();
   }
@@ -274,6 +274,101 @@ export class StorageService {
         username: row.username,
       },
     }));
+  }
+
+  // Posts
+  getAllPosts(): Array<{ chatId: number; postId: number; userCount: number }> {
+    const stmt = this.db.prepare(`
+      SELECT DISTINCT 
+        ul.chat_id,
+        ul.post_id,
+        COUNT(ul.user_id) as user_count
+      FROM user_lists ul
+      GROUP BY ul.chat_id, ul.post_id
+      ORDER BY ul.chat_id, ul.post_id DESC
+    `);
+    const rows = stmt.all() as any[];
+
+    return rows.map((row) => ({
+      chatId: row.chat_id,
+      postId: row.post_id,
+      userCount: row.user_count,
+    }));
+  }
+
+  updateUserPosition(chatId: number, postId: number, userId: number, newPosition: number): void {
+    // Get current position
+    const currentStmt = this.db.prepare(`
+      SELECT position FROM user_lists WHERE chat_id = ? AND post_id = ? AND user_id = ?
+    `);
+    const currentRow = currentStmt.get(chatId, postId, userId) as any;
+
+    if (!currentRow) {
+      throw new Error(`User ${userId} not found in list for chat ${chatId}, post ${postId}`);
+    }
+
+    const currentPosition = currentRow.position;
+
+    if (currentPosition === newPosition) {
+      return; // No change needed
+    }
+
+    // Use a transaction to ensure consistency
+    this.db.run("BEGIN TRANSACTION");
+
+    try {
+      if (newPosition < currentPosition) {
+        // Moving up: shift users down between newPosition and currentPosition
+        const shiftStmt = this.db.prepare(`
+          UPDATE user_lists 
+          SET position = position + 1 
+          WHERE chat_id = ? AND post_id = ? AND position >= ? AND position < ? AND user_id != ?
+        `);
+        shiftStmt.run(chatId, postId, newPosition, currentPosition, userId);
+      } else {
+        // Moving down: shift users up between currentPosition and newPosition
+        const shiftStmt = this.db.prepare(`
+          UPDATE user_lists 
+          SET position = position - 1 
+          WHERE chat_id = ? AND post_id = ? AND position > ? AND position <= ? AND user_id != ?
+        `);
+        shiftStmt.run(chatId, postId, currentPosition, newPosition, userId);
+      }
+
+      // Update the user's position
+      const updateStmt = this.db.prepare(`
+        UPDATE user_lists 
+        SET position = ? 
+        WHERE chat_id = ? AND post_id = ? AND user_id = ?
+      `);
+      updateStmt.run(newPosition, chatId, postId, userId);
+
+      this.db.run("COMMIT");
+    } catch (error) {
+      this.db.run("ROLLBACK");
+      throw error;
+    }
+  }
+
+  getPostDetails(chatId: number, postId: number): { userCount: number; messageCount: number } | null {
+    const userCountStmt = this.db.prepare(`
+      SELECT COUNT(*) as count FROM user_lists WHERE chat_id = ? AND post_id = ?
+    `);
+    const userCountRow = userCountStmt.get(chatId, postId) as any;
+
+    const messageCountStmt = this.db.prepare(`
+      SELECT COUNT(*) as count FROM message_authors WHERE chat_id = ? AND post_id = ?
+    `);
+    const messageCountRow = messageCountStmt.get(chatId, postId) as any;
+
+    if (!userCountRow || userCountRow.count === 0) {
+      return null;
+    }
+
+    return {
+      userCount: userCountRow.count,
+      messageCount: messageCountRow.count,
+    };
   }
 
   close(): void {

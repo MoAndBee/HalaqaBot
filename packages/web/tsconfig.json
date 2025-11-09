@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "outDir": "./dist",
+    "rootDir": ".",
+    "types": ["vite/client"]
+  },
+  "include": ["app/**/*", "*.config.ts"],
+  "exclude": ["node_modules", "dist", ".vinxi"],
+  "references": [
+    { "path": "../db" }
+  ]
+}

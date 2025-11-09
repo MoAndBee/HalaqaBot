@@ -14,6 +14,17 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
 
+    // Workspace support
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@halakabot/db": ["./packages/db/src"],
+      "@halakabot/bot": ["./packages/bot/src"],
+      "@halakabot/web": ["./packages/web/app"]
+    },
+
     // Best practices
     "strict": true,
     "skipLibCheck": true,
@@ -25,5 +36,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  "references": [
+    { "path": "./packages/db" },
+    { "path": "./packages/bot" },
+    { "path": "./packages/web" }
+  ]
 }

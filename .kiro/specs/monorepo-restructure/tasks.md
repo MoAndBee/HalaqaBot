@@ -1,26 +1,26 @@
 # Implementation Plan
 
-- [ ] 1. Set up monorepo structure and workspace configuration
+- [x] 1. Set up monorepo structure and workspace configuration
   - Create `packages/` directory with subdirectories for `db`, `bot`, and `web`
   - Create root `package.json` with Bun workspace configuration
   - Update root `tsconfig.json` to support workspace references
   - Create base `tsconfig.json` files for each package
   - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 2. Extract and create the DB package
-  - [ ] 2.1 Create DB package structure and configuration
+- [x] 2. Extract and create the DB package
+  - [x] 2.1 Create DB package structure and configuration
     - Create `packages/db/package.json` with package metadata and exports
     - Create `packages/db/tsconfig.json` extending root config
     - Create `packages/db/src/index.ts` as main export file
     - _Requirements: 2.1, 2.2, 2.5_
   
-  - [ ] 2.2 Move storage service to DB package
+  - [x] 2.2 Move storage service to DB package
     - Move `src/services/storage.service.ts` to `packages/db/src/storage.service.ts`
     - Move `src/types/index.ts` to `packages/db/src/types.ts`
     - Export StorageService and types from `packages/db/src/index.ts`
     - _Requirements: 2.1, 2.2, 2.3_
   
-  - [ ] 2.3 Add new methods for web package support
+  - [x] 2.3 Add new methods for web package support
     - Implement `getAllPosts()` method to retrieve all unique posts with user counts
     - Implement `updateUserPosition()` method for drag-and-drop reordering
     - Implement `getPostDetails()` method for post metadata
@@ -32,20 +32,20 @@
     - Test new methods: getAllPosts, updateUserPosition, getPostDetails
     - _Requirements: 2.3, 2.4_
 
-- [ ] 3. Migrate bot code to bot package
-  - [ ] 3.1 Create bot package structure
+- [x] 3. Migrate bot code to bot package
+  - [x] 3.1 Create bot package structure
     - Create `packages/bot/package.json` with dependencies including `@halakabot/db`
     - Create `packages/bot/tsconfig.json` extending root config
     - Move `data/` directory to `packages/bot/data/`
     - _Requirements: 3.1, 3.4, 1.4_
   
-  - [ ] 3.2 Move bot source code
+  - [x] 3.2 Move bot source code
     - Move `src/` directory contents to `packages/bot/src/`
     - Remove `src/services/storage.service.ts` (now in db package)
     - Remove `src/types/index.ts` (now in db package)
     - _Requirements: 3.1, 3.3_
   
-  - [ ] 3.3 Update bot imports to use DB package
+  - [x] 3.3 Update bot imports to use DB package
     - Update all imports of StorageService to `@halakabot/db`
     - Update all type imports to `@halakabot/db`
     - Update database path references in services
