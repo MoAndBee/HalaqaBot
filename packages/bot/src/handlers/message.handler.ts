@@ -46,17 +46,24 @@ export function registerMessageHandler(
     });
 
     // Store the message author and text for later reference
+    // Skip storing if it's GroupAnonymousBot - we'll get the real author via forwarding later
     const messageText = message.text || message.caption;
-    messageService.storeMessageAuthor(
-      ctx.chat!.id,
-      postId,
-      ctx.message!.message_id,
-      {
-        id: ctx.from!.id,
-        first_name: ctx.from!.first_name,
-        username: ctx.from!.username,
-      },
-      messageText,
-    );
+    const isAnonymousBot = ctx.from?.username === "GroupAnonymousBot";
+    
+    if (!isAnonymousBot && ctx.from) {
+      messageService.storeMessageAuthor(
+        ctx.chat!.id,
+        postId,
+        ctx.message!.message_id,
+        {
+          id: ctx.from.id,
+          first_name: ctx.from.first_name,
+          username: ctx.from.username,
+        },
+        messageText,
+      );
+    } else {
+      console.log("⚠️  Anonymous admin post detected - will retrieve real author via forwarding when needed");
+    }
   });
 }

@@ -79,13 +79,14 @@ export class UserListService {
         }
       }
 
-      // Send new list message
+      // Send new list message as a comment on the post
       const userList = this.getUserList(chatId, postId);
       const listMessage = this.formatUserList(userList);
 
       const sentMessage = await api.sendMessage(
         chatId,
         `📋 القائمة:\n\n${listMessage}`,
+        { reply_to_message_id: postId }
       );
 
       // Store the new message ID for future deletion
