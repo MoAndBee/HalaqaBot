@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "convex dev --once && vite build && tsc --noEmit",
+    "build": "cd ../db/ && convex dev --once && cd - && vite build",
     "start": "vite start",
     "typecheck": "tsc --noEmit"
   },
