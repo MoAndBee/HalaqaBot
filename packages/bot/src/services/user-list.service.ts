@@ -4,12 +4,12 @@ import type { User, StorageService } from "@halakabot/db";
 export class UserListService {
   constructor(private storage: StorageService) {}
 
-  addUserIfNew(chatId: number, postId: number, user: User): boolean {
-    return this.storage.addUserToList(chatId, postId, user);
+  async addUserIfNew(chatId: number, postId: number, user: User): Promise<boolean> {
+    return await this.storage.addUserToList(chatId, postId, user);
   }
 
-  getUserList(chatId: number, postId: number): User[] {
-    return this.storage.getUserList(chatId, postId);
+  async getUserList(chatId: number, postId: number): Promise<User[]> {
+    return await this.storage.getUserList(chatId, postId);
   }
 
   clearList(chatId: number, postId: number): void {
@@ -27,8 +27,8 @@ export class UserListService {
       .join("\n");
   }
 
-  printUserListToConsole(chatId: number, postId: number): void {
-    const userList = this.getUserList(chatId, postId);
+  async printUserListToConsole(chatId: number, postId: number): Promise<void> {
+    const userList = await this.getUserList(chatId, postId);
     console.log("\n=== Current List ===");
     userList.forEach((user, index) => {
       const username = user.username ? `@${user.username}` : "";
@@ -51,7 +51,7 @@ export class UserListService {
     // Add users and track if list changed
     let listChanged = false;
     for (const user of userArray) {
-      const changed = this.addUserIfNew(chatId, postId, user);
+      const changed = await this.addUserIfNew(chatId, postId, user);
       if (changed) {
         listChanged = true;
       }
@@ -64,12 +64,12 @@ export class UserListService {
     }
 
     // Print the current list to console
-    this.printUserListToConsole(chatId, postId);
+    await this.printUserListToConsole(chatId, postId);
 
     // Send updated list to the chat if it changed
     if (listChanged) {
       // Delete the previous list message if it exists
-      const previousMessageId = this.storage.getLastListMessage(chatId, postId);
+      const previousMessageId = await this.storage.getLastListMessage(chatId, postId);
       if (previousMessageId) {
         try {
           await api.deleteMessage(chatId, previousMessageId);
@@ -80,7 +80,7 @@ export class UserListService {
       }
 
       // Send new list message as a comment on the post
-      const userList = this.getUserList(chatId, postId);
+      const userList = await this.getUserList(chatId, postId);
       const listMessage = this.formatUserList(userList);
 
       const sentMessage = await api.sendMessage(

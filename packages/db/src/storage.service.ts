@@ -1,377 +1,426 @@
-import { Database } from "bun:sqlite";
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { User } from "./types";
+import { config } from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+config({ path: path.resolve(__dirname, "../../../.env") });
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase credentials. Please set SUPABASE_URL and SUPABASE_ANON_KEY in .env');
+}
 
 export class StorageService {
-  private db: Database;
+  private supabase: SupabaseClient;
 
-  constructor(dbPath: string = "data/bot.sqlite") {
-    this.db = new Database(dbPath, { create: true });
-    this.initializeDatabase();
+  constructor() {
+    this.supabase = createClient(supabaseUrl!, supabaseKey!);
   }
 
-  private initializeDatabase() {
-    // Create tables for storing data per chat
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS message_authors (
-        chat_id INTEGER NOT NULL,
-        post_id INTEGER NOT NULL,
-        message_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        first_name TEXT NOT NULL,
-        username TEXT,
-        message_text TEXT,
-        PRIMARY KEY (chat_id, post_id, message_id)
-      )
-    `);
-
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS user_lists (
-        chat_id INTEGER NOT NULL,
-        post_id INTEGER NOT NULL,
-        user_id INTEGER NOT NULL,
-        first_name TEXT NOT NULL,
-        username TEXT,
-        position INTEGER NOT NULL,
-        PRIMARY KEY (chat_id, post_id, user_id)
-      )
-    `);
-
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS last_list_messages (
-        chat_id INTEGER NOT NULL,
-        post_id INTEGER NOT NULL,
-        message_id INTEGER NOT NULL,
-        PRIMARY KEY (chat_id, post_id)
-      )
-    `);
-
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS message_classifications (
-        chat_id INTEGER NOT NULL,
-        post_id INTEGER NOT NULL,
-        message_id INTEGER NOT NULL,
-        contains_name INTEGER NOT NULL,
-        detected_names TEXT,
-        classified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (chat_id, post_id, message_id)
-      )
-    `);
-
-    // Create indexes for faster lookups
-    this.db.run(
-      "CREATE INDEX IF NOT EXISTS idx_message_authors_chat_post ON message_authors(chat_id, post_id)",
-    );
-    this.db.run(
-      "CREATE INDEX IF NOT EXISTS idx_user_lists_chat_post ON user_lists(chat_id, post_id)",
-    );
-    this.db.run(
-      "CREATE INDEX IF NOT EXISTS idx_classifications_chat_post ON message_classifications(chat_id, post_id)",
-    );
+  async addMessageAuthor(
+    chatId: number,
+    postId: number,
+    messageId: number,
+    user: User,
+    messageText?: string
+  ): Promise<void> {
+    await this.supabase
+      .from('message_authors')
+      .upsert({
+        chat_id: chatId,
+        post_id: postId,
+        message_id: messageId,
+        user_id: user.id,
+        first_name: user.first_name,
+        username: user.username || null,
+        message_text: messageText || null,
+      }, {
+        onConflict: 'chat_id,post_id,message_id'
+      });
   }
 
-  // Message Authors
-  addMessageAuthor(chatId: number, postId: number, messageId: number, user: User, messageText?: string): void {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO message_authors (chat_id, post_id, message_id, user_id, first_name, username, message_text)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
-      chatId,
-      postId,
-      messageId,
-      user.id,
-      user.first_name,
-      user.username || null,
-      messageText || null,
-    );
-  }
+  async getMessageAuthor(
+    chatId: number,
+    postId: number,
+    messageId: number
+  ): Promise<User | null> {
+    const { data, error } = await this.supabase
+      .from('message_authors')
+      .select('*')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .eq('message_id', messageId)
+      .single();
 
-  getMessageAuthor(chatId: number, postId: number, messageId: number): User | null {
-    const stmt = this.db.prepare(`
-      SELECT user_id, first_name, username
-      FROM message_authors
-      WHERE chat_id = ? AND post_id = ? AND message_id = ?
-    `);
-    const row = stmt.get(chatId, postId, messageId) as any;
-
-    if (!row) return null;
+    if (error || !data) return null;
 
     return {
-      id: row.user_id,
-      first_name: row.first_name,
-      username: row.username,
+      id: data.user_id,
+      first_name: data.first_name,
+      username: data.username || undefined,
     };
   }
 
-  getPostIdForMessage(chatId: number, messageId: number): number | null {
-    const stmt = this.db.prepare(`
-      SELECT post_id
-      FROM message_authors
-      WHERE chat_id = ? AND message_id = ?
-      LIMIT 1
-    `);
-    const row = stmt.get(chatId, messageId) as any;
+  async getPostIdForMessage(
+    chatId: number,
+    messageId: number
+  ): Promise<number | null> {
+    const { data, error } = await this.supabase
+      .from('message_authors')
+      .select('post_id')
+      .eq('chat_id', chatId)
+      .eq('message_id', messageId)
+      .limit(1)
+      .single();
 
-    return row ? row.post_id : null;
+    return error || !data ? null : data.post_id;
   }
 
-  // User Lists
-  addUserToList(chatId: number, postId: number, user: User): boolean {
-    // Check if user already exists
-    const existingStmt = this.db.prepare(`
-      SELECT user_id FROM user_lists WHERE chat_id = ? AND post_id = ? AND user_id = ?
-    `);
-    const existing = existingStmt.get(chatId, postId, user.id);
+  async addUserToList(
+    chatId: number,
+    postId: number,
+    user: User
+  ): Promise<boolean> {
+    const { data: existing } = await this.supabase
+      .from('user_lists')
+      .select('user_id')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .eq('user_id', user.id)
+      .single();
 
     if (existing) {
-      return false; // User already in list, no change
+      return false;
     }
 
-    // Get the next position
-    const posStmt = this.db.prepare(`
-      SELECT COALESCE(MAX(position), 0) + 1 as next_pos
-      FROM user_lists
-      WHERE chat_id = ? AND post_id = ?
-    `);
-    const { next_pos } = posStmt.get(chatId, postId) as any;
+    const { data: maxPos } = await this.supabase
+      .from('user_lists')
+      .select('position')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .order('position', { ascending: false })
+      .limit(1)
+      .single();
 
-    // Add user to list
-    const insertStmt = this.db.prepare(`
-      INSERT INTO user_lists (chat_id, post_id, user_id, first_name, username, position)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    insertStmt.run(
-      chatId,
-      postId,
-      user.id,
-      user.first_name,
-      user.username || null,
-      next_pos,
-    );
+    const nextPosition = (maxPos?.position || 0) + 1;
 
-    return true; // List changed
+    await this.supabase
+      .from('user_lists')
+      .insert({
+        chat_id: chatId,
+        post_id: postId,
+        user_id: user.id,
+        first_name: user.first_name,
+        username: user.username || null,
+        position: nextPosition,
+      });
+
+    return true;
   }
 
-  getUserList(chatId: number, postId: number): User[] {
-    const stmt = this.db.prepare(`
-      SELECT user_id, first_name, username
-      FROM user_lists
-      WHERE chat_id = ? AND post_id = ?
-      ORDER BY position ASC
-    `);
-    const rows = stmt.all(chatId, postId) as any[];
+  async getUserList(chatId: number, postId: number): Promise<User[]> {
+    const { data, error } = await this.supabase
+      .from('user_lists')
+      .select('*')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .order('position', { ascending: true });
 
-    return rows.map((row) => ({
-      id: row.user_id,
-      first_name: row.first_name,
-      username: row.username,
+    if (error || !data) return [];
+
+    return data.map((user) => ({
+      id: user.user_id,
+      first_name: user.first_name,
+      username: user.username || undefined,
     }));
   }
 
-  clearUserList(chatId: number, postId: number): void {
-    const stmt = this.db.prepare(`
-      DELETE FROM user_lists WHERE chat_id = ? AND post_id = ?
-    `);
-    stmt.run(chatId, postId);
+  async clearUserList(chatId: number, postId: number): Promise<void> {
+    await this.supabase
+      .from('user_lists')
+      .delete()
+      .eq('chat_id', chatId)
+      .eq('post_id', postId);
   }
 
-  // Last List Messages
-  setLastListMessage(chatId: number, postId: number, messageId: number): void {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO last_list_messages (chat_id, post_id, message_id)
-      VALUES (?, ?, ?)
-    `);
-    stmt.run(chatId, postId, messageId);
+  async setLastListMessage(
+    chatId: number,
+    postId: number,
+    messageId: number
+  ): Promise<void> {
+    await this.supabase
+      .from('last_list_messages')
+      .upsert({
+        chat_id: chatId,
+        post_id: postId,
+        message_id: messageId,
+      }, {
+        onConflict: 'chat_id,post_id'
+      });
   }
 
-  getLastListMessage(chatId: number, postId: number): number | null {
-    const stmt = this.db.prepare(`
-      SELECT message_id FROM last_list_messages WHERE chat_id = ? AND post_id = ?
-    `);
-    const row = stmt.get(chatId, postId) as any;
+  async getLastListMessage(
+    chatId: number,
+    postId: number
+  ): Promise<number | null> {
+    const { data, error } = await this.supabase
+      .from('last_list_messages')
+      .select('message_id')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .single();
 
-    return row ? row.message_id : null;
+    return error || !data ? null : data.message_id;
   }
 
-  clearLastListMessage(chatId: number, postId: number): void {
-    const stmt = this.db.prepare(`
-      DELETE FROM last_list_messages WHERE chat_id = ? AND post_id = ?
-    `);
-    stmt.run(chatId, postId);
+  async clearLastListMessage(chatId: number, postId: number): Promise<void> {
+    await this.supabase
+      .from('last_list_messages')
+      .delete()
+      .eq('chat_id', chatId)
+      .eq('post_id', postId);
   }
 
-  // Message Classifications
-  storeClassification(
+  async storeClassification(
     chatId: number,
     postId: number,
     messageId: number,
     containsName: boolean,
     detectedNames: string[]
-  ): void {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO message_classifications (chat_id, post_id, message_id, contains_name, detected_names)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    stmt.run(
-      chatId,
-      postId,
-      messageId,
-      containsName ? 1 : 0,
-      JSON.stringify(detectedNames)
-    );
+  ): Promise<void> {
+    await this.supabase
+      .from('message_classifications')
+      .upsert({
+        chat_id: chatId,
+        post_id: postId,
+        message_id: messageId,
+        contains_name: containsName,
+        detected_names: detectedNames,
+      }, {
+        onConflict: 'chat_id,post_id,message_id'
+      });
   }
 
-  getClassification(
+  async getClassification(
     chatId: number,
     postId: number,
     messageId: number
-  ): { containsName: boolean; detectedNames: string[] } | null {
-    const stmt = this.db.prepare(`
-      SELECT contains_name, detected_names
-      FROM message_classifications
-      WHERE chat_id = ? AND post_id = ? AND message_id = ?
-    `);
-    const row = stmt.get(chatId, postId, messageId) as any;
+  ): Promise<{ containsName: boolean; detectedNames: string[] } | null> {
+    const { data, error } = await this.supabase
+      .from('message_classifications')
+      .select('*')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .eq('message_id', messageId)
+      .single();
 
-    if (!row) return null;
+    if (error || !data) return null;
 
     return {
-      containsName: row.contains_name === 1,
-      detectedNames: JSON.parse(row.detected_names || "[]"),
+      containsName: data.contains_name,
+      detectedNames: data.detected_names || [],
     };
   }
 
-  getUnclassifiedMessages(chatId: number, postId: number): Array<{
-    messageId: number;
-    text: string;
-    user: User;
-  }> {
-    const stmt = this.db.prepare(`
-      SELECT DISTINCT ma.message_id, ma.user_id, ma.first_name, ma.username, ma.message_text
-      FROM message_authors ma
-      WHERE ma.chat_id = ?
-        AND ma.post_id = ?
-        AND ma.user_id NOT IN (
-          SELECT user_id
-          FROM user_lists
-          WHERE chat_id = ? AND post_id = ?
-        )
-        AND ma.message_id NOT IN (
-          SELECT message_id
-          FROM message_classifications
-          WHERE chat_id = ? AND post_id = ?
-        )
-      ORDER BY ma.message_id ASC
-    `);
-    const rows = stmt.all(chatId, postId, chatId, postId, chatId, postId) as any[];
+  async getUnclassifiedMessages(
+    chatId: number,
+    postId: number
+  ): Promise<
+    Array<{
+      messageId: number;
+      text: string;
+      user: User;
+    }>
+  > {
+    const { data: userListIds } = await this.supabase
+      .from('user_lists')
+      .select('user_id')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId);
 
-    return rows.map((row) => ({
-      messageId: row.message_id,
-      text: row.message_text || "",
-      user: {
-        id: row.user_id,
-        first_name: row.first_name,
-        username: row.username,
-      },
-    }));
-  }
+    const { data: classifiedMessageIds } = await this.supabase
+      .from('message_classifications')
+      .select('message_id')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId);
 
-  // Posts
-  getAllPosts(): Array<{ chatId: number; postId: number; userCount: number }> {
-    const stmt = this.db.prepare(`
-      SELECT DISTINCT 
-        ul.chat_id,
-        ul.post_id,
-        COUNT(ul.user_id) as user_count
-      FROM user_lists ul
-      GROUP BY ul.chat_id, ul.post_id
-      ORDER BY ul.chat_id, ul.post_id DESC
-    `);
-    const rows = stmt.all() as any[];
+    const excludedUserIds = userListIds?.map((u) => u.user_id) || [];
+    const excludedMessageIds = classifiedMessageIds?.map((m) => m.message_id) || [];
 
-    return rows.map((row) => ({
-      chatId: row.chat_id,
-      postId: row.post_id,
-      userCount: row.user_count,
-    }));
-  }
+    let query = this.supabase
+      .from('message_authors')
+      .select('*')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .order('message_id', { ascending: true });
 
-  updateUserPosition(chatId: number, postId: number, userId: number, newPosition: number): void {
-    // Get current position
-    const currentStmt = this.db.prepare(`
-      SELECT position FROM user_lists WHERE chat_id = ? AND post_id = ? AND user_id = ?
-    `);
-    const currentRow = currentStmt.get(chatId, postId, userId) as any;
-
-    if (!currentRow) {
-      throw new Error(`User ${userId} not found in list for chat ${chatId}, post ${postId}`);
+    if (excludedUserIds.length > 0) {
+      query = query.not('user_id', 'in', `(${excludedUserIds.join(',')})`);
     }
 
-    const currentPosition = currentRow.position;
+    if (excludedMessageIds.length > 0) {
+      query = query.not('message_id', 'in', `(${excludedMessageIds.join(',')})`);
+    }
+
+    const { data, error } = await query;
+
+    if (error || !data) return [];
+
+    const uniqueMessages = new Map();
+    data.forEach((msg) => {
+      if (!uniqueMessages.has(msg.message_id)) {
+        uniqueMessages.set(msg.message_id, {
+          messageId: msg.message_id,
+          text: msg.message_text || "",
+          user: {
+            id: msg.user_id,
+            first_name: msg.first_name,
+            username: msg.username || undefined,
+          },
+        });
+      }
+    });
+
+    return Array.from(uniqueMessages.values());
+  }
+
+  async getAllPosts(): Promise<
+    Array<{ chatId: number; postId: number; userCount: number }>
+  > {
+    const { data, error } = await this.supabase
+      .from('user_lists')
+      .select('chat_id, post_id, user_id')
+      .order('chat_id', { ascending: true })
+      .order('post_id', { ascending: false });
+
+    if (error || !data) return [];
+
+    const postsMap = new Map<string, { chatId: number; postId: number; userCount: number }>();
+
+    data.forEach((row) => {
+      const key = `${row.chat_id}-${row.post_id}`;
+      if (!postsMap.has(key)) {
+        postsMap.set(key, {
+          chatId: row.chat_id,
+          postId: row.post_id,
+          userCount: 0,
+        });
+      }
+      postsMap.get(key)!.userCount++;
+    });
+
+    return Array.from(postsMap.values());
+  }
+
+  async updateUserPosition(
+    chatId: number,
+    postId: number,
+    userId: number,
+    newPosition: number
+  ): Promise<void> {
+    const { data: currentUser } = await this.supabase
+      .from('user_lists')
+      .select('position')
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!currentUser) {
+      throw new Error(
+        `User ${userId} not found in list for chat ${chatId}, post ${postId}`
+      );
+    }
+
+    const currentPosition = currentUser.position;
 
     if (currentPosition === newPosition) {
-      return; // No change needed
+      return;
     }
 
-    // Use a transaction to ensure consistency
-    this.db.run("BEGIN TRANSACTION");
+    if (newPosition < currentPosition) {
+      const { data: usersToShift } = await this.supabase
+        .from('user_lists')
+        .select('user_id, position')
+        .eq('chat_id', chatId)
+        .eq('post_id', postId)
+        .gte('position', newPosition)
+        .lt('position', currentPosition)
+        .neq('user_id', userId);
 
-    try {
-      if (newPosition < currentPosition) {
-        // Moving up: shift users down between newPosition and currentPosition
-        const shiftStmt = this.db.prepare(`
-          UPDATE user_lists 
-          SET position = position + 1 
-          WHERE chat_id = ? AND post_id = ? AND position >= ? AND position < ? AND user_id != ?
-        `);
-        shiftStmt.run(chatId, postId, newPosition, currentPosition, userId);
-      } else {
-        // Moving down: shift users up between currentPosition and newPosition
-        const shiftStmt = this.db.prepare(`
-          UPDATE user_lists 
-          SET position = position - 1 
-          WHERE chat_id = ? AND post_id = ? AND position > ? AND position <= ? AND user_id != ?
-        `);
-        shiftStmt.run(chatId, postId, currentPosition, newPosition, userId);
+      if (usersToShift) {
+        for (const user of usersToShift) {
+          await this.supabase
+            .from('user_lists')
+            .update({ position: user.position + 1 })
+            .eq('chat_id', chatId)
+            .eq('post_id', postId)
+            .eq('user_id', user.user_id);
+        }
       }
+    } else {
+      const { data: usersToShift } = await this.supabase
+        .from('user_lists')
+        .select('user_id, position')
+        .eq('chat_id', chatId)
+        .eq('post_id', postId)
+        .gt('position', currentPosition)
+        .lte('position', newPosition)
+        .neq('user_id', userId);
 
-      // Update the user's position
-      const updateStmt = this.db.prepare(`
-        UPDATE user_lists 
-        SET position = ? 
-        WHERE chat_id = ? AND post_id = ? AND user_id = ?
-      `);
-      updateStmt.run(newPosition, chatId, postId, userId);
-
-      this.db.run("COMMIT");
-    } catch (error) {
-      this.db.run("ROLLBACK");
-      throw error;
+      if (usersToShift) {
+        for (const user of usersToShift) {
+          await this.supabase
+            .from('user_lists')
+            .update({ position: user.position - 1 })
+            .eq('chat_id', chatId)
+            .eq('post_id', postId)
+            .eq('user_id', user.user_id);
+        }
+      }
     }
+
+    await this.supabase
+      .from('user_lists')
+      .update({ position: newPosition })
+      .eq('chat_id', chatId)
+      .eq('post_id', postId)
+      .eq('user_id', userId);
   }
 
-  getPostDetails(chatId: number, postId: number): { userCount: number; messageCount: number } | null {
-    const userCountStmt = this.db.prepare(`
-      SELECT COUNT(*) as count FROM user_lists WHERE chat_id = ? AND post_id = ?
-    `);
-    const userCountRow = userCountStmt.get(chatId, postId) as any;
+  async getPostDetails(
+    chatId: number,
+    postId: number
+  ): Promise<{ userCount: number; messageCount: number } | null> {
+    const { count: userCount } = await this.supabase
+      .from('user_lists')
+      .select('*', { count: 'exact', head: true })
+      .eq('chat_id', chatId)
+      .eq('post_id', postId);
 
-    const messageCountStmt = this.db.prepare(`
-      SELECT COUNT(*) as count FROM message_authors WHERE chat_id = ? AND post_id = ?
-    `);
-    const messageCountRow = messageCountStmt.get(chatId, postId) as any;
-
-    if (!userCountRow || userCountRow.count === 0) {
+    if (userCount === 0) {
       return null;
     }
 
+    const { count: messageCount } = await this.supabase
+      .from('message_authors')
+      .select('*', { count: 'exact', head: true })
+      .eq('chat_id', chatId)
+      .eq('post_id', postId);
+
     return {
-      userCount: userCountRow.count,
-      messageCount: messageCountRow.count,
+      userCount: userCount || 0,
+      messageCount: messageCount || 0,
     };
   }
 
-  close(): void {
-    this.db.close();
+  async close(): Promise<void> {
+    // Supabase client doesn't need explicit closing
   }
 }

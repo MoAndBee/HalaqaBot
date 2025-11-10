@@ -1,11 +1,12 @@
 # HalakaBot
 
-A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh/) that listens to message reactions and logs them to the console.
+A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh/) that listens to message reactions and manages user lists with Supabase.
 
 ## Prerequisites
 
 - [Bun](https://bun.sh/) installed on your system
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
+- A [Supabase](https://supabase.com) account and project
 
 ## Setup
 
@@ -20,21 +21,29 @@ A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh
    bun install
    ```
 
-3. **Get a bot token from BotFather**:
+3. **Set up Supabase**:
+   - Create a new project at [supabase.com](https://supabase.com)
+   - Go to the SQL Editor in your Supabase dashboard
+   - Copy and run the schema from `packages/db/supabase/schema.sql`
+   - Get your project URL and anon key from Settings > API
+
+4. **Get a bot token from BotFather**:
    - Open Telegram and search for [@BotFather](https://t.me/BotFather)
    - Send `/newbot` and follow the instructions
    - Copy the bot token you receive
 
-4. **Configure environment variables**:
+5. **Configure environment variables**:
    ```bash
    cp .env.example .env
    ```
-   Then edit `.env` and add your bot token:
+   Then edit `.env` and add your credentials:
    ```
    BOT_TOKEN=your_actual_bot_token_here
+   SUPABASE_URL=your_supabase_project_url
+   SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
 
-5. **Enable reactions for your bot** (Important!):
+6. **Enable reactions for your bot** (Important!):
    - Go to [@BotFather](https://t.me/BotFather)
    - Send `/mybots`
    - Select your bot

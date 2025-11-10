@@ -36,7 +36,7 @@ export function registerReactionHandler(
       const messageId = ctx.messageReaction!.message_id;
 
       // Try to find the post ID from the database
-      const postId = storage.getPostIdForMessage(chatId, messageId);
+      const postId = await storage.getPostIdForMessage(chatId, messageId);
 
       // If message not in database, ignore the reaction
       if (!postId) {

@@ -1,15 +1,36 @@
 {
-  "extends": "../../tsconfig.json",
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "eslint.config.js",
+    "prettier.config.js",
+    "vite.config.js"
+  ],
+
   "compilerOptions": {
+    "target": "ES2022",
     "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "outDir": "./dist",
-    "rootDir": ".",
-    "types": ["vite/client"]
-  },
-  "include": ["app/**/*", "*.config.ts"],
-  "exclude": ["node_modules", "dist", ".vinxi"],
-  "references": [
-    { "path": "../db" }
-  ]
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "bun"],
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true,
+
+    /* Linting */
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "~/*": ["./src/*"]
+    }
+  }
 }

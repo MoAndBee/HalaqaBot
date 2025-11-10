@@ -49,6 +49,8 @@ web_modules/
 
 # Optional npm cache directory
 .npm
+
+# Data directory (legacy SQLite files)
 data/
 
 # Optional eslint cache

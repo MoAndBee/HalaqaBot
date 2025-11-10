@@ -50,20 +50,20 @@ export function registerMessageHandler(
     const messageText = message.text || message.caption;
     const isAnonymousBot = ctx.from?.username === "GroupAnonymousBot";
     
-    if (!isAnonymousBot && ctx.from) {
+    // if (!isAnonymousBot && ctx.from) {
       messageService.storeMessageAuthor(
         ctx.chat!.id,
         postId,
         ctx.message!.message_id,
         {
-          id: ctx.from.id,
-          first_name: ctx.from.first_name,
-          username: ctx.from.username,
+          id: ctx!.from!.id,
+          first_name: ctx!.from!.first_name,
+          username: ctx!.from!.username,
         },
         messageText,
       );
-    } else {
-      console.log("⚠️  Anonymous admin post detected - will retrieve real author via forwarding when needed");
-    }
+    // } else {
+    //   console.log("⚠️  Anonymous admin post detected - will retrieve real author via forwarding when needed");
+    // }
   });
 }

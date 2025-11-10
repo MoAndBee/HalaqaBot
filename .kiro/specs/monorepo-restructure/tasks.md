@@ -59,35 +59,35 @@
     - Test auto-classify command
     - _Requirements: 3.3, 3.5_
 
-- [ ] 4. Bootstrap web package with TanStack Start
-  - [ ] 4.1 Fetch and set up TanStack Start Trellaux example
+- [x] 4. Bootstrap web package with TanStack Start
+  - [x] 4.1 Fetch and set up TanStack Start Trellaux example
     - Use gitpick to fetch TanStack Router Trellaux example
     - Extract relevant files to `packages/web/` directory
     - Create `packages/web/package.json` with TanStack Start dependencies
     - Add `@halakabot/db` as a dependency
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
   
-  - [ ] 4.2 Configure web package for the project
+  - [x] 4.2 Configure web package for the project
     - Create `packages/web/tsconfig.json` extending root config
     - Set up Tailwind CSS configuration
     - Remove Trellaux-specific code and components
     - Configure TanStack Start with proper base paths
     - _Requirements: 4.2, 4.3, 4.5_
   
-  - [ ] 4.3 Create basic app structure and routing
+  - [x] 4.3 Create basic app structure and routing
     - Create `app/routes/__root.tsx` with base layout
     - Create `app/router.tsx` for router configuration
     - Set up basic styling and theme
     - _Requirements: 4.2, 4.3_
 
-- [ ] 5. Implement posts list view
-  - [ ] 5.1 Create server function for fetching posts
+- [x] 5. Implement posts list view
+  - [x] 5.1 Create server function for fetching posts
     - Create `app/api/posts.ts` with server function using StorageService
     - Implement `getPosts()` server function calling `storage.getAllPosts()`
     - Handle errors and return properly typed data
     - _Requirements: 5.1, 5.2, 2.4_
   
-  - [ ] 5.2 Create posts list route and component
+  - [x] 5.2 Create posts list route and component
     - Create `app/routes/index.tsx` for posts list route
     - Create `app/components/PostsList.tsx` component
     - Fetch posts data using server function
@@ -95,48 +95,48 @@
     - Implement empty state when no posts exist
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
   
-  - [ ] 5.3 Style posts list with Tailwind CSS
+  - [x] 5.3 Style posts list with Tailwind CSS
     - Create responsive grid layout for post cards
     - Add hover effects and visual feedback
     - Style empty state message
     - _Requirements: 5.1, 5.3_
 
-- [ ] 6. Implement post detail view with user list
-  - [ ] 6.1 Create server functions for post details
+- [x] 6. Implement post detail view with user list
+  - [x] 6.1 Create server functions for post details
     - Create `getPostUsers()` server function in `app/api/posts.ts`
     - Implement function to fetch user list for specific post
     - Create `updateUserPosition()` server function for reordering
     - _Requirements: 6.2, 6.3, 7.4_
   
-  - [ ] 6.2 Create post detail route
+  - [x] 6.2 Create post detail route
     - Create `app/routes/posts.$postId.tsx` for post detail route
     - Fetch post users data using server function
     - Display post ID and user count in header
     - Add back button to navigate to posts list
     - _Requirements: 6.1, 6.2, 6.5_
   
-  - [ ] 6.3 Create UserList component
+  - [x] 6.3 Create UserList component
     - Create `app/components/UserList.tsx` component
     - Display ordered list of users with position numbers
     - Show user first name and username (if available)
     - Format display similar to bot's Arabic numbering style
     - _Requirements: 6.2, 6.3, 6.4_
 
-- [ ] 7. Implement drag-and-drop functionality
-  - [ ] 7.1 Install and configure dnd-kit
+- [x] 7. Implement drag-and-drop functionality
+  - [x] 7.1 Install and configure dnd-kit
     - Add `@dnd-kit/core` and `@dnd-kit/sortable` dependencies
     - Set up DndContext in UserList component
     - Configure sensors for mouse and touch interactions
     - _Requirements: 7.1, 7.2_
   
-  - [ ] 7.2 Create DraggableUser component
+  - [x] 7.2 Create DraggableUser component
     - Create `app/components/DraggableUser.tsx` component
     - Implement useSortable hook for drag-and-drop
     - Add drag handle and visual feedback during drag
     - Style dragging and drop states
     - _Requirements: 7.1, 7.2, 7.3_
   
-  - [ ] 7.3 Implement reordering logic
+  - [x] 7.3 Implement reordering logic
     - Handle onDragEnd event in UserList component
     - Calculate new position based on drop location
     - Call updateUserPosition server function with new position
