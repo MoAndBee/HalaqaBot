@@ -1,3 +1,9 @@
 // Main export file for @halakabot/db package
-export { StorageService } from './storage.service';
-export type { User, ChatStorage } from './types';
+export type { User, ChatStorage } from './types'
+
+// Re-export Convex API
+export { api } from '../convex/_generated/api'
+
+// Export utility for creating Convex client
+export { ConvexHttpClient } from 'convex/browser'
+export type { ConvexClient } from 'convex/browser'

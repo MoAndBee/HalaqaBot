@@ -1,11 +1,9 @@
 import type { Bot, Context } from "grammy";
 import type { MessageService } from "../services/message.service";
-import type { StorageService } from "@halakabot/db";
 
 export function registerMessageHandler(
   bot: Bot,
   messageService: MessageService,
-  storage: StorageService,
 ) {
   bot.on("message", async (ctx: Context) => {
     const message = ctx.message;
@@ -51,7 +49,7 @@ export function registerMessageHandler(
     const isAnonymousBot = ctx.from?.username === "GroupAnonymousBot";
     
     // if (!isAnonymousBot && ctx.from) {
-      messageService.storeMessageAuthor(
+      await messageService.storeMessageAuthor(
         ctx.chat!.id,
         postId,
         ctx.message!.message_id,

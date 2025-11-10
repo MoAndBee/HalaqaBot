@@ -1,3 +1,5 @@
 node_modules
 dist
 src/generated
+convex/_generated
+.env.local

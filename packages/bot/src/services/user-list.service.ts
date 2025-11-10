@@ -1,20 +1,28 @@
 import type { Api } from "grammy";
-import type { User, StorageService } from "@halakabot/db";
+import type { User, ConvexClient } from "@halakabot/db";
+import { api } from "@halakabot/db";
 
 export class UserListService {
-  constructor(private storage: StorageService) {}
+  constructor(private convex: ConvexClient) {}
 
   async addUserIfNew(chatId: number, postId: number, user: User): Promise<boolean> {
-    return await this.storage.addUserToList(chatId, postId, user);
+    return await this.convex.mutation(api.mutations.addUserToList, {
+      chatId,
+      postId,
+      user,
+    });
   }
 
   async getUserList(chatId: number, postId: number): Promise<User[]> {
-    return await this.storage.getUserList(chatId, postId);
+    return await this.convex.query(api.queries.getUserList, {
+      chatId,
+      postId,
+    });
   }
 
-  clearList(chatId: number, postId: number): void {
-    this.storage.clearUserList(chatId, postId);
-    this.storage.clearLastListMessage(chatId, postId);
+  async clearList(chatId: number, postId: number): Promise<void> {
+    await this.convex.mutation(api.mutations.clearUserList, { chatId, postId });
+    await this.convex.mutation(api.mutations.clearLastListMessage, { chatId, postId });
   }
 
   formatUserList(users: User[]): string {
@@ -69,7 +77,10 @@ export class UserListService {
     // Send updated list to the chat if it changed
     if (listChanged) {
       // Delete the previous list message if it exists
-      const previousMessageId = await this.storage.getLastListMessage(chatId, postId);
+      const previousMessageId = await this.convex.query(api.queries.getLastListMessage, {
+        chatId,
+        postId,
+      });
       if (previousMessageId) {
         try {
           await api.deleteMessage(chatId, previousMessageId);
@@ -90,7 +101,11 @@ export class UserListService {
       );
 
       // Store the new message ID for future deletion
-      this.storage.setLastListMessage(chatId, postId, sentMessage.message_id);
+      await this.convex.mutation(api.mutations.setLastListMessage, {
+        chatId,
+        postId,
+        messageId: sentMessage.message_id,
+      });
     }
 
     return listChanged;

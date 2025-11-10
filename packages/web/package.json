@@ -22,6 +22,7 @@
     "@tanstack/react-router-devtools": "^1.134.17",
     "@tanstack/react-router-ssr-query": "^1.134.17",
     "@tanstack/react-start": "^1.134.17",
+    "convex": "^1.29.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.5.1",

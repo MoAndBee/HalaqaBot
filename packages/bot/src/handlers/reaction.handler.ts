@@ -1,13 +1,14 @@
 import type { Bot, Context } from "grammy";
 import type { MessageService } from "../services/message.service";
 import type { UserListService } from "../services/user-list.service";
-import type { StorageService } from "@halakabot/db";
+import type { ConvexClient } from "@halakabot/db";
+import { api } from "@halakabot/db";
 
 export function registerReactionHandler(
   bot: Bot,
   messageService: MessageService,
   userListService: UserListService,
-  storage: StorageService,
+  convex: ConvexClient,
 ) {
   bot.on("message_reaction", async (ctx: Context) => {
     console.log("Reaction received:");
@@ -36,7 +37,10 @@ export function registerReactionHandler(
       const messageId = ctx.messageReaction!.message_id;
 
       // Try to find the post ID from the database
-      const postId = await storage.getPostIdForMessage(chatId, messageId);
+      const postId = await convex.query(api.queries.getPostIdForMessage, {
+        chatId,
+        messageId,
+      });
 
       // If message not in database, ignore the reaction
       if (!postId) {

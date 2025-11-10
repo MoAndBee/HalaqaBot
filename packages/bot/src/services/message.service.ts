@@ -1,20 +1,25 @@
 import type { Api } from "grammy";
-import type { User, StorageService } from "@halakabot/db";
+import type { User, ConvexClient } from "@halakabot/db";
+import { api } from "@halakabot/db";
 
 export class MessageService {
   constructor(
-    private storage: StorageService,
+    private convex: ConvexClient,
     private forwardChatId: string,
   ) {}
 
   async getMessageAuthor(
-    api: Api,
+    gmyApi: Api,
     chatId: number,
     postId: number,
     messageId: number,
   ): Promise<User | null> {
     // Try to get from storage first
-    let messageAuthor = this.storage.getMessageAuthor(chatId, postId, messageId);
+    let messageAuthor = await this.convex.query(api.queries.getMessageAuthor, {
+      chatId,
+      postId,
+      messageId,
+    });
 
     if (messageAuthor) {
       return messageAuthor;
@@ -26,7 +31,7 @@ export class MessageService {
     );
 
     try {
-      const forwardedMessage = await api.forwardMessage(
+      const forwardedMessage = await gmyApi.forwardMessage(
         this.forwardChatId,
         chatId,
         messageId,
@@ -47,7 +52,12 @@ export class MessageService {
           console.log("Found message author from forward:", messageAuthor);
 
           // Store it for future use
-          this.storage.addMessageAuthor(chatId, postId, messageId, messageAuthor);
+          await this.convex.mutation(api.mutations.addMessageAuthor, {
+            chatId,
+            postId,
+            messageId,
+            user: messageAuthor,
+          });
         } else if (origin.type === "hidden_user") {
           console.log(
             "⚠️  Message author has privacy settings enabled (hidden user)",
@@ -73,7 +83,13 @@ export class MessageService {
     return messageAuthor;
   }
 
-  storeMessageAuthor(chatId: number, postId: number, messageId: number, user: User, messageText?: string): void {
-    this.storage.addMessageAuthor(chatId, postId, messageId, user, messageText);
+  async storeMessageAuthor(chatId: number, postId: number, messageId: number, user: User, messageText?: string): Promise<void> {
+    await this.convex.mutation(api.mutations.addMessageAuthor, {
+      chatId,
+      postId,
+      messageId,
+      user,
+      messageText,
+    });
   }
 }

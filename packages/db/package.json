@@ -13,8 +13,8 @@
     "verify:tables": "bun run verify-tables.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.80.0",
     "bun": "^1.0.0",
+    "convex": "1.27.0",
     "dotenv": "^17.2.3"
   },
   "devDependencies": {

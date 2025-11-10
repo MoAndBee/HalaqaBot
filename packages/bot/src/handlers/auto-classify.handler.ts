@@ -1,16 +1,17 @@
 import type { Bot, Context } from "grammy";
 import type { ClassificationService } from "../services/classification.service";
-import type { StorageService } from "@halakabot/db";
+import type { ConvexClient } from "@halakabot/db";
 import type { MessageService } from "../services/message.service";
 import type { UserListService } from "../services/user-list.service";
 import type { Config } from "../config/environment";
+import { api } from "@halakabot/db";
 
 export function registerAutoClassifyHandler(
   bot: Bot,
   classificationService: ClassificationService,
   messageService: MessageService,
   userListService: UserListService,
-  storage: StorageService,
+  convex: ConvexClient,
   config: Config,
 ) {
   bot.command("auto", async (ctx: Context) => {
@@ -29,7 +30,10 @@ export function registerAutoClassifyHandler(
         postId = replyToMessageId;
       } else {
         // Try to find the post ID from database
-        postId = storage.getPostIdForMessage(chatId, replyToMessageId);
+        postId = await convex.query(api.queries.getPostIdForMessage, {
+          chatId,
+          messageId: replyToMessageId,
+        });
       }
     }
 
@@ -39,7 +43,10 @@ export function registerAutoClassifyHandler(
     }
 
     // Get unclassified messages for this post
-    const unclassifiedMessages = storage.getUnclassifiedMessages(chatId, postId);
+    const unclassifiedMessages = await convex.query(api.queries.getUnclassifiedMessages, {
+      chatId,
+      postId,
+    });
 
     if (unclassifiedMessages.length === 0) {
       await ctx.reply("✅ No unclassified messages found for this post");
@@ -73,13 +80,13 @@ export function registerAutoClassifyHandler(
     // Process results
     for (const [messageId, classification] of classifications) {
       // Store classification
-      storage.storeClassification(
+      await convex.mutation(api.mutations.storeClassification, {
         chatId,
         postId,
         messageId,
-        classification.containsName,
-        []
-      );
+        containsName: classification.containsName,
+        detectedNames: [],
+      });
 
       // React to messages with names
       if (classification.containsName) {

@@ -1,32 +1,45 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useParams } from '@tanstack/react-router'
+import { useQuery, useMutation } from 'convex/react'
+import { api } from '@halakabot/db'
 import { Loader } from '~/components/Loader'
 import { UserList } from '~/components/UserList'
-import { getPostUsers, updateUserPosition } from '~/api/posts'
 
 export const Route = createFileRoute('/posts/$chatId/$postId')({
   component: PostDetail,
-  pendingComponent: () => <Loader />,
-  loader: async ({ params }) => {
-    const chatId = Number(params.chatId)
-    const postId = Number(params.postId)
-    
-    const users = await getPostUsers({ data: { chatId, postId } })
-    return { chatId, postId, users }
-  },
 })
 
 function PostDetail() {
-  const { chatId, postId, users } = Route.useLoaderData()
+  const params = useParams({ from: '/posts/$chatId/$postId' })
+  const chatId = Number(params.chatId)
+  const postId = Number(params.postId)
+
+  const users = useQuery(api.queries.getUserList, { chatId, postId }) ?? []
+  const updatePosition = useMutation(api.mutations.updateUserPosition)
+  const removeUser = useMutation(api.mutations.removeUserFromList)
 
   const handleReorder = async (userId: number, newPosition: number) => {
-    await updateUserPosition({
-      data: {
-        chatId,
-        postId,
-        userId,
-        newPosition,
-      },
+    await updatePosition({
+      chatId,
+      postId,
+      userId,
+      newPosition,
     })
+  }
+
+  const handleDelete = async (userId: number) => {
+    await removeUser({
+      chatId,
+      postId,
+      userId,
+    })
+  }
+
+  if (users === undefined) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader />
+      </div>
+    )
   }
 
   return (
@@ -70,6 +83,7 @@ function PostDetail() {
           postId={postId}
           users={users}
           onReorder={handleReorder}
+          onDelete={handleDelete}
         />
       </div>
     </div>

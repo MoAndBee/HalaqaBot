@@ -18,6 +18,7 @@ import { NotFound } from '~/components/NotFound'
 import appCss from '~/styles/app.css?url'
 import { seo } from '~/utils/seo'
 import { Loader } from '~/components/Loader'
+import { ConvexClientProvider } from '~/lib/convex'
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
@@ -130,8 +131,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="grow min-h-0 h-full flex flex-col">
-            {children}
-            <Toaster />
+            <ConvexClientProvider>
+              {children}
+              <Toaster />
+            </ConvexClientProvider>
           </div>
         </div>
         <ReactQueryDevtools />

@@ -10,10 +10,11 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@halakabot/db": "workspace:*",
-    "grammy": "^1.38.3",
     "@ai-sdk/groq": "^2.0.28",
+    "@halakabot/db": "workspace:*",
     "ai": "^5.0.89",
+    "convex": "^1.29.0",
+    "grammy": "^1.38.3",
     "zod": "^4.1.12"
   },
   "devDependencies": {

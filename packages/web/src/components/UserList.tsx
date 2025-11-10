@@ -22,11 +22,13 @@ interface UserListProps {
   postId: number
   users: User[]
   onReorder: (userId: number, newPosition: number) => Promise<void>
+  onDelete: (userId: number) => Promise<void>
 }
 
-export function UserList({ chatId, postId, users, onReorder }: UserListProps) {
+export function UserList({ chatId, postId, users, onReorder, onDelete }: UserListProps) {
   const [items, setItems] = useState(users)
   const [isReordering, setIsReordering] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Update items when users prop changes
@@ -86,6 +88,30 @@ export function UserList({ chatId, postId, users, onReorder }: UserListProps) {
     }
   }
 
+  const handleDelete = async (userId: number) => {
+    // Store original items for potential rollback
+    const originalItems = [...items]
+
+    // Optimistically remove from local state
+    setItems(items.filter((user) => user.id !== userId))
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      await onDelete(userId)
+    } catch (error) {
+      console.error('Failed to delete user:', error)
+      // Revert on error
+      setItems(originalItems)
+      setError('Failed to delete user. Please try again.')
+      
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   if (items.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -115,15 +141,20 @@ export function UserList({ chatId, postId, users, onReorder }: UserListProps) {
         >
           <div className="space-y-2">
             {items.map((user, index) => (
-              <DraggableUser key={user.id} user={user} index={index} />
+              <DraggableUser 
+                key={user.id} 
+                user={user} 
+                index={index}
+                onDelete={handleDelete}
+              />
             ))}
           </div>
         </SortableContext>
       </DndContext>
       
-      {isReordering && (
+      {(isReordering || isDeleting) && (
         <div className="mt-4 text-center text-slate-400 text-sm">
-          Updating order...
+          {isReordering ? 'Updating order...' : 'Deleting user...'}
         </div>
       )}
     </div>

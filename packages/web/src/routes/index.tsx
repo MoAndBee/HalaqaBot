@@ -1,19 +1,23 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useQuery } from 'convex/react'
+import { api } from '@halakabot/db'
 import { Loader } from '~/components/Loader'
 import { PostsList } from '~/components/PostsList'
-import { getPosts } from '~/api/posts'
 
 export const Route = createFileRoute('/')({
   component: Home,
-  pendingComponent: () => <Loader />,
-  loader: async () => {
-    const posts = await getPosts({ data: undefined })
-    return { posts }
-  },
 })
 
 function Home() {
-  const { posts } = Route.useLoaderData()
+  const posts = useQuery(api.queries.getAllPosts) ?? []
+
+  if (posts === undefined) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader />
+      </div>
+    )
+  }
 
   return (
     <div className="p-8 h-full flex flex-col">
