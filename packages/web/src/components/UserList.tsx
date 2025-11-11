@@ -23,19 +23,21 @@ import type { SessionType } from './SplitButton'
 interface CompletedUser extends User {
   completedAt?: number
   sessionType?: string
+  displayName?: string
   position: number
 }
 
 interface UserListProps {
   chatId: number
   postId: number
-  activeUsers: User[]
+  activeUsers: (User & { displayName?: string })[]
   completedUsers: CompletedUser[]
   onReorder: (userId: number, newPosition: number) => Promise<void>
   onDelete: (userId: number) => Promise<void>
   onComplete: (userId: number, sessionType: SessionType) => Promise<void>
   onSkip: (userId: number) => Promise<void>
   onUpdateSessionType: (userId: number, sessionType: SessionType) => Promise<void>
+  onUpdateDisplayName: (userId: number, displayName: string) => Promise<void>
 }
 
 export function UserList({
@@ -47,7 +49,8 @@ export function UserList({
   onDelete,
   onComplete,
   onSkip,
-  onUpdateSessionType
+  onUpdateSessionType,
+  onUpdateDisplayName
 }: UserListProps) {
   const [items, setItems] = useState(activeUsers)
   const [isReordering, setIsReordering] = useState(false)
@@ -193,6 +196,23 @@ export function UserList({
     }
   }
 
+  const handleUpdateDisplayName = async (userId: number, displayName: string) => {
+    setIsProcessing(true)
+    setError(null)
+
+    try {
+      await onUpdateDisplayName(userId, displayName)
+    } catch (error) {
+      console.error('Failed to update display name:', error)
+      setError('Failed to update display name. Please try again.')
+
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const hasUsers = items.length > 0 || completedUsers.length > 0
 
   if (!hasUsers) {
@@ -229,6 +249,7 @@ export function UserList({
         <CompletedUsersSection
           users={completedUsers}
           onUpdateSessionType={handleUpdateSessionType}
+          onUpdateDisplayName={handleUpdateDisplayName}
         />
 
         {/* Active Users List */}
@@ -249,6 +270,7 @@ export function UserList({
                     user={user}
                     index={index}
                     onDelete={handleDelete}
+                    onUpdateDisplayName={handleUpdateDisplayName}
                   />
                 ))}
               </div>

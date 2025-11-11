@@ -22,6 +22,7 @@ export default defineSchema({
     userId: v.number(),
     firstName: v.string(),
     username: v.optional(v.string()),
+    displayName: v.optional(v.string()), // Detected name from message classification
     position: v.number(),
     createdAt: v.number(), // timestamp in ms
     completedAt: v.optional(v.number()), // timestamp in ms when turn was completed

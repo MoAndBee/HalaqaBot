@@ -5,11 +5,12 @@ import { api } from "@halakabot/db";
 export class UserListService {
   constructor(private convex: ConvexClient) {}
 
-  async addUserIfNew(chatId: number, postId: number, user: User): Promise<boolean> {
+  async addUserIfNew(chatId: number, postId: number, user: User, displayName?: string): Promise<boolean> {
     return await this.convex.mutation(api.mutations.addUserToList, {
       chatId,
       postId,
       user,
+      displayName,
     });
   }
 
@@ -51,7 +52,8 @@ export class UserListService {
     chatId: number,
     postId: number,
     users: User | User[],
-    api: Api
+    api: Api,
+    userIdToDisplayName?: Map<number, string>
   ): Promise<boolean> {
     // Normalize to array
     const userArray = Array.isArray(users) ? users : [users];
@@ -59,7 +61,8 @@ export class UserListService {
     // Add users and track if list changed
     let listChanged = false;
     for (const user of userArray) {
-      const changed = await this.addUserIfNew(chatId, postId, user);
+      const displayName = userIdToDisplayName?.get(user.id);
+      const changed = await this.addUserIfNew(chatId, postId, user, displayName);
       if (changed) {
         listChanged = true;
       }

@@ -59,6 +59,7 @@ export const addUserToList = mutation({
       first_name: v.string(),
       username: v.optional(v.string()),
     }),
+    displayName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Check if user already in list
@@ -116,6 +117,7 @@ export const addUserToList = mutation({
             userId: user.userId,
             firstName: user.firstName,
             username: user.username,
+            displayName: user.displayName,
             position: i + 1,
             createdAt: Date.now(),
           });
@@ -143,6 +145,7 @@ export const addUserToList = mutation({
       userId: args.user.id,
       firstName: args.user.first_name,
       username: args.user.username,
+      displayName: args.displayName,
       position: maxPosition + 1,
       createdAt: Date.now(),
     });
@@ -486,6 +489,38 @@ export const updateSessionType = mutation({
     // Update session type
     await ctx.db.patch(user._id, {
       sessionType: args.sessionType,
+    });
+  },
+});
+
+export const updateUserDisplayName = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    userId: v.number(),
+    displayName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the user
+    const user = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post_user", (q) =>
+        q
+          .eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("userId", args.userId)
+      )
+      .first();
+
+    if (!user) {
+      throw new Error(
+        `User ${args.userId} not found in list for chat ${args.chatId}, post ${args.postId}`
+      );
+    }
+
+    // Update display name
+    await ctx.db.patch(user._id, {
+      displayName: args.displayName.trim() || undefined,
     });
   },
 });

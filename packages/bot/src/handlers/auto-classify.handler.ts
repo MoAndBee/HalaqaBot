@@ -76,6 +76,7 @@ export function registerAutoClassifyHandler(
     let reactedCount = 0;
     let totalWithNames = 0;
     const messageIdsWithNames: number[] = [];
+    const messageIdToName = new Map<number, string>();
 
     // Process results
     for (const [messageId, classification] of classifications) {
@@ -85,13 +86,19 @@ export function registerAutoClassifyHandler(
         postId,
         messageId,
         containsName: classification.containsName,
-        detectedNames: [],
+        detectedNames: classification.names || [],
       });
 
       // React to messages with names
       if (classification.containsName) {
         totalWithNames++;
         messageIdsWithNames.push(messageId);
+
+        // Store first detected name for this message
+        if (classification.names && classification.names.length > 0) {
+          messageIdToName.set(messageId, classification.names[0]);
+        }
+
         try {
           await ctx.api.setMessageReaction(
             chatId,
@@ -110,6 +117,7 @@ export function registerAutoClassifyHandler(
     if (messageIdsWithNames.length > 0) {
       console.log(`\nFetching authors for ${messageIdsWithNames.length} messages with names...`);
       const authors = [];
+      const userIdToDisplayName = new Map<number, string>();
 
       for (const messageId of messageIdsWithNames) {
         const author = await messageService.getMessageAuthor(
@@ -120,6 +128,11 @@ export function registerAutoClassifyHandler(
         );
         if (author) {
           authors.push(author);
+          // Map author ID to detected name if available
+          const detectedName = messageIdToName.get(messageId);
+          if (detectedName) {
+            userIdToDisplayName.set(author.id, detectedName);
+          }
         }
       }
 
@@ -128,7 +141,8 @@ export function registerAutoClassifyHandler(
           chatId,
           postId,
           authors,
-          ctx.api
+          ctx.api,
+          userIdToDisplayName
         );
       }
     }
