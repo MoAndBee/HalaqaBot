@@ -80,6 +80,35 @@ The bot will start and log "Bot @your_bot_name is running!" when ready.
 3. Add a reaction to the message
 4. Check your console to see the logged reaction data
 
+## Deployment & CI/CD
+
+### Setting up CI/CD (Netlify, Vercel, etc.)
+
+The project uses Convex for the database, which requires deploying functions before building. The build process automatically handles this.
+
+**Required Environment Variables for CI:**
+- `CONVEX_DEPLOY_KEY` - Deploy key from your Convex dashboard
+- `CONVEX_URL` - Your Convex deployment URL
+- `BOT_TOKEN` - Your Telegram bot token
+
+**Getting your Convex Deploy Key:**
+1. Go to your Convex dashboard: https://dashboard.convex.dev
+2. Select your project
+3. Go to Settings > Deploy Keys
+4. Generate a new deploy key
+5. Add it to your CI environment variables as `CONVEX_DEPLOY_KEY`
+
+**Build Command:**
+```bash
+bun run build
+```
+
+This will:
+1. Deploy Convex functions (generates TypeScript types)
+2. Build the database package
+3. Build the bot package
+4. Build the web package
+
 ## Project Structure
 
 ```

@@ -8,7 +8,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "deploy": "bunx convex deploy"
   },
   "dependencies": {
     "bun": "^1.0.0",

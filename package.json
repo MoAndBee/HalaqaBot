@@ -12,10 +12,11 @@
     "dev:bot": "bun --filter @halakabot/bot dev",
     "dev:web": "bun --filter @halakabot/web dev",
     "dev:all": "bun --filter @halakabot/bot dev & bun --filter @halakabot/web dev",
-    "build": "bun run build:db && bun run build:bot && bun run build:web",
+    "build": "bun run deploy:convex && bun run build:db && bun run build:bot && bun run build:web",
     "build:db": "bun --filter @halakabot/db build",
     "build:bot": "bun --filter @halakabot/bot build",
-    "build:web": "bun --filter @halakabot/web build"
+    "build:web": "bun --filter @halakabot/web build",
+    "deploy:convex": "bun --filter @halakabot/db deploy"
   },
   "keywords": ["telegram", "bot", "grammy", "bun", "monorepo"],
   "author": "",
