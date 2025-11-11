@@ -20,6 +20,7 @@ function PostDetail() {
   const completeTurn = useMutation(api.mutations.completeUserTurn)
   const skipTurn = useMutation(api.mutations.skipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
+  const updateDisplayName = useMutation(api.mutations.updateUserDisplayName)
 
   const handleReorder = async (userId: number, newPosition: number) => {
     await updatePosition({
@@ -61,6 +62,15 @@ function PostDetail() {
       postId,
       userId,
       sessionType,
+    })
+  }
+
+  const handleUpdateDisplayName = async (userId: number, displayName: string) => {
+    await updateDisplayName({
+      chatId,
+      postId,
+      userId,
+      displayName,
     })
   }
 
@@ -122,6 +132,7 @@ function PostDetail() {
           onComplete={handleComplete}
           onSkip={handleSkip}
           onUpdateSessionType={handleUpdateSessionType}
+          onUpdateDisplayName={handleUpdateDisplayName}
         />
       </div>
     </div>

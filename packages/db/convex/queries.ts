@@ -71,6 +71,7 @@ export const getUserList = query({
         id: user.userId,
         first_name: user.firstName,
         username: user.username,
+        displayName: user.displayName,
         position: user.position,
       }));
 
@@ -80,6 +81,7 @@ export const getUserList = query({
         id: user.userId,
         first_name: user.firstName,
         username: user.username,
+        displayName: user.displayName,
         position: user.position,
         completedAt: user.completedAt,
         sessionType: user.sessionType,
