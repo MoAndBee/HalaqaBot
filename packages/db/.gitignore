@@ -2,4 +2,7 @@ node_modules
 dist
 src/generated
 convex/_generated
+convex/**/*.js
+convex/**/*.d.ts
+convex/**/*.d.ts.map
 .env.local
