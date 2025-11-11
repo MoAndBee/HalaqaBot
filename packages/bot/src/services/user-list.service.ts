@@ -15,10 +15,12 @@ export class UserListService {
   }
 
   async getUserList(chatId: number, postId: number): Promise<User[]> {
-    return await this.convex.query(api.queries.getUserList, {
+    const result = await this.convex.query(api.queries.getUserList, {
       chatId,
       postId,
     });
+    // Return only active users (not completed ones)
+    return result.activeUsers;
   }
 
   async clearList(chatId: number, postId: number): Promise<void> {
