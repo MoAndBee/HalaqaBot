@@ -55,7 +55,7 @@ export function EditableText({
             buttonRef.current?.focus()
           }
         }}
-        onBlur={(event) => {
+        onBlur={(_event) => {
           if (
             inputRef.current?.value !== value &&
             inputRef.current?.value.trim() !== ''

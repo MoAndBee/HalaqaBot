@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link } from 'wouter'
 import type { Post } from '~/api/posts'
 
 interface PostsListProps {
@@ -24,10 +24,9 @@ export function PostsList({ posts }: PostsListProps) {
       {posts.map((post) => (
         <Link
           key={`${post.chatId}-${post.postId}`}
-          to="/posts/$chatId/$postId"
-          params={{ chatId: String(post.chatId), postId: String(post.postId) }}
-          className="bg-slate-800 border border-slate-700 rounded-lg p-6 hover:bg-slate-750 hover:border-slate-600 transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer block"
+          href={`/posts/${post.chatId}/${post.postId}`}
         >
+          <a className="bg-slate-800 border border-slate-700 rounded-lg p-6 hover:bg-slate-750 hover:border-slate-600 transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer block">
           <div className="flex flex-col gap-2">
             <div className="text-sm text-slate-400">Post ID</div>
             <div className="text-2xl font-bold text-white">{post.postId}</div>
@@ -53,6 +52,7 @@ export function PostsList({ posts }: PostsListProps) {
               </span>
             </div>
           </div>
+          </a>
         </Link>
       ))}
     </div>

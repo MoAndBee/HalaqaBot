@@ -41,8 +41,8 @@ interface UserListProps {
 }
 
 export function UserList({
-  chatId,
-  postId,
+  chatId: _chatId,
+  postId: _postId,
   activeUsers,
   completedUsers,
   onReorder,

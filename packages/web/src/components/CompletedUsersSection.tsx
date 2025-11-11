@@ -19,7 +19,7 @@ interface CompletedUsersSectionProps {
 
 function CompletedUserCard({
   user,
-  index,
+  index: _index,
   onUpdateSessionType,
   onUpdateDisplayName,
 }: {

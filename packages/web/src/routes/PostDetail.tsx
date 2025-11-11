@@ -1,26 +1,22 @@
-import { createFileRoute, Link, useParams } from '@tanstack/react-router'
+import { Link, useParams } from 'wouter'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@halakabot/db'
 import { Loader } from '~/components/Loader'
 import { UserList } from '~/components/UserList'
 import type { SessionType } from '~/components/SplitButton'
 
-export const Route = createFileRoute('/posts/$chatId/$postId')({
-  component: PostDetail,
-})
-
-function PostDetail() {
-  const params = useParams({ from: '/posts/$chatId/$postId' })
+export default function PostDetail() {
+  const params = useParams<{ chatId: string; postId: string }>()
   const chatId = Number(params.chatId)
   const postId = Number(params.postId)
 
-  const userListData = useQuery(api.queries.getUserList, { chatId, postId })
+  const data = useQuery(api.queries.getUserList, { chatId, postId })
   const updatePosition = useMutation(api.mutations.updateUserPosition)
   const removeUser = useMutation(api.mutations.removeUserFromList)
-  const completeTurn = useMutation(api.mutations.completeUserTurn)
-  const skipTurn = useMutation(api.mutations.skipUserTurn)
+  const completeUserTurn = useMutation(api.mutations.completeUserTurn)
+  const skipUserTurn = useMutation(api.mutations.skipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
-  const updateDisplayName = useMutation(api.mutations.updateUserDisplayName)
+  const updateUserDisplayName = useMutation(api.mutations.updateUserDisplayName)
 
   const handleReorder = async (userId: number, newPosition: number) => {
     await updatePosition({
@@ -40,7 +36,7 @@ function PostDetail() {
   }
 
   const handleComplete = async (userId: number, sessionType: SessionType) => {
-    await completeTurn({
+    await completeUserTurn({
       chatId,
       postId,
       userId,
@@ -49,7 +45,7 @@ function PostDetail() {
   }
 
   const handleSkip = async (userId: number) => {
-    await skipTurn({
+    await skipUserTurn({
       chatId,
       postId,
       userId,
@@ -66,7 +62,7 @@ function PostDetail() {
   }
 
   const handleUpdateDisplayName = async (userId: number, displayName: string) => {
-    await updateDisplayName({
+    await updateUserDisplayName({
       chatId,
       postId,
       userId,
@@ -74,7 +70,7 @@ function PostDetail() {
     })
   }
 
-  if (userListData === undefined) {
+  if (!data) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />
@@ -82,31 +78,28 @@ function PostDetail() {
     )
   }
 
-  const activeUsers = userListData.activeUsers ?? []
-  const completedUsers = userListData.completedUsers ?? []
-  const totalUsers = activeUsers.length + completedUsers.length
+  const totalUsers = data.activeUsers.length + data.completedUsers.length
 
   return (
     <div className="p-8 h-full flex flex-col">
       <div className="mb-6">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            />
-          </svg>
-          Back to Posts
+        <Link href="/">
+          <a className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Back to Posts
+          </a>
         </Link>
 
         <div className="flex items-center justify-between">
@@ -125,8 +118,8 @@ function PostDetail() {
         <UserList
           chatId={chatId}
           postId={postId}
-          activeUsers={activeUsers}
-          completedUsers={completedUsers}
+          activeUsers={data.activeUsers}
+          completedUsers={data.completedUsers}
           onReorder={handleReorder}
           onDelete={handleDelete}
           onComplete={handleComplete}

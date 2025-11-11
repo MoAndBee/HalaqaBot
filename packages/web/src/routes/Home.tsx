@@ -1,14 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
 import { Loader } from '~/components/Loader'
 import { PostsList } from '~/components/PostsList'
 
-export const Route = createFileRoute('/')({
-  component: Home,
-})
-
-function Home() {
+export default function Home() {
   const posts = useQuery(api.queries.getAllPosts) ?? []
 
   if (posts === undefined) {
