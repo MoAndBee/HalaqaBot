@@ -76,7 +76,7 @@ export const addUserToList = mutation({
       return false;
     }
 
-    // Get max position
+    // Get current users in this post
     const allUsers = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post", (q) =>
@@ -84,9 +84,56 @@ export const addUserToList = mutation({
       )
       .collect();
 
+    // If this is the first user being added to the post, copy incomplete users from previous post
+    if (allUsers.length === 0) {
+      // Find previous post in same chat
+      const allPosts = await ctx.db.query("userLists").collect();
+      const postsInChat = allPosts
+        .filter((u) => u.chatId === args.chatId && u.postId < args.postId)
+        .map((u) => u.postId);
+
+      if (postsInChat.length > 0) {
+        const previousPostId = Math.max(...postsInChat);
+
+        // Get incomplete users from previous post
+        const incompleteUsers = await ctx.db
+          .query("userLists")
+          .withIndex("by_chat_post", (q) =>
+            q.eq("chatId", args.chatId).eq("postId", previousPostId)
+          )
+          .collect();
+
+        const usersToCarryOver = incompleteUsers
+          .filter((u) => !u.completedAt)
+          .sort((a, b) => a.position - b.position);
+
+        // Copy them to new post with resequenced positions
+        for (let i = 0; i < usersToCarryOver.length; i++) {
+          const user = usersToCarryOver[i];
+          await ctx.db.insert("userLists", {
+            chatId: args.chatId,
+            postId: args.postId,
+            userId: user.userId,
+            firstName: user.firstName,
+            username: user.username,
+            position: i + 1,
+            createdAt: Date.now(),
+          });
+        }
+      }
+    }
+
+    // Get updated max position after potential carry-over
+    const updatedUsers = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
     const maxPosition =
-      allUsers.length > 0
-        ? Math.max(...allUsers.map((u) => u.position))
+      updatedUsers.length > 0
+        ? Math.max(...updatedUsers.map((u) => u.position))
         : 0;
 
     // Insert new user
@@ -323,5 +370,122 @@ export const removeUserFromList = mutation({
         await ctx.db.patch(user._id, { position: user.position - 1 });
       }
     }
+  },
+});
+
+export const completeUserTurn = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    userId: v.number(),
+    sessionType: v.string(), // "تلاوة" or "تسميع"
+  },
+  handler: async (ctx, args) => {
+    // Find the user
+    const user = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post_user", (q) =>
+        q
+          .eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("userId", args.userId)
+      )
+      .first();
+
+    if (!user) {
+      throw new Error(
+        `User ${args.userId} not found in list for chat ${args.chatId}, post ${args.postId}`
+      );
+    }
+
+    // Mark as completed
+    await ctx.db.patch(user._id, {
+      completedAt: Date.now(),
+      sessionType: args.sessionType,
+    });
+  },
+});
+
+export const skipUserTurn = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Get all active (incomplete) users
+    const allUsers = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    const activeUsers = allUsers
+      .filter((u) => !u.completedAt)
+      .sort((a, b) => a.position - b.position);
+
+    if (activeUsers.length < 2) {
+      throw new Error("Cannot skip turn - not enough active users");
+    }
+
+    // Find current user (should be first in active users)
+    const currentUser = activeUsers.find((u) => u.userId === args.userId);
+    if (!currentUser) {
+      throw new Error(
+        `User ${args.userId} not found or already completed their turn`
+      );
+    }
+
+    // Find next user (second in active users)
+    const currentIndex = activeUsers.findIndex((u) => u.userId === args.userId);
+    if (currentIndex === -1 || currentIndex >= activeUsers.length - 1) {
+      throw new Error("Cannot skip - no next user available");
+    }
+
+    const nextUser = activeUsers[currentIndex + 1];
+
+    // Swap positions
+    const tempPosition = currentUser.position;
+    await ctx.db.patch(currentUser._id, { position: nextUser.position });
+    await ctx.db.patch(nextUser._id, { position: tempPosition });
+  },
+});
+
+export const updateSessionType = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    userId: v.number(),
+    sessionType: v.string(), // "تلاوة" or "تسميع"
+  },
+  handler: async (ctx, args) => {
+    // Find the user
+    const user = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post_user", (q) =>
+        q
+          .eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("userId", args.userId)
+      )
+      .first();
+
+    if (!user) {
+      throw new Error(
+        `User ${args.userId} not found in list for chat ${args.chatId}, post ${args.postId}`
+      );
+    }
+
+    if (!user.completedAt) {
+      throw new Error(
+        `Cannot update session type for user ${args.userId} - turn not completed yet`
+      );
+    }
+
+    // Update session type
+    await ctx.db.patch(user._id, {
+      sessionType: args.sessionType,
+    });
   },
 });

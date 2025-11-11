@@ -3,6 +3,7 @@ import { useQuery, useMutation } from 'convex/react'
 import { api } from '@halakabot/db'
 import { Loader } from '~/components/Loader'
 import { UserList } from '~/components/UserList'
+import type { SessionType } from '~/components/SplitButton'
 
 export const Route = createFileRoute('/posts/$chatId/$postId')({
   component: PostDetail,
@@ -13,9 +14,12 @@ function PostDetail() {
   const chatId = Number(params.chatId)
   const postId = Number(params.postId)
 
-  const users = useQuery(api.queries.getUserList, { chatId, postId }) ?? []
+  const userListData = useQuery(api.queries.getUserList, { chatId, postId })
   const updatePosition = useMutation(api.mutations.updateUserPosition)
   const removeUser = useMutation(api.mutations.removeUserFromList)
+  const completeTurn = useMutation(api.mutations.completeUserTurn)
+  const skipTurn = useMutation(api.mutations.skipUserTurn)
+  const updateSessionType = useMutation(api.mutations.updateSessionType)
 
   const handleReorder = async (userId: number, newPosition: number) => {
     await updatePosition({
@@ -34,13 +38,43 @@ function PostDetail() {
     })
   }
 
-  if (users === undefined) {
+  const handleComplete = async (userId: number, sessionType: SessionType) => {
+    await completeTurn({
+      chatId,
+      postId,
+      userId,
+      sessionType,
+    })
+  }
+
+  const handleSkip = async (userId: number) => {
+    await skipTurn({
+      chatId,
+      postId,
+      userId,
+    })
+  }
+
+  const handleUpdateSessionType = async (userId: number, sessionType: SessionType) => {
+    await updateSessionType({
+      chatId,
+      postId,
+      userId,
+      sessionType,
+    })
+  }
+
+  if (userListData === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />
       </div>
     )
   }
+
+  const activeUsers = userListData.activeUsers ?? []
+  const completedUsers = userListData.completedUsers ?? []
+  const totalUsers = activeUsers.length + completedUsers.length
 
   return (
     <div className="p-8 h-full flex flex-col">
@@ -64,7 +98,7 @@ function PostDetail() {
           </svg>
           Back to Posts
         </Link>
-        
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-black text-white">Post {postId}</h1>
@@ -72,7 +106,7 @@ function PostDetail() {
           </div>
           <div className="text-right">
             <div className="text-sm text-slate-400">Total Users</div>
-            <div className="text-2xl font-bold text-white">{users.length}</div>
+            <div className="text-2xl font-bold text-white">{totalUsers}</div>
           </div>
         </div>
       </div>
@@ -81,9 +115,13 @@ function PostDetail() {
         <UserList
           chatId={chatId}
           postId={postId}
-          users={users}
+          activeUsers={activeUsers}
+          completedUsers={completedUsers}
           onReorder={handleReorder}
           onDelete={handleDelete}
+          onComplete={handleComplete}
+          onSkip={handleSkip}
+          onUpdateSessionType={handleUpdateSessionType}
         />
       </div>
     </div>

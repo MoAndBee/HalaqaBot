@@ -24,6 +24,8 @@ export default defineSchema({
     username: v.optional(v.string()),
     position: v.number(),
     createdAt: v.number(), // timestamp in ms
+    completedAt: v.optional(v.number()), // timestamp in ms when turn was completed
+    sessionType: v.optional(v.string()), // "تلاوة" or "تسميع"
   })
     .index("by_chat_post_user", ["chatId", "postId", "userId"])
     .index("by_chat_post", ["chatId", "postId"])
