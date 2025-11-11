@@ -1,10 +1,10 @@
 import type { Api } from "grammy";
-import type { User, ConvexClient } from "@halakabot/db";
+import type { User, ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
 
 export class MessageService {
   constructor(
-    private convex: ConvexClient,
+    private convex: ConvexHttpClient,
     private forwardChatId: string,
   ) {}
 

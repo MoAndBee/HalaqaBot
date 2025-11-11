@@ -46,7 +46,6 @@ bot.start({
 // Handle graceful shutdown
 const shutdown = () => {
   console.log("\nStopping bot...");
-  convex.close();
   bot.stop();
 };
 

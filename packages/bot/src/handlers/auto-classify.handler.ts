@@ -1,6 +1,6 @@
 import type { Bot, Context } from "grammy";
 import type { ClassificationService } from "../services/classification.service";
-import type { ConvexClient } from "@halakabot/db";
+import type { ConvexHttpClient } from "@halakabot/db";
 import type { MessageService } from "../services/message.service";
 import type { UserListService } from "../services/user-list.service";
 import type { Config } from "../config/environment";
@@ -11,7 +11,7 @@ export function registerAutoClassifyHandler(
   classificationService: ClassificationService,
   messageService: MessageService,
   userListService: UserListService,
-  convex: ConvexClient,
+  convex: ConvexHttpClient,
   config: Config,
 ) {
   bot.command("auto", async (ctx: Context) => {
@@ -57,8 +57,8 @@ export function registerAutoClassifyHandler(
 
     // Prepare messages for batch classification
     const messagesToClassify = unclassifiedMessages
-      .filter((msg) => msg.text && msg.text.trim().length > 0)
-      .map((msg) => ({
+      .filter((msg: { text?: string; messageId: number }) => msg.text && msg.text.trim().length > 0)
+      .map((msg: { text: string; messageId: number }) => ({
         id: msg.messageId,
         text: msg.text,
       }));
@@ -86,7 +86,7 @@ export function registerAutoClassifyHandler(
         postId,
         messageId,
         containsName: classification.containsName,
-        detectedNames: classification.names || [],
+        detectedNames: classification.detectedNames || [],
       });
 
       // React to messages with names
@@ -95,8 +95,11 @@ export function registerAutoClassifyHandler(
         messageIdsWithNames.push(messageId);
 
         // Store first detected name for this message
-        if (classification.names && classification.names.length > 0) {
-          messageIdToName.set(messageId, classification.names[0]);
+        if (classification.detectedNames && classification.detectedNames.length > 0) {
+          const firstName = classification.detectedNames[0];
+          if (firstName) {
+            messageIdToName.set(messageId, firstName);
+          }
         }
 
         try {

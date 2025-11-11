@@ -1,14 +1,14 @@
 import type { Bot, Context } from "grammy";
 import type { MessageService } from "../services/message.service";
 import type { UserListService } from "../services/user-list.service";
-import type { ConvexClient } from "@halakabot/db";
+import type { ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
 
 export function registerReactionHandler(
   bot: Bot,
   messageService: MessageService,
   userListService: UserListService,
-  convex: ConvexClient,
+  convex: ConvexHttpClient,
 ) {
   bot.on("message_reaction", async (ctx: Context) => {
     console.log("Reaction received:");

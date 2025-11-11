@@ -4,6 +4,5 @@ export type { User, ChatStorage } from './types'
 // Re-export Convex API
 export { api } from '../convex/_generated/api'
 
-// Export utility for creating Convex client
+// Export utility for creating Convex client (for server-side use)
 export { ConvexHttpClient } from 'convex/browser'
-export type { ConvexClient } from 'convex/browser'

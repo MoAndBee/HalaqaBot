@@ -1,9 +1,9 @@
 import type { Api } from "grammy";
-import type { User, ConvexClient } from "@halakabot/db";
+import type { User, ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
 
 export class UserListService {
-  constructor(private convex: ConvexClient) {}
+  constructor(private convex: ConvexHttpClient) {}
 
   async addUserIfNew(chatId: number, postId: number, user: User, displayName?: string): Promise<boolean> {
     return await this.convex.mutation(api.mutations.addUserToList, {
@@ -54,7 +54,7 @@ export class UserListService {
     chatId: number,
     postId: number,
     users: User | User[],
-    api: Api,
+    grammyApi: Api,
     userIdToDisplayName?: Map<number, string>
   ): Promise<boolean> {
     // Normalize to array
@@ -88,7 +88,7 @@ export class UserListService {
       });
       if (previousMessageId) {
         try {
-          await api.deleteMessage(chatId, previousMessageId);
+          await grammyApi.deleteMessage(chatId, previousMessageId);
           console.log("Deleted previous list message");
         } catch (error) {
           console.log("Could not delete previous list message:", error);
@@ -99,7 +99,7 @@ export class UserListService {
       const userList = await this.getUserList(chatId, postId);
       const listMessage = this.formatUserList(userList);
 
-      const sentMessage = await api.sendMessage(
+      const sentMessage = await grammyApi.sendMessage(
         chatId,
         `📋 القائمة:\n\n${listMessage}`,
         { reply_to_message_id: postId }

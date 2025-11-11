@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export interface ClassificationResult {
   containsName: boolean;
+  detectedNames?: string[];
   rawResponse: string;
 }
 
