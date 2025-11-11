@@ -64,11 +64,31 @@ export const getUserList = query({
     // Sort by position
     users.sort((a, b) => a.position - b.position);
 
-    return users.map((user) => ({
-      id: user.userId,
-      first_name: user.firstName,
-      username: user.username,
-    }));
+    // Separate active and completed users
+    const activeUsers = users
+      .filter((user) => !user.completedAt)
+      .map((user) => ({
+        id: user.userId,
+        first_name: user.firstName,
+        username: user.username,
+        position: user.position,
+      }));
+
+    const completedUsers = users
+      .filter((user) => user.completedAt)
+      .map((user) => ({
+        id: user.userId,
+        first_name: user.firstName,
+        username: user.username,
+        position: user.position,
+        completedAt: user.completedAt,
+        sessionType: user.sessionType,
+      }));
+
+    return {
+      activeUsers,
+      completedUsers,
+    };
   },
 });
 

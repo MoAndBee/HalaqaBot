@@ -16,25 +16,49 @@ import {
 } from '@dnd-kit/sortable'
 import type { User } from '@halakabot/db'
 import { DraggableUser } from './DraggableUser'
+import { TurnControls } from './TurnControls'
+import { CompletedUsersSection } from './CompletedUsersSection'
+import type { SessionType } from './SplitButton'
+
+interface CompletedUser extends User {
+  completedAt?: number
+  sessionType?: string
+  position: number
+}
 
 interface UserListProps {
   chatId: number
   postId: number
-  users: User[]
+  activeUsers: User[]
+  completedUsers: CompletedUser[]
   onReorder: (userId: number, newPosition: number) => Promise<void>
   onDelete: (userId: number) => Promise<void>
+  onComplete: (userId: number, sessionType: SessionType) => Promise<void>
+  onSkip: (userId: number) => Promise<void>
+  onUpdateSessionType: (userId: number, sessionType: SessionType) => Promise<void>
 }
 
-export function UserList({ chatId, postId, users, onReorder, onDelete }: UserListProps) {
-  const [items, setItems] = useState(users)
+export function UserList({
+  chatId,
+  postId,
+  activeUsers,
+  completedUsers,
+  onReorder,
+  onDelete,
+  onComplete,
+  onSkip,
+  onUpdateSessionType
+}: UserListProps) {
+  const [items, setItems] = useState(activeUsers)
   const [isReordering, setIsReordering] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Update items when users prop changes
+  // Update items when activeUsers prop changes
   useEffect(() => {
-    setItems(users)
-  }, [users])
+    setItems(activeUsers)
+  }, [activeUsers])
 
   // Configure sensors for mouse and touch interactions
   const sensors = useSensors(
@@ -104,7 +128,7 @@ export function UserList({ chatId, postId, users, onReorder, onDelete }: UserLis
       // Revert on error
       setItems(originalItems)
       setError('Failed to delete user. Please try again.')
-      
+
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
@@ -112,51 +136,139 @@ export function UserList({ chatId, postId, users, onReorder, onDelete }: UserLis
     }
   }
 
-  if (items.length === 0) {
+  const handleComplete = async (sessionType: SessionType) => {
+    if (items.length === 0) return
+
+    const currentUser = items[0] // First user in active list
+    setIsProcessing(true)
+    setError(null)
+
+    try {
+      await onComplete(currentUser.id, sessionType)
+    } catch (error) {
+      console.error('Failed to complete turn:', error)
+      setError('Failed to complete turn. Please try again.')
+
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleSkip = async () => {
+    if (items.length < 2) return
+
+    const currentUser = items[0] // First user in active list
+    setIsProcessing(true)
+    setError(null)
+
+    try {
+      await onSkip(currentUser.id)
+    } catch (error) {
+      console.error('Failed to skip turn:', error)
+      setError('Failed to skip turn. Please try again.')
+
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleUpdateSessionType = async (userId: number, sessionType: SessionType) => {
+    setIsProcessing(true)
+    setError(null)
+
+    try {
+      await onUpdateSessionType(userId, sessionType)
+    } catch (error) {
+      console.error('Failed to update session type:', error)
+      setError('Failed to update session type. Please try again.')
+
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const hasUsers = items.length > 0 || completedUsers.length > 0
+
+  if (!hasUsers) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-xl text-slate-400">No users in this list</p>
+          <p className="text-xl text-slate-400">لا يوجد مستخدمون في هذه القائمة</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto" dir="rtl">
+      {/* Turn Controls - Sticky at top */}
+      {items.length > 0 && (
+        <TurnControls
+          onComplete={handleComplete}
+          onSkip={handleSkip}
+          canSkip={items.length >= 2}
+          disabled={isProcessing}
+        />
+      )}
+
+      {/* Error message */}
       {error && (
         <div className="mb-4 p-3 bg-red-900/20 border border-red-700 rounded-lg text-red-400 text-sm">
           {error}
         </div>
       )}
-      
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={items.map((user) => user.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-2">
-            {items.map((user, index) => (
-              <DraggableUser 
-                key={user.id} 
-                user={user} 
-                index={index}
-                onDelete={handleDelete}
-              />
-            ))}
+
+      {/* Completed Users Section */}
+      <div className="p-4">
+        <CompletedUsersSection
+          users={completedUsers}
+          onUpdateSessionType={handleUpdateSessionType}
+        />
+
+        {/* Active Users List */}
+        {items.length > 0 ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={items.map((user) => user.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {items.map((user, index) => (
+                  <DraggableUser
+                    key={user.id}
+                    user={user}
+                    index={index}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <div className="text-center text-slate-400 text-sm py-8">
+            جميع المستخدمين أنهوا أدوارهم
           </div>
-        </SortableContext>
-      </DndContext>
-      
-      {(isReordering || isDeleting) && (
-        <div className="mt-4 text-center text-slate-400 text-sm">
-          {isReordering ? 'Updating order...' : 'Deleting user...'}
-        </div>
-      )}
+        )}
+
+        {/* Loading states */}
+        {(isReordering || isDeleting || isProcessing) && (
+          <div className="mt-4 text-center text-slate-400 text-sm">
+            {isReordering && 'جاري تحديث الترتيب...'}
+            {isDeleting && 'جاري حذف المستخدم...'}
+            {isProcessing && !isReordering && !isDeleting && 'جاري المعالجة...'}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
