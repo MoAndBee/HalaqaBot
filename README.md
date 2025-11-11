@@ -1,12 +1,12 @@
 # HalakaBot
 
-A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh/) that listens to message reactions and manages user lists with Supabase.
+A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh/) that listens to message reactions and manages user lists with Convex.
 
 ## Prerequisites
 
 - [Bun](https://bun.sh/) installed on your system
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- A [Supabase](https://supabase.com) account and project
+- A [Convex](https://convex.dev) account and project
 
 ## Setup
 
@@ -21,11 +21,11 @@ A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh
    bun install
    ```
 
-3. **Set up Supabase**:
-   - Create a new project at [supabase.com](https://supabase.com)
-   - Go to the SQL Editor in your Supabase dashboard
-   - Copy and run the schema from `packages/db/supabase/schema.sql`
-   - Get your project URL and anon key from Settings > API
+3. **Set up Convex**:
+   - Install Convex CLI: `bun add -g convex`
+   - Initialize Convex: `cd packages/db && bunx convex dev`
+   - Follow the CLI prompts to authenticate and create a project
+   - See `packages/db/SETUP.md` for detailed instructions
 
 4. **Get a bot token from BotFather**:
    - Open Telegram and search for [@BotFather](https://t.me/BotFather)
@@ -39,8 +39,7 @@ A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh
    Then edit `.env` and add your credentials:
    ```
    BOT_TOKEN=your_actual_bot_token_here
-   SUPABASE_URL=your_supabase_project_url
-   SUPABASE_ANON_KEY=your_supabase_anon_key
+   CONVEX_URL=your_convex_deployment_url
    ```
 
 6. **Enable reactions for your bot** (Important!):

@@ -2,74 +2,74 @@
 
 ## Quick Start
 
-1. **Create Supabase Project**
-   - Go to [supabase.com](https://supabase.com)
-   - Click "New Project"
-   - Choose a name and password
-   - Wait for project to be ready
+1. **Install Convex CLI**
+   ```bash
+   bun add -g convex
+   ```
 
-2. **Run Schema Migration**
-   - Open your Supabase project dashboard
-   - Navigate to "SQL Editor" in the left sidebar
-   - Click "New Query"
-   - Copy the entire contents of `supabase/schema.sql`
-   - Paste into the SQL editor
-   - Click "Run" or press Cmd/Ctrl + Enter
+2. **Initialize Convex**
+   ```bash
+   cd packages/db
+   bunx convex dev
+   ```
+   - This will open your browser for authentication
+   - Choose to create a new project or use an existing one
+   - The CLI will automatically set up your schema
 
-3. **Get API Credentials**
-   - Go to Settings > API
-   - Copy your "Project URL" (SUPABASE_URL)
-   - Copy your "anon public" key (SUPABASE_ANON_KEY)
-   - Add these to your `.env` file
+3. **Get Deployment URL**
+   - After initialization, Convex will provide a deployment URL
+   - Copy the `CONVEX_URL` displayed in the terminal
+   - Add it to your `.env` file:
+     ```
+     CONVEX_URL=https://your-project.convex.cloud
+     ```
 
 4. **Verify Setup**
-   - Go to "Table Editor" in Supabase dashboard
-   - You should see 4 tables:
-     - `message_authors`
-     - `user_lists`
-     - `last_list_messages`
-     - `message_classifications`
+   - The Convex dev server will run and sync your schema
+   - Open the Convex dashboard at https://dashboard.convex.dev
+   - You should see your functions and data tables
 
-## Tables Overview
+## Database Schema
 
-### message_authors
+The Convex schema is defined in `convex/schema.ts` and includes:
+
+### messageAuthors
 Stores information about message authors and their messages.
-- Primary Key: (chat_id, post_id, message_id)
-- Indexes: (chat_id, post_id)
+- Indexed by: chatId, postId, messageId
 
-### user_lists
+### userLists
 Stores users who have been added to lists for specific posts.
-- Primary Key: (chat_id, post_id, user_id)
-- Indexes: (chat_id, post_id), (chat_id, post_id, position)
+- Indexed by: chatId, postId, userId
 
-### last_list_messages
+### lastListMessages
 Tracks the last list message for each post.
-- Primary Key: (chat_id, post_id)
+- Indexed by: chatId, postId
 
-### message_classifications
+### messageClassifications
 Stores AI classification results for messages.
-- Primary Key: (chat_id, post_id, message_id)
-- Indexes: (chat_id, post_id)
+- Indexed by: chatId, postId, messageId
 
-## Security Notes
+## Benefits of Convex
 
-- The `SUPABASE_ANON_KEY` is safe to use in client-side code
-- Row Level Security (RLS) is not enabled by default
-- For production, consider enabling RLS policies
-- Keep your service role key secret (not needed for this app)
+- **Real-time by default**: Automatic subscription and live updates
+- **TypeScript-first**: End-to-end type safety
+- **Serverless functions**: Built-in backend functions and mutations
+- **Automatic scaling**: No infrastructure management needed
+- **Local development**: Full local dev environment with `convex dev`
 
 ## Troubleshooting
 
-**Error: "Missing Supabase credentials"**
+**Error: "CONVEX_URL not found"**
 - Make sure `.env` file exists in project root
-- Verify `SUPABASE_URL` and `SUPABASE_ANON_KEY` are set
+- Verify `CONVEX_URL` is set
 - Check for typos in variable names
-
-**Error: "relation does not exist"**
-- Schema migration wasn't run
-- Go back to step 2 and run the schema.sql file
 
 **Connection issues**
 - Check your internet connection
-- Verify Supabase project is active (not paused)
-- Check Supabase status page for outages
+- Run `bunx convex dev` to ensure the dev server is running
+- Verify your Convex project is active in the dashboard
+
+**Schema issues**
+- Convex automatically validates and updates your schema
+- Check the terminal output from `convex dev` for any schema errors
+- Visit the dashboard to see the current schema state

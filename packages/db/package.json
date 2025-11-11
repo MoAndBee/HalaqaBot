@@ -8,9 +8,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc --build",
-    "test:connection": "bun run test-connection.ts",
-    "verify:tables": "bun run verify-tables.ts"
+    "build": "tsc --build"
   },
   "dependencies": {
     "bun": "^1.0.0",
