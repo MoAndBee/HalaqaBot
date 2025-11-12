@@ -17,23 +17,37 @@ export function registerAutoClassifyHandler(
   bot.command("auto", async (ctx: Context) => {
     console.log("Auto-classify command received");
 
+    // Delete the command message ASAP
+    try {
+      await ctx.deleteMessage();
+      console.log("Command message deleted");
+    } catch (error) {
+      console.error("Failed to delete command message:", error);
+    }
+
     // Get chat and post context from the command
     const chatId = ctx.chat!.id;
 
-    // Try to get the post ID from the replied message or from the database
+    // Try to get the post ID and channel ID from the replied message or from the database
     let postId: number | null = null;
+    let channelId: number | null = null;
 
     if (ctx.message?.reply_to_message) {
       const replyToMessageId = ctx.message.reply_to_message.message_id;
       // Check if it's an automatic forward (i.e., a post)
       if (ctx.message.reply_to_message.is_automatic_forward) {
         postId = replyToMessageId;
+        channelId = ctx.message.reply_to_message.sender_chat?.id ?? null;
       } else {
-        // Try to find the post ID from database
-        postId = await convex.query(api.queries.getPostIdForMessage, {
+        // Try to find the post ID and channel ID from database
+        const result = await convex.query(api.queries.getPostIdForMessage, {
           chatId,
           messageId: replyToMessageId,
         });
+        if (result) {
+          postId = result.postId;
+          channelId = result.channelId;
+        }
       }
     }
 
@@ -87,6 +101,7 @@ export function registerAutoClassifyHandler(
         messageId,
         containsName: classification.containsName,
         detectedNames: classification.detectedNames || [],
+        channelId: channelId ?? undefined,
       });
 
       // React to messages with names
@@ -94,11 +109,11 @@ export function registerAutoClassifyHandler(
         totalWithNames++;
         messageIdsWithNames.push(messageId);
 
-        // Store first detected name for this message
+        // Store all detected names joined together for this message
         if (classification.detectedNames && classification.detectedNames.length > 0) {
-          const firstName = classification.detectedNames[0];
-          if (firstName) {
-            messageIdToName.set(messageId, firstName);
+          const fullName = classification.detectedNames.join(' ');
+          if (fullName) {
+            messageIdToName.set(messageId, fullName);
           }
         }
 
@@ -145,7 +160,8 @@ export function registerAutoClassifyHandler(
           postId,
           authors,
           ctx.api,
-          userIdToDisplayName
+          userIdToDisplayName,
+          channelId ?? undefined
         );
       }
     }

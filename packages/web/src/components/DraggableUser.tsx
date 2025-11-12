@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { User } from '@halakabot/db'
 
 interface DraggableUserProps {
-  user: User & { displayName?: string }
+  user: User & { displayName?: string; carriedOver?: boolean }
   index: number
   onDelete: (userId: number) => void
   onUpdateDisplayName?: (userId: number, displayName: string) => void
@@ -52,9 +52,9 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
       ref={setNodeRef}
       style={style}
       className={`
-        bg-slate-800 border rounded-lg p-4
-        ${isDragging ? 'opacity-50 border-blue-500 shadow-lg z-50' : 'border-slate-700'}
-        ${!isDragging ? 'hover:border-slate-600 hover:bg-slate-750' : ''}
+        ${user.carriedOver ? 'bg-amber-950/20' : 'bg-slate-800'} border rounded-lg p-4
+        ${isDragging ? 'opacity-50 border-blue-500 shadow-lg z-50' : user.carriedOver ? 'border-amber-700/50' : 'border-slate-700'}
+        ${!isDragging ? user.carriedOver ? 'hover:border-amber-600/70 hover:bg-amber-950/30' : 'hover:border-slate-600 hover:bg-slate-750' : ''}
         transition-colors duration-200
       `}
       dir="rtl"
@@ -83,7 +83,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
         </button>
 
         {/* Position number */}
-        <div className="text-slate-400 font-mono text-sm w-8">
+        <div className={`${user.carriedOver ? 'text-amber-400' : 'text-slate-400'} font-mono text-sm w-8`}>
           {index + 1}.
         </div>
 
@@ -137,7 +137,14 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
             </div>
           ) : (
             <>
-              <div className="text-white font-medium">{primaryName}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-white font-medium">{primaryName}</div>
+                {user.carriedOver && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-900/30 text-amber-400 border border-amber-700/50">
+                    من الحلقة السابقة
+                  </span>
+                )}
+              </div>
               {secondaryText && (
                 <div className="text-slate-400 text-sm">{secondaryText}</div>
               )}

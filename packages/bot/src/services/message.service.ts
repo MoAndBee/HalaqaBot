@@ -83,13 +83,14 @@ export class MessageService {
     return messageAuthor;
   }
 
-  async storeMessageAuthor(chatId: number, postId: number, messageId: number, user: User, messageText?: string): Promise<void> {
+  async storeMessageAuthor(chatId: number, postId: number, messageId: number, user: User, messageText?: string, channelId?: number): Promise<void> {
     await this.convex.mutation(api.mutations.addMessageAuthor, {
       chatId,
       postId,
       messageId,
       user,
       messageText,
+      channelId,
     });
   }
 }

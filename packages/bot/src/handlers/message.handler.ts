@@ -18,6 +18,11 @@ export function registerMessageHandler(
     // Get the post ID (for comments: original post ID, for posts: own message ID)
     const postId = isComment ? message.reply_to_message!.message_id : message.message_id;
 
+    // Extract channel ID from sender_chat (available for automatic forwards)
+    const channelId = isComment
+      ? message.reply_to_message!.sender_chat?.id
+      : message.sender_chat?.id;
+
     // Determine message type
     let messageType = isComment?  "comment on post" :"channel post";
 
@@ -59,6 +64,7 @@ export function registerMessageHandler(
           username: ctx!.from!.username,
         },
         messageText,
+        channelId,
       );
     // } else {
     //   console.log("⚠️  Anonymous admin post detected - will retrieve real author via forwarding when needed");

@@ -44,7 +44,12 @@ export const getPostIdForMessage = query({
       )
       .first();
 
-    return message?.postId ?? null;
+    if (!message) return null;
+
+    return {
+      postId: message.postId,
+      channelId: message.channelId ?? null,
+    };
   },
 });
 
@@ -61,8 +66,14 @@ export const getUserList = query({
       )
       .collect();
 
-    // Sort by position
-    users.sort((a, b) => a.position - b.position);
+    // Sort by carriedOver first (true before false), then by position
+    users.sort((a, b) => {
+      // Carried over users come first
+      if (a.carriedOver && !b.carriedOver) return -1;
+      if (!a.carriedOver && b.carriedOver) return 1;
+      // Then sort by position
+      return a.position - b.position;
+    });
 
     // Separate active and completed users
     const activeUsers = users
@@ -73,6 +84,7 @@ export const getUserList = query({
         username: user.username,
         displayName: user.displayName,
         position: user.position,
+        carriedOver: user.carriedOver,
       }));
 
     const completedUsers = users
@@ -134,6 +146,27 @@ export const getClassification = query({
       containsName: classification.containsName,
       detectedNames: classification.detectedNames,
     };
+  },
+});
+
+export const getMessageText = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    messageId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post_message", (q) =>
+        q
+          .eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("messageId", args.messageId)
+      )
+      .first();
+
+    return message?.messageText ?? null;
   },
 });
 
@@ -254,5 +287,23 @@ export const getPostDetails = query({
       userCount: users.length,
       messageCount: messages.length,
     };
+  },
+});
+
+export const getChannelIdForPost = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Try to get channel ID from messageAuthors first
+    const message = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .first();
+
+    return message?.channelId ?? null;
   },
 });

@@ -30,7 +30,7 @@ interface CompletedUser extends User {
 interface UserListProps {
   chatId: number
   postId: number
-  activeUsers: (User & { displayName?: string })[]
+  activeUsers: (User & { displayName?: string; carriedOver?: boolean })[]
   completedUsers: CompletedUser[]
   onReorder: (userId: number, newPosition: number) => Promise<void>
   onDelete: (userId: number) => Promise<void>

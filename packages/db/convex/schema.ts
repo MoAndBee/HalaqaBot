@@ -10,11 +10,13 @@ export default defineSchema({
     firstName: v.string(),
     username: v.optional(v.string()),
     messageText: v.optional(v.string()),
+    channelId: v.optional(v.number()),
     createdAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post_message", ["chatId", "postId", "messageId"])
     .index("by_chat_post", ["chatId", "postId"])
-    .index("by_post", ["postId"]),
+    .index("by_post", ["postId"])
+    .index("by_channel_post", ["channelId", "postId"]),
 
   userLists: defineTable({
     chatId: v.number(),
@@ -24,21 +26,26 @@ export default defineSchema({
     username: v.optional(v.string()),
     displayName: v.optional(v.string()), // Detected name from message classification
     position: v.number(),
+    channelId: v.optional(v.number()),
     createdAt: v.number(), // timestamp in ms
     completedAt: v.optional(v.number()), // timestamp in ms when turn was completed
     sessionType: v.optional(v.string()), // "تلاوة" or "تسميع"
+    carriedOver: v.optional(v.boolean()), // true if user was carried over from previous post
   })
     .index("by_chat_post_user", ["chatId", "postId", "userId"])
     .index("by_chat_post", ["chatId", "postId"])
-    .index("by_chat_post_position", ["chatId", "postId", "position"]),
+    .index("by_chat_post_position", ["chatId", "postId", "position"])
+    .index("by_channel_post", ["channelId", "postId"]),
 
   lastListMessages: defineTable({
     chatId: v.number(),
     postId: v.number(),
     messageId: v.number(),
+    channelId: v.optional(v.number()),
     updatedAt: v.number(), // timestamp in ms
   })
-    .index("by_chat_post", ["chatId", "postId"]),
+    .index("by_chat_post", ["chatId", "postId"])
+    .index("by_channel_post", ["channelId", "postId"]),
 
   messageClassifications: defineTable({
     chatId: v.number(),
@@ -46,8 +53,10 @@ export default defineSchema({
     messageId: v.number(),
     containsName: v.boolean(),
     detectedNames: v.array(v.string()),
+    channelId: v.optional(v.number()),
     classifiedAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post_message", ["chatId", "postId", "messageId"])
-    .index("by_chat_post", ["chatId", "postId"]),
+    .index("by_chat_post", ["chatId", "postId"])
+    .index("by_channel_post", ["channelId", "postId"]),
 });

@@ -12,6 +12,7 @@ export const addMessageAuthor = mutation({
       username: v.optional(v.string()),
     }),
     messageText: v.optional(v.string()),
+    channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Check if message author already exists
@@ -32,6 +33,7 @@ export const addMessageAuthor = mutation({
         firstName: args.user.first_name,
         username: args.user.username,
         messageText: args.messageText,
+        channelId: args.channelId,
         createdAt: Date.now(),
       });
     } else {
@@ -44,6 +46,7 @@ export const addMessageAuthor = mutation({
         firstName: args.user.first_name,
         username: args.user.username,
         messageText: args.messageText,
+        channelId: args.channelId,
         createdAt: Date.now(),
       });
     }
@@ -60,6 +63,7 @@ export const addUserToList = mutation({
       username: v.optional(v.string()),
     }),
     displayName: v.optional(v.string()),
+    channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Check if user already in list
@@ -74,6 +78,13 @@ export const addUserToList = mutation({
       .first();
 
     if (existing) {
+      // User already in list - just update display name if provided
+      if (args.displayName && args.displayName !== existing.displayName) {
+        await ctx.db.patch(existing._id, {
+          displayName: args.displayName,
+        });
+        return true; // List changed (display name updated)
+      }
       return false;
     }
 
@@ -108,7 +119,7 @@ export const addUserToList = mutation({
           .filter((u) => !u.completedAt)
           .sort((a, b) => a.position - b.position);
 
-        // Copy them to new post with resequenced positions
+        // Copy them to new post with resequenced positions and mark as carried over
         for (let i = 0; i < usersToCarryOver.length; i++) {
           const user = usersToCarryOver[i];
           await ctx.db.insert("userLists", {
@@ -119,7 +130,9 @@ export const addUserToList = mutation({
             username: user.username,
             displayName: user.displayName,
             position: i + 1,
+            channelId: args.channelId,
             createdAt: Date.now(),
+            carriedOver: true, // Mark as carried over
           });
         }
       }
@@ -138,7 +151,7 @@ export const addUserToList = mutation({
         ? Math.max(...updatedUsers.map((u) => u.position))
         : 0;
 
-    // Insert new user
+    // Insert new user (not marked as carried over since they're actively posting)
     await ctx.db.insert("userLists", {
       chatId: args.chatId,
       postId: args.postId,
@@ -147,7 +160,9 @@ export const addUserToList = mutation({
       username: args.user.username,
       displayName: args.displayName,
       position: maxPosition + 1,
+      channelId: args.channelId,
       createdAt: Date.now(),
+      carriedOver: false, // This is a new addition, not carried over
     });
 
     return true;
@@ -178,6 +193,7 @@ export const setLastListMessage = mutation({
     chatId: v.number(),
     postId: v.number(),
     messageId: v.number(),
+    channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -190,6 +206,7 @@ export const setLastListMessage = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         messageId: args.messageId,
+        channelId: args.channelId,
         updatedAt: Date.now(),
       });
     } else {
@@ -197,6 +214,7 @@ export const setLastListMessage = mutation({
         chatId: args.chatId,
         postId: args.postId,
         messageId: args.messageId,
+        channelId: args.channelId,
         updatedAt: Date.now(),
       });
     }
@@ -229,6 +247,7 @@ export const storeClassification = mutation({
     messageId: v.number(),
     containsName: v.boolean(),
     detectedNames: v.array(v.string()),
+    channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -245,6 +264,7 @@ export const storeClassification = mutation({
       await ctx.db.patch(existing._id, {
         containsName: args.containsName,
         detectedNames: args.detectedNames,
+        channelId: args.channelId,
         classifiedAt: Date.now(),
       });
     } else {
@@ -254,6 +274,7 @@ export const storeClassification = mutation({
         messageId: args.messageId,
         containsName: args.containsName,
         detectedNames: args.detectedNames,
+        channelId: args.channelId,
         classifiedAt: Date.now(),
       });
     }

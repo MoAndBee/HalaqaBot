@@ -5,12 +5,13 @@ import { api } from "@halakabot/db";
 export class UserListService {
   constructor(private convex: ConvexHttpClient) {}
 
-  async addUserIfNew(chatId: number, postId: number, user: User, displayName?: string): Promise<boolean> {
+  async addUserIfNew(chatId: number, postId: number, user: User, displayName?: string, channelId?: number): Promise<boolean> {
     return await this.convex.mutation(api.mutations.addUserToList, {
       chatId,
       postId,
       user,
       displayName,
+      channelId,
     });
   }
 
@@ -33,7 +34,8 @@ export class UserListService {
       .map((user, index) => {
         const username = user.username ? `@${user.username}` : "";
         const arabicNumber = (index + 1).toLocaleString('ar-EG');
-        return `${arabicNumber}. ${user.first_name} ${username}`;
+        const carriedOverLabel = user.carriedOver ? " (من الحلقة السابقة)" : "";
+        return `${arabicNumber}. ${user.first_name} ${username}${carriedOverLabel}`;
       })
       .join("\n");
   }
@@ -43,8 +45,9 @@ export class UserListService {
     console.log("\n=== Current List ===");
     userList.forEach((user, index) => {
       const username = user.username ? `@${user.username}` : "";
+      const carriedOverLabel = user.carriedOver ? " [CARRIED OVER]" : "";
       console.log(
-        `${index + 1}. ${user.first_name} ${username} (ID: ${user.id})`,
+        `${index + 1}. ${user.first_name} ${username} (ID: ${user.id})${carriedOverLabel}`,
       );
     });
     console.log("====================\n");
@@ -55,7 +58,8 @@ export class UserListService {
     postId: number,
     users: User | User[],
     grammyApi: Api,
-    userIdToDisplayName?: Map<number, string>
+    userIdToDisplayName?: Map<number, string>,
+    channelId?: number
   ): Promise<boolean> {
     // Normalize to array
     const userArray = Array.isArray(users) ? users : [users];
@@ -64,7 +68,7 @@ export class UserListService {
     let listChanged = false;
     for (const user of userArray) {
       const displayName = userIdToDisplayName?.get(user.id);
-      const changed = await this.addUserIfNew(chatId, postId, user, displayName);
+      const changed = await this.addUserIfNew(chatId, postId, user, displayName, channelId);
       if (changed) {
         listChanged = true;
       }
@@ -96,21 +100,22 @@ export class UserListService {
       }
 
       // Send new list message as a comment on the post
-      const userList = await this.getUserList(chatId, postId);
-      const listMessage = this.formatUserList(userList);
+      // const userList = await this.getUserList(chatId, postId);
+      // const listMessage = this.formatUserList(userList);
 
-      const sentMessage = await grammyApi.sendMessage(
-        chatId,
-        `📋 القائمة:\n\n${listMessage}`,
-        { reply_to_message_id: postId }
-      );
+      // const sentMessage = await grammyApi.sendMessage(
+      //   chatId,
+      //   `📋 القائمة:\n\n${listMessage}`,
+      //   { reply_to_message_id: postId }
+      // );
 
-      // Store the new message ID for future deletion
-      await this.convex.mutation(api.mutations.setLastListMessage, {
-        chatId,
-        postId,
-        messageId: sentMessage.message_id,
-      });
+      // // Store the new message ID for future deletion
+      // await this.convex.mutation(api.mutations.setLastListMessage, {
+      //   chatId,
+      //   postId,
+      //   messageId: sentMessage.message_id,
+      //   channelId,
+      // });
     }
 
     return listChanged;

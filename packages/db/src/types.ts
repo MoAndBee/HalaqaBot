@@ -2,6 +2,9 @@ export interface User {
   id: number;
   first_name: string;
   username?: string;
+  displayName?: string;
+  position?: number;
+  carriedOver?: boolean;
 }
 
 export interface ChatStorage {
