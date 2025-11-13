@@ -15,17 +15,17 @@ export function TurnControls({
 }: TurnControlsProps) {
   return (
     <div
-      className="sticky top-0 z-20 bg-slate-900 border-b border-slate-700 p-4"
+      className="sticky top-0 z-20 bg-slate-900 border-b border-slate-700 p-6"
       dir="rtl"
     >
-      <div className="flex gap-3 justify-start">
+      <div className="flex gap-4 justify-start">
         <SplitButton onComplete={onComplete} disabled={disabled} />
 
         <button
           onClick={onSkip}
           disabled={disabled || !canSkip}
           className={`
-            px-6 py-2 rounded-lg font-medium text-white
+            px-8 py-3 rounded-xl font-semibold text-white text-lg
             transition-colors duration-200
             ${
               disabled || !canSkip

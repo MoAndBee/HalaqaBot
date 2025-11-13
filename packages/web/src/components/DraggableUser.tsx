@@ -52,14 +52,14 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
       ref={setNodeRef}
       style={style}
       className={`
-        bg-slate-800 border rounded-lg p-4
-        ${isDragging ? 'opacity-50 border-blue-500 shadow-lg z-50' : 'border-slate-700'}
-        ${!isDragging ? 'hover:border-slate-600 hover:bg-slate-750' : ''}
+        bg-slate-800/80 border rounded-2xl p-6
+        ${isDragging ? 'opacity-50 border-blue-500 shadow-xl z-50' : 'border-slate-700'}
+        ${!isDragging ? 'hover:border-slate-600 hover:bg-slate-800' : ''}
         transition-colors duration-200
       `}
       dir="rtl"
     >
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-6">
         {/* Drag handle */}
         <button
           {...attributes}
@@ -68,7 +68,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
           aria-label="Drag to reorder"
         >
           <svg
-            className="w-5 h-5"
+            className="w-6 h-6"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -83,18 +83,18 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
         </button>
 
         {/* Position number */}
-        <div className="text-slate-400 font-mono text-sm w-8">
+        <div className="text-slate-400 font-mono text-lg font-bold w-10">
           {index + 1}.
         </div>
 
         {/* Delete button */}
         <button
           onClick={() => onDelete(user.id)}
-          className="text-slate-400 hover:text-red-500 transition-colors p-1"
+          className="text-slate-400 hover:text-red-500 transition-colors p-1.5"
           aria-label="Delete user"
         >
           <svg
-            className="w-5 h-5"
+            className="w-6 h-6"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -109,27 +109,27 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
         </button>
 
         {/* User info */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {isEditing ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               <input
                 type="text"
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
-                className="bg-slate-700 text-white px-2 py-1 rounded border border-slate-600 text-sm"
+                className="bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 text-base"
                 placeholder="أدخل الاسم"
                 autoFocus
               />
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   onClick={handleSave}
-                  className="text-green-500 hover:text-green-400 text-xs"
+                  className="text-green-500 hover:text-green-400 text-sm font-medium"
                 >
                   حفظ
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="text-slate-400 hover:text-slate-300 text-xs"
+                  className="text-slate-400 hover:text-slate-300 text-sm font-medium"
                 >
                   إلغاء
                 </button>
@@ -137,9 +137,9 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
             </div>
           ) : (
             <>
-              <div className="text-white font-medium">{primaryName}</div>
+              <div className="text-white font-semibold text-lg truncate">{primaryName}</div>
               {secondaryText && (
-                <div className="text-slate-400 text-sm">{secondaryText}</div>
+                <div className="text-slate-400 text-base truncate">{secondaryText}</div>
               )}
             </>
           )}
@@ -149,10 +149,10 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
         {!isEditing && onUpdateDisplayName && (
           <button
             onClick={() => setIsEditing(true)}
-            className="text-slate-400 hover:text-slate-300 transition-colors"
+            className="text-slate-400 hover:text-slate-300 transition-colors p-1"
             aria-label="Edit display name"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

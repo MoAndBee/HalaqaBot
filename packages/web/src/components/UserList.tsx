@@ -219,14 +219,14 @@ export function UserList({
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-xl text-slate-400">لا يوجد مستخدمون في هذه القائمة</p>
+          <p className="text-2xl text-slate-400 font-medium">لا يوجد مستخدمون في هذه القائمة</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
+    <div className="max-w-4xl mx-auto" dir="rtl">
       {/* Turn Controls - Sticky at top */}
       {items.length > 0 && (
         <TurnControls
@@ -239,13 +239,13 @@ export function UserList({
 
       {/* Error message */}
       {error && (
-        <div className="mb-4 p-3 bg-red-900/20 border border-red-700 rounded-lg text-red-400 text-sm">
+        <div className="mb-6 p-4 bg-red-900/20 border border-red-700 rounded-xl text-red-400 text-base">
           {error}
         </div>
       )}
 
       {/* Completed Users Section */}
-      <div className="p-4">
+      <div className="p-6">
         <CompletedUsersSection
           users={completedUsers}
           onUpdateSessionType={handleUpdateSessionType}
@@ -263,7 +263,7 @@ export function UserList({
               items={items.map((user) => user.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {items.map((user, index) => (
                   <DraggableUser
                     key={user.id}
@@ -277,14 +277,14 @@ export function UserList({
             </SortableContext>
           </DndContext>
         ) : (
-          <div className="text-center text-slate-400 text-sm py-8">
+          <div className="text-center text-slate-400 text-base py-10">
             جميع المستخدمين أنهوا أدوارهم
           </div>
         )}
 
         {/* Loading states */}
         {(isReordering || isDeleting || isProcessing) && (
-          <div className="mt-4 text-center text-slate-400 text-sm">
+          <div className="mt-6 text-center text-slate-400 text-base">
             {isReordering && 'جاري تحديث الترتيب...'}
             {isDeleting && 'جاري حذف المستخدم...'}
             {isProcessing && !isReordering && !isDeleting && 'جاري المعالجة...'}

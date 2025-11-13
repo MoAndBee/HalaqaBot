@@ -15,8 +15,8 @@ export default function Home() {
   }
 
   return (
-    <div className="p-8 h-full flex flex-col">
-      <h1 className="text-3xl font-black text-white mb-6">Posts</h1>
+    <div className="p-6 sm:p-8 md:p-10 h-full flex flex-col">
+      <h1 className="text-4xl sm:text-5xl font-black text-white mb-8">Posts</h1>
       <div className="flex-1 min-h-0">
         <PostsList posts={posts} />
       </div>

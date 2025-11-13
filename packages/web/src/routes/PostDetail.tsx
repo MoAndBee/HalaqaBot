@@ -81,12 +81,12 @@ export default function PostDetail() {
   const totalUsers = data.activeUsers.length + data.completedUsers.length
 
   return (
-    <div className="p-8 h-full flex flex-col">
-      <div className="mb-6">
+    <div className="p-6 sm:p-8 md:p-10 h-full flex flex-col">
+      <div className="mb-8">
         <Link href="/">
-          <a className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4">
+          <a className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-6">
             <svg
-              className="w-5 h-5"
+              className="w-6 h-6"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -98,18 +98,18 @@ export default function PostDetail() {
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            Back to Posts
+            <span className="text-base font-medium">Back to Posts</span>
           </a>
         </Link>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-black text-white">Post {postId}</h1>
-            <p className="text-slate-400 mt-1">Chat ID: {chatId}</p>
+            <h1 className="text-4xl sm:text-5xl font-black text-white">Post {postId}</h1>
+            <p className="text-slate-400 mt-2 text-lg">Chat ID: {chatId}</p>
           </div>
           <div className="text-right">
-            <div className="text-sm text-slate-400">Total Users</div>
-            <div className="text-2xl font-bold text-white">{totalUsers}</div>
+            <div className="text-sm font-medium text-slate-400 uppercase tracking-wide">Total Users</div>
+            <div className="text-3xl font-bold text-white mt-1">{totalUsers}</div>
           </div>
         </div>
       </div>

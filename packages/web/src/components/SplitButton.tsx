@@ -49,7 +49,7 @@ export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) 
         onClick={handleComplete}
         disabled={isCompleteDisabled}
         className={`
-          px-4 py-2 rounded-r-lg font-medium text-white
+          px-6 py-3 rounded-r-xl font-semibold text-white text-lg
           transition-colors duration-200
           ${
             isCompleteDisabled
@@ -66,7 +66,7 @@ export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) 
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         disabled={disabled}
         className={`
-          px-2 border-r border-green-700 rounded-l-lg
+          px-3 border-r border-green-700 rounded-l-xl
           transition-colors duration-200
           ${
             disabled
@@ -76,7 +76,7 @@ export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) 
         `}
       >
         <svg
-          className={`w-4 h-4 text-white transition-transform duration-200 ${
+          className={`w-5 h-5 text-white transition-transform duration-200 ${
             isDropdownOpen ? 'rotate-180' : ''
           }`}
           fill="none"
@@ -94,16 +94,16 @@ export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) 
 
       {/* Dropdown menu */}
       {isDropdownOpen && (
-        <div className="absolute left-0 top-full mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
+        <div className="absolute left-0 top-full mt-2 w-full bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-10 overflow-hidden">
           <button
             onClick={() => handleSelectType('تلاوة')}
-            className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-t-lg"
+            className="w-full px-5 py-3 text-right text-white text-base hover:bg-slate-700 transition-colors"
           >
             تلاوة
           </button>
           <button
             onClick={() => handleSelectType('تسميع')}
-            className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-b-lg"
+            className="w-full px-5 py-3 text-right text-white text-base hover:bg-slate-700 transition-colors"
           >
             تسميع
           </button>
