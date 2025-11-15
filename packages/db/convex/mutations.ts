@@ -146,24 +146,31 @@ export const addUserToList = mutation({
       )
       .collect();
 
-    const maxPosition =
-      updatedUsers.length > 0
-        ? Math.max(...updatedUsers.map((u) => u.position))
-        : 0;
+    // Check if this user was already carried over
+    const existingUser = updatedUsers.find((u) => u.userId === args.user.id);
 
-    // Insert new user (not marked as carried over since they're actively posting)
-    await ctx.db.insert("userLists", {
-      chatId: args.chatId,
-      postId: args.postId,
-      userId: args.user.id,
-      firstName: args.user.first_name,
-      username: args.user.username,
-      displayName: args.displayName,
-      position: maxPosition + 1,
-      channelId: args.channelId,
-      createdAt: Date.now(),
-      carriedOver: false, // This is a new addition, not carried over
-    });
+    if (existingUser) {
+      return true
+    } else {
+      // New user, insert them
+      const maxPosition =
+        updatedUsers.length > 0
+          ? Math.max(...updatedUsers.map((u) => u.position))
+          : 0;
+
+      await ctx.db.insert("userLists", {
+        chatId: args.chatId,
+        postId: args.postId,
+        userId: args.user.id,
+        firstName: args.user.first_name,
+        username: args.user.username,
+        displayName: args.displayName,
+        position: maxPosition + 1,
+        channelId: args.channelId,
+        createdAt: Date.now(),
+        carriedOver: false, // This is a new addition, not carried over
+      });
+    }
 
     return true;
   },
