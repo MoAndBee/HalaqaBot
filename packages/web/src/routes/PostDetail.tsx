@@ -14,7 +14,8 @@ function formatUserList(users: User[]): string {
       const username = user.username ? `@${user.username}` : ''
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
       const carriedOverLabel = user.carriedOver ? ' (من الحلقة السابقة)' : ''
-      return `ـ ${arabicNumber}. ${displayName} ${username}${carriedOverLabel} ـ`
+      const sessionTypeLabel = user.sessionType ? ` - ${user.sessionType}` : ''
+      return `ـ ${arabicNumber}. ${displayName} ${username}${carriedOverLabel}${sessionTypeLabel} ـ`
     })
     .join('\n')
 }
@@ -87,14 +88,22 @@ export default function PostDetail() {
   const handleCopyList = async () => {
     if (!data) return
 
-    const formattedList = formatUserList(data.activeUsers)
-    const fullMessage = `📋 القائمة:\n\n${formattedList}`
+    const activeList = formatUserList(data.activeUsers)
+    const completedList = formatUserList(data.completedUsers)
+
+    let fullMessage = ''
+    if (activeList) {
+      fullMessage += `📋 القائمة:\n\n${activeList}`
+    }
+    if (completedList) {
+      fullMessage += `\n\n✅ المنتهون:\n\n${completedList}`
+    }
 
     try {
       await navigator.clipboard.writeText(fullMessage)
-      toast.success('Copied to clipboard!')
+      toast.success('تم النسخ إلى الحافظة!')
     } catch (error) {
-      toast.error('Failed to copy')
+      toast.error('فشل النسخ')
       console.error('Copy failed:', error)
     }
   }
@@ -127,20 +136,20 @@ export default function PostDetail() {
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            Back to Posts
+            العودة للمنشورات
           </a>
         </Link>
 
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black text-white">Post {postId}</h1>
-            <p className="text-slate-400 mt-1">Chat ID: {chatId}</p>
+            <h1 className="text-3xl font-black text-white">المنشور {postId}</h1>
+            <p className="text-slate-400 mt-1">معرف المحادثة: {chatId}</p>
           </div>
           <div className="flex items-center gap-4">
             <button
               onClick={handleCopyList}
               className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg transition-colors flex items-center gap-2"
-              title="Copy list to clipboard"
+              title="نسخ القائمة إلى الحافظة"
             >
               <svg
                 className="w-5 h-5"
@@ -157,7 +166,7 @@ export default function PostDetail() {
               </svg>
             </button>
             <div className="text-right">
-              <div className="text-sm text-slate-400">Total Users</div>
+              <div className="text-sm text-slate-400">إجمالي المستخدمين</div>
               <div className="text-2xl font-bold text-white">{totalUsers}</div>
             </div>
             

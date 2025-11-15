@@ -14,7 +14,7 @@ export default function App() {
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <h1 className="text-4xl font-black text-white mb-2">404</h1>
-              <p className="text-slate-400">Page not found</p>
+              <p className="text-slate-400">الصفحة غير موجودة</p>
             </div>
           </div>
         </Route>

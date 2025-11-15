@@ -4,14 +4,14 @@ import toast from 'react-hot-toast'
 export function useOfflineIndicator() {
   useEffect(() => {
     const handleOnline = () => {
-      toast.success('online', {
+      toast.success('متصل', {
         id: 'network-status',
         duration: 2000,
       })
     }
 
     const handleOffline = () => {
-      toast.error('offline', {
+      toast.error('غير متصل', {
         id: 'network-status',
         duration: Infinity,
       })

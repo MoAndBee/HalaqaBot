@@ -85,6 +85,7 @@ export const getUserList = query({
         displayName: user.displayName,
         position: user.position,
         carriedOver: user.carriedOver,
+        sessionType: user.sessionType,
       }));
 
     const completedUsers = users

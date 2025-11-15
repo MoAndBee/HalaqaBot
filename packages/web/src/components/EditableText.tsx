@@ -79,7 +79,7 @@ export function EditableText({
       }}
       className={buttonClassName}
     >
-      {value || <span className="text-slate-400 italic">Edit</span>}
+      {value || <span className="text-slate-400 italic">تعديل</span>}
     </button>
   )
 }

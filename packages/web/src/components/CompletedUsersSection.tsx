@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { SessionType } from './SplitButton'
 
 interface CompletedUser {
@@ -32,10 +32,25 @@ function CompletedUserCard({
   const [isEditingName, setIsEditingName] = useState(false)
   const [selectedType, setSelectedType] = useState<SessionType | null>(null)
   const [editedName, setEditedName] = useState(user.displayName || '')
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const handleEditTypeClick = () => {
     setSelectedType((user.sessionType as SessionType) || null)
     setIsEditingType(true)
+    setIsDropdownOpen(false)
   }
 
   const handleConfirmType = () => {
@@ -53,6 +68,7 @@ function CompletedUserCard({
   const handleEditNameClick = () => {
     setEditedName(user.displayName || '')
     setIsEditingName(true)
+    setIsDropdownOpen(false)
   }
 
   const handleSaveName = () => {
@@ -105,6 +121,57 @@ function CompletedUserCard({
       dir="rtl"
     >
       <div className="flex items-center gap-3">
+        {/* Actions dropdown - positioned on the left in RTL */}
+        {!isEditingName && !isEditingType && (
+          <div className="relative order-first" ref={dropdownRef}>
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="text-slate-400 hover:text-slate-300 transition-colors p-1"
+              aria-label="خيارات"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+              </svg>
+            </button>
+
+            {/* Dropdown menu */}
+            {isDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
+                {onUpdateDisplayName && (
+                  <button
+                    onClick={handleEditNameClick}
+                    className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
+                  >
+                    <span>تعديل الاسم</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  onClick={handleEditTypeClick}
+                  className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-b-lg flex items-center gap-2 justify-end"
+                >
+                  <span>تعديل النوع</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Done icon */}
         <div className="text-green-500">
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -156,25 +223,7 @@ function CompletedUserCard({
           )}
         </div>
 
-        {/* Edit name button */}
-        {!isEditingName && onUpdateDisplayName && (
-          <button
-            onClick={handleEditNameClick}
-            className="text-slate-400 hover:text-slate-300 transition-colors"
-            aria-label="Edit display name"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
-          </button>
-        )}
-
-        {/* Session type badge and edit */}
+        {/* Session type badge */}
         <div className="flex items-center gap-2">
           {isEditingType ? (
             <div className="flex items-center gap-2">
@@ -201,25 +250,9 @@ function CompletedUserCard({
               </button>
             </div>
           ) : (
-            <>
-              <span className="bg-slate-700 text-slate-300 text-xs px-2 py-1 rounded">
-                {user.sessionType || 'غير محدد'}
-              </span>
-              <button
-                onClick={handleEditTypeClick}
-                className="text-slate-400 hover:text-slate-300 transition-colors"
-                aria-label="Edit session type"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
-                </svg>
-              </button>
-            </>
+            <span className="bg-slate-700 text-slate-300 text-xs px-2 py-1 rounded">
+              {user.sessionType || 'غير محدد'}
+            </span>
           )}
         </div>
 

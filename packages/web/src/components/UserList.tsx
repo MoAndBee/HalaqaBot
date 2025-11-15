@@ -106,7 +106,7 @@ export function UserList({
       console.error('Failed to reorder user:', error)
       // Revert to original order on error
       setItems(originalItems)
-      setError('Failed to update order. Please try again.')
+      setError('فشل تحديث الترتيب. الرجاء المحاولة مرة أخرى.')
       
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
@@ -130,7 +130,7 @@ export function UserList({
       console.error('Failed to delete user:', error)
       // Revert on error
       setItems(originalItems)
-      setError('Failed to delete user. Please try again.')
+      setError('فشل حذف المستخدم. الرجاء المحاولة مرة أخرى.')
 
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
@@ -150,7 +150,7 @@ export function UserList({
       await onComplete(currentUser.id, sessionType)
     } catch (error) {
       console.error('Failed to complete turn:', error)
-      setError('Failed to complete turn. Please try again.')
+      setError('فشل إتمام الدور. الرجاء المحاولة مرة أخرى.')
 
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
@@ -170,7 +170,7 @@ export function UserList({
       await onSkip(currentUser.id)
     } catch (error) {
       console.error('Failed to skip turn:', error)
-      setError('Failed to skip turn. Please try again.')
+      setError('فشل تخطي الدور. الرجاء المحاولة مرة أخرى.')
 
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
@@ -187,7 +187,7 @@ export function UserList({
       await onUpdateSessionType(userId, sessionType)
     } catch (error) {
       console.error('Failed to update session type:', error)
-      setError('Failed to update session type. Please try again.')
+      setError('فشل تحديث نوع الجلسة. الرجاء المحاولة مرة أخرى.')
 
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
@@ -204,7 +204,7 @@ export function UserList({
       await onUpdateDisplayName(userId, displayName)
     } catch (error) {
       console.error('Failed to update display name:', error)
-      setError('Failed to update display name. Please try again.')
+      setError('فشل تحديث اسم العرض. الرجاء المحاولة مرة أخرى.')
 
       // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)

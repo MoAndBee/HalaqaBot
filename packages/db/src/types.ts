@@ -5,6 +5,7 @@ export interface User {
   displayName?: string;
   position?: number;
   carriedOver?: boolean;
+  sessionType?: string;
 }
 
 export interface ChatStorage {
