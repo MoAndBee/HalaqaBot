@@ -9,6 +9,7 @@ export const addMessageAuthor = mutation({
     user: v.object({
       id: v.number(),
       first_name: v.string(),
+      last_name: v.optional(v.string()),
       username: v.optional(v.string()),
     }),
     messageText: v.optional(v.string()),
@@ -31,6 +32,7 @@ export const addMessageAuthor = mutation({
       await ctx.db.patch(existing._id, {
         userId: args.user.id,
         firstName: args.user.first_name,
+        lastName: args.user.last_name,
         username: args.user.username,
         messageText: args.messageText,
         channelId: args.channelId,
@@ -44,11 +46,43 @@ export const addMessageAuthor = mutation({
         messageId: args.messageId,
         userId: args.user.id,
         firstName: args.user.first_name,
+        lastName: args.user.last_name,
         username: args.user.username,
         messageText: args.messageText,
         channelId: args.channelId,
         createdAt: Date.now(),
       });
+    }
+
+    // Also upsert to users table (only if user ID is valid)
+    if (args.user.id !== 0) {
+      // Construct telegramName
+      const telegramName = args.user.last_name
+        ? `${args.user.first_name} ${args.user.last_name}`
+        : args.user.first_name;
+
+      // Check if user already exists in users table
+      const existingUser = await ctx.db
+        .query("users")
+        .withIndex("by_user_id", (q) => q.eq("userId", args.user.id))
+        .first();
+
+      if (existingUser) {
+        // Update existing user (only update Telegram info, don't overwrite realName)
+        await ctx.db.patch(existingUser._id, {
+          username: args.user.username,
+          telegramName: telegramName,
+          updatedAt: Date.now(),
+        });
+      } else {
+        // Insert new user (without realName for now, it will be populated later)
+        await ctx.db.insert("users", {
+          userId: args.user.id,
+          username: args.user.username,
+          telegramName: telegramName,
+          updatedAt: Date.now(),
+        });
+      }
     }
   },
 });
@@ -57,12 +91,7 @@ export const addUserToList = mutation({
   args: {
     chatId: v.number(),
     postId: v.number(),
-    user: v.object({
-      id: v.number(),
-      first_name: v.string(),
-      username: v.optional(v.string()),
-    }),
-    displayName: v.optional(v.string()),
+    userId: v.number(),
     channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -73,18 +102,12 @@ export const addUserToList = mutation({
         q
           .eq("chatId", args.chatId)
           .eq("postId", args.postId)
-          .eq("userId", args.user.id)
+          .eq("userId", args.userId)
       )
       .first();
 
     if (existing) {
-      // User already in list - just update display name if provided
-      if (args.displayName && args.displayName !== existing.displayName) {
-        await ctx.db.patch(existing._id, {
-          displayName: args.displayName,
-        });
-        return true; // List changed (display name updated)
-      }
+      // User already in list - no need to do anything
       return false;
     }
 
@@ -126,9 +149,6 @@ export const addUserToList = mutation({
             chatId: args.chatId,
             postId: args.postId,
             userId: user.userId,
-            firstName: user.firstName,
-            username: user.username,
-            displayName: user.displayName,
             position: i + 1,
             channelId: args.channelId,
             createdAt: Date.now(),
@@ -147,7 +167,7 @@ export const addUserToList = mutation({
       .collect();
 
     // Check if this user was already carried over
-    const existingUser = updatedUsers.find((u) => u.userId === args.user.id);
+    const existingUser = updatedUsers.find((u) => u.userId === args.userId);
 
     if (existingUser) {
       return true
@@ -161,10 +181,7 @@ export const addUserToList = mutation({
       await ctx.db.insert("userLists", {
         chatId: args.chatId,
         postId: args.postId,
-        userId: args.user.id,
-        firstName: args.user.first_name,
-        username: args.user.username,
-        displayName: args.displayName,
+        userId: args.userId,
         position: maxPosition + 1,
         channelId: args.channelId,
         createdAt: Date.now(),
@@ -252,6 +269,7 @@ export const storeClassification = mutation({
     chatId: v.number(),
     postId: v.number(),
     messageId: v.number(),
+    messageText: v.optional(v.string()),
     containsName: v.boolean(),
     detectedNames: v.array(v.string()),
     channelId: v.optional(v.number()),
@@ -269,6 +287,7 @@ export const storeClassification = mutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
+        messageText: args.messageText,
         containsName: args.containsName,
         detectedNames: args.detectedNames,
         channelId: args.channelId,
@@ -279,11 +298,71 @@ export const storeClassification = mutation({
         chatId: args.chatId,
         postId: args.postId,
         messageId: args.messageId,
+        messageText: args.messageText,
         containsName: args.containsName,
         detectedNames: args.detectedNames,
         channelId: args.channelId,
         classifiedAt: Date.now(),
       });
+    }
+
+    // If names were detected, update the user's realName in users table
+    // BUT only if the user doesn't already have a realName
+    if (args.containsName && args.detectedNames.length > 0) {
+      console.log(`[storeClassification] Names detected, attempting to update user realName...`);
+      console.log(`   detectedNames:`, args.detectedNames);
+
+      // Get the message author to find the userId
+      const messageAuthor = await ctx.db
+        .query("messageAuthors")
+        .withIndex("by_chat_post_message", (q) =>
+          q
+            .eq("chatId", args.chatId)
+            .eq("postId", args.postId)
+            .eq("messageId", args.messageId)
+        )
+        .first();
+
+      console.log(`   messageAuthor found: ${!!messageAuthor}, userId: ${messageAuthor?.userId}`);
+
+      if (messageAuthor && messageAuthor.userId !== 0) {
+        // Get existing user
+        const existingUser = await ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", messageAuthor.userId))
+          .first();
+
+        console.log(`   existingUser found: ${!!existingUser}, has realName: ${!!existingUser?.realName}`);
+
+        // Only set realName if user exists AND doesn't have a realName yet
+        if (existingUser && !existingUser.realName) {
+          // Join all detected names to form full name, cleaning up commas
+          const fullName = args.detectedNames
+            .join(' ')
+            .replace(/،/g, ' ') // Replace Arabic comma with space
+            .replace(/,/g, ' ') // Replace English comma with space
+            .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+            .trim();
+
+          console.log(`   ✅ Updating user ${messageAuthor.userId} with realName: "${fullName}"`);
+
+          await ctx.db.patch(existingUser._id, {
+            realName: fullName,
+            sourceMessageText: messageAuthor.messageText,
+            updatedAt: Date.now(),
+          });
+
+          console.log(`   ✅ realName updated successfully`);
+        } else if (existingUser && existingUser.realName) {
+          console.log(`   ⏭️ User already has realName: ${existingUser.realName}, skipping update`);
+        } else {
+          console.log(`   ⚠️ User not found in users table`);
+        }
+      } else if (!messageAuthor) {
+        console.log(`   ⚠️ messageAuthor not found in database`);
+      } else if (messageAuthor.userId === 0) {
+        console.log(`   ⏭️ Skipping userId 0 (anonymous user)`);
+      }
     }
   },
 });
@@ -521,34 +600,95 @@ export const updateSessionType = mutation({
   },
 });
 
-export const updateUserDisplayName = mutation({
+export const updateUserRealName = mutation({
   args: {
-    chatId: v.number(),
-    postId: v.number(),
     userId: v.number(),
-    displayName: v.string(),
+    realName: v.string(),
   },
   handler: async (ctx, args) => {
-    // Find the user
+    // Find the user in the users table
     const user = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post_user", (q) =>
-        q
-          .eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("userId", args.userId)
-      )
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
       .first();
 
     if (!user) {
       throw new Error(
-        `User ${args.userId} not found in list for chat ${args.chatId}, post ${args.postId}`
+        `User ${args.userId} not found in users table`
       );
     }
 
-    // Update display name
+    // Update real name and mark as verified
     await ctx.db.patch(user._id, {
-      displayName: args.displayName.trim() || undefined,
+      realName: args.realName.trim() || undefined,
+      realNameVerified: true,
+      updatedAt: Date.now(),
     });
+  },
+});
+
+export const updateUserTelegramName = mutation({
+  args: {
+    userId: v.number(),
+    telegramName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the user in the users table
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!user) {
+      throw new Error(
+        `User ${args.userId} not found in users table`
+      );
+    }
+
+    // Update telegram name in users table
+    await ctx.db.patch(user._id, {
+      telegramName: args.telegramName.trim(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const upsertUser = mutation({
+  args: {
+    userId: v.number(),
+    username: v.optional(v.string()),
+    telegramName: v.string(),
+    realName: v.optional(v.string()),
+    sourceMessageText: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if user already exists
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (existing) {
+      // Update existing user
+      await ctx.db.patch(existing._id, {
+        username: args.username,
+        telegramName: args.telegramName,
+        realName: args.realName,
+        sourceMessageText: args.sourceMessageText,
+        updatedAt: Date.now(),
+      });
+      return { created: false, userId: args.userId };
+    } else {
+      // Insert new user
+      await ctx.db.insert("users", {
+        userId: args.userId,
+        username: args.username,
+        telegramName: args.telegramName,
+        realName: args.realName,
+        sourceMessageText: args.sourceMessageText,
+        updatedAt: Date.now(),
+      });
+      return { created: true, userId: args.userId };
+    }
   },
 });

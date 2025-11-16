@@ -1,6 +1,14 @@
 import type { Api } from "grammy";
-import type { User, ConvexHttpClient } from "@halakabot/db";
+import type { ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
+
+// Message author type from Telegram (different from User type in types.ts)
+export interface MessageAuthor {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+}
 
 export class MessageService {
   constructor(
@@ -13,7 +21,7 @@ export class MessageService {
     chatId: number,
     postId: number,
     messageId: number,
-  ): Promise<User | null> {
+  ): Promise<MessageAuthor | null> {
     // Try to get from storage first
     let messageAuthor = await this.convex.query(api.queries.getMessageAuthor, {
       chatId,
@@ -47,6 +55,7 @@ export class MessageService {
           messageAuthor = {
             id: origin.sender_user.id,
             first_name: origin.sender_user.first_name,
+            last_name: origin.sender_user.last_name,
             username: origin.sender_user.username,
           };
           console.log("Found message author from forward:", messageAuthor);
@@ -65,6 +74,7 @@ export class MessageService {
           messageAuthor = {
             id: 0,
             first_name: origin.sender_user_name,
+            last_name: undefined,
             username: undefined,
           };
         } else {
@@ -83,7 +93,7 @@ export class MessageService {
     return messageAuthor;
   }
 
-  async storeMessageAuthor(chatId: number, postId: number, messageId: number, user: User, messageText?: string, channelId?: number): Promise<void> {
+  async storeMessageAuthor(chatId: number, postId: number, messageId: number, user: MessageAuthor, messageText?: string, channelId?: number): Promise<void> {
     await this.convex.mutation(api.mutations.addMessageAuthor, {
       chatId,
       postId,

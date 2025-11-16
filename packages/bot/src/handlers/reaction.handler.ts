@@ -120,6 +120,7 @@ export function registerReactionHandler(
                 chatId,
                 postId,
                 messageId,
+                messageText: messageText,
                 containsName: result.containsName,
                 detectedNames: result.detectedNames || [],
                 channelId,
@@ -133,24 +134,24 @@ export function registerReactionHandler(
           }
         }
 
-        // Extract display name if available (join all detected names)
-        let displayName: string | undefined;
+        // Extract real name if available (join all detected names)
+        let realName: string | undefined;
         if (classification?.detectedNames && classification.detectedNames.length > 0) {
-          displayName = classification.detectedNames.join(' ');
+          realName = classification.detectedNames.join(' ');
         }
 
-        // Create userIdToDisplayName map if we have a display name
-        const userIdToDisplayName = displayName
-          ? new Map([[messageAuthor.id, displayName]])
+        // Create userIdToRealName map if we have a real name
+        const userIdToRealName = realName
+          ? new Map([[messageAuthor.id, realName]])
           : undefined;
 
         // Update the user list in chat
         await userListService.updateUserListInChat(
           chatId,
           postId,
-          messageAuthor,
+          [messageAuthor],
           ctx.api,
-          userIdToDisplayName,
+          userIdToRealName,
           channelId
         );
       }

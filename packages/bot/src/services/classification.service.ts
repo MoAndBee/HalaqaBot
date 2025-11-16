@@ -20,6 +20,7 @@ const batchClassificationSchema = z.object({
     z.object({
       message_id: z.number(),
       contains_name: z.boolean(),
+      names: z.array(z.string()),
     })
   ),
 });
@@ -48,7 +49,13 @@ export class ClassificationService {
       const { object } = await generateObject({
         model: groq("openai/gpt-oss-20b"),
         schema: batchClassificationSchema,
-        prompt: `Analyze the following messages and determine which ones contain a person's name. Messages: ${messagesList}`
+        prompt: `Analyze the following Arabic messages and for each message:
+1. Determine if it contains a person's name
+2. Extract all person names found (first, middle, last names)
+3. Do NOT include words like "تلاوة", "تسميع", "تصحيح" as names
+4. Return the message_id, contains_name (true/false), and names array
+
+Messages: ${messagesList}`
       });
 
       const results = new Map<number, ClassificationResult>();
@@ -57,6 +64,7 @@ export class ClassificationService {
       for (const result of object.results) {
         results.set(result.message_id, {
           containsName: result.contains_name,
+          detectedNames: result.names || [],
           rawResponse: JSON.stringify(object),
         });
       }
@@ -66,6 +74,7 @@ export class ClassificationService {
         if (!results.has(msg.id)) {
           results.set(msg.id, {
             containsName: false,
+            detectedNames: [],
             rawResponse: JSON.stringify(object),
           });
         }
@@ -79,6 +88,7 @@ export class ClassificationService {
       for (const msg of messages) {
         results.set(msg.id, {
           containsName: false,
+          detectedNames: [],
           rawResponse: `Error: ${error}`,
         });
       }

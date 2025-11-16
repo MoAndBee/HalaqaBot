@@ -1,15 +1,20 @@
 import type { Bot, Context } from "grammy";
 import type { MessageService } from "../services/message.service";
+import type { ClassificationService } from "../services/classification.service";
+import type { ConvexHttpClient } from "@halakabot/db";
+import { api } from "@halakabot/db";
 
 export function registerMessageHandler(
   bot: Bot,
   messageService: MessageService,
+  classificationService: ClassificationService,
+  convex: ConvexHttpClient,
 ) {
   bot.on("message", async (ctx: Context) => {
     const message = ctx.message;
-    if(!message) return 
+    if(!message) return
 
-    const isAutomaticForward = message.is_automatic_forward || message.reply_to_message?.is_automatic_forward 
+    const isAutomaticForward = message.is_automatic_forward || message.reply_to_message?.is_automatic_forward
     console.log({isAutomaticForward})
     if(!isAutomaticForward) return "It is nor a post or comment on a post"
 
@@ -41,6 +46,7 @@ export function registerMessageHandler(
       from: ctx.from ? {
         id: ctx.from.id,
         first_name: ctx.from.first_name,
+        last_name: ctx.from.last_name,
         username: ctx.from.username,
       } : undefined,
       date: new Date(ctx.message!.date * 1000).toISOString(),
@@ -52,7 +58,7 @@ export function registerMessageHandler(
     // Skip storing if it's GroupAnonymousBot - we'll get the real author via forwarding later
     const messageText = message.text || message.caption;
     const isAnonymousBot = ctx.from?.username === "GroupAnonymousBot";
-    
+
     // if (!isAnonymousBot && ctx.from) {
       await messageService.storeMessageAuthor(
         ctx.chat!.id,
@@ -61,6 +67,7 @@ export function registerMessageHandler(
         {
           id: ctx!.from!.id,
           first_name: ctx!.from!.first_name,
+          last_name: ctx!.from!.last_name,
           username: ctx!.from!.username,
         },
         messageText,
@@ -69,5 +76,67 @@ export function registerMessageHandler(
     // } else {
     //   console.log("⚠️  Anonymous admin post detected - will retrieve real author via forwarding when needed");
     // }
+
+    // Automatically classify message to detect names
+    // Only classify if message has text and user is not already in users table with a realName
+    if (messageText && messageText.trim().length > 0 && ctx.from) {
+      console.log(`\n🔍 Checking if auto-classification needed for user ${ctx.from.id}...`);
+
+      // Check if user already has a realName
+      const existingUser = await convex.query(api.queries.getUser, {
+        userId: ctx.from.id,
+      });
+
+      console.log(`   User exists: ${!!existingUser}, Has realName: ${!!existingUser?.realName}`);
+
+      // Only classify if user doesn't have a realName yet
+      if (!existingUser?.realName) {
+        console.log(`🤖 Auto-classifying message ${ctx.message!.message_id} for user ${ctx.from.id}...`);
+        console.log(`   Message text: "${messageText}"`);
+
+        try {
+          // Classify the single message
+          const classifications = await classificationService.classifyBatch([{
+            id: ctx.message!.message_id,
+            text: messageText,
+          }]);
+
+          const classification = classifications.get(ctx.message!.message_id);
+
+          console.log(`   Classification result:`, {
+            containsName: classification?.containsName,
+            detectedNames: classification?.detectedNames,
+          });
+
+          if (classification) {
+            // Store the classification
+            await convex.mutation(api.mutations.storeClassification, {
+              chatId: ctx.chat!.id,
+              postId: postId,
+              messageId: ctx.message!.message_id,
+              messageText: messageText,
+              containsName: classification.containsName,
+              detectedNames: classification.detectedNames || [],
+              channelId: channelId,
+            });
+
+            if (classification.containsName && classification.detectedNames && classification.detectedNames.length > 0) {
+              console.log(`✅ Detected name in message: ${classification.detectedNames.join(' ')}`);
+              console.log(`   Stored classification and updated user realName via storeClassification mutation`);
+            } else {
+              console.log(`   ℹ️  No names detected in message`);
+            }
+          }
+        } catch (error) {
+          console.error("❌ Error during automatic classification:", error);
+        }
+      } else {
+        console.log(`⏭️  Skipping classification - user ${ctx.from.id} already has realName: ${existingUser.realName}`);
+      }
+    } else {
+      if (!messageText || messageText.trim().length === 0) {
+        console.log(`⏭️  Skipping classification - no message text`);
+      }
+    }
   });
 }

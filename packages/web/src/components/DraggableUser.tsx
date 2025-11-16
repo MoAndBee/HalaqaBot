@@ -4,15 +4,15 @@ import { useState, useRef, useEffect } from 'react'
 import type { User } from '@halakabot/db'
 
 interface DraggableUserProps {
-  user: User & { displayName?: string; carriedOver?: boolean }
+  user: User
   index: number
   onDelete: (userId: number) => void
-  onUpdateDisplayName?: (userId: number, displayName: string) => void
+  onUpdateDisplayName?: (userId: number, realName: string) => void
 }
 
 export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [editedName, setEditedName] = useState(user.displayName || '')
+  const [editedName, setEditedName] = useState(user.realName || '')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +38,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
   }
 
   const handleCancel = () => {
-    setEditedName(user.displayName || '')
+    setEditedName(user.realName || '')
     setIsEditing(false)
   }
 
@@ -64,12 +64,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
     setIsDropdownOpen(false)
   }
 
-  const primaryName = user.displayName || user.first_name
-  const secondaryText = user.displayName
-    ? `${user.first_name}${user.username ? ' @' + user.username : ''}`
-    : user.username
-    ? `@${user.username}`
-    : null
+  // Show realName if available, otherwise show telegramName
+  const primaryName = user.realName || user.telegramName
+  // Show both realName and telegramName when realName is set
+  const secondaryText = user.realName
+    ? `${user.telegramName}${user.username ? ' @' + user.username : ''} (${user.id})`
+    : `${user.username ? '@' + user.username + ' ' : ''}(${user.id})`
 
   return (
     <div

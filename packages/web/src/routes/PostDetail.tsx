@@ -7,15 +7,28 @@ import { UserList } from '~/components/UserList'
 import type { SessionType } from '~/components/SplitButton'
 import toast from 'react-hot-toast'
 
-function formatUserList(users: User[]): string {
+function formatUserList(users: User[], isDone: boolean = false): string {
   return users
     .map((user, index) => {
-      const displayName = user.displayName || user.first_name
+      // Display realName if available, otherwise use telegramName
+      const displayName = user.realName || user.telegramName
       const username = user.username ? `@${user.username}` : ''
+      const userId = `(${user.id})`
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
       const carriedOverLabel = user.carriedOver ? ' (من الحلقة السابقة)' : ''
       const sessionTypeLabel = user.sessionType ? ` - ${user.sessionType}` : ''
-      return `ـ ${arabicNumber}. ${displayName} ${username}${carriedOverLabel}${sessionTypeLabel} ـ`
+      const doneIcon = isDone ? '✅ ' : ''
+      return `ـ ${arabicNumber}. ${doneIcon}${displayName} ${username} ${userId}${carriedOverLabel}${sessionTypeLabel} ـ`
+    })
+    .join('\n')
+}
+
+function formatTelegramNames(users: User[], isDone: boolean = false): string {
+  return users
+    .map((user, index) => {
+      const arabicNumber = (index + 1).toLocaleString('ar-EG')
+      const doneIcon = isDone ? '✅ ' : ''
+      return `${arabicNumber}. ${doneIcon}${user.telegramName}`
     })
     .join('\n')
 }
@@ -31,7 +44,7 @@ export default function PostDetail() {
   const completeUserTurn = useMutation(api.mutations.completeUserTurn)
   const skipUserTurn = useMutation(api.mutations.skipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
-  const updateUserDisplayName = useMutation(api.mutations.updateUserDisplayName)
+  const updateUserRealName = useMutation(api.mutations.updateUserRealName)
 
   const handleReorder = async (userId: number, newPosition: number) => {
     await updatePosition({
@@ -76,20 +89,18 @@ export default function PostDetail() {
     })
   }
 
-  const handleUpdateDisplayName = async (userId: number, displayName: string) => {
-    await updateUserDisplayName({
-      chatId,
-      postId,
+  const handleUpdateDisplayName = async (userId: number, realName: string) => {
+    await updateUserRealName({
       userId,
-      displayName,
+      realName,
     })
   }
 
   const handleCopyList = async () => {
     if (!data) return
 
-    const activeList = formatUserList(data.activeUsers)
-    const completedList = formatUserList(data.completedUsers)
+    const activeList = formatUserList(data.activeUsers, false)
+    const completedList = formatUserList(data.completedUsers, true)
 
     let fullMessage = ''
     if (activeList) {
@@ -102,6 +113,29 @@ export default function PostDetail() {
     try {
       await navigator.clipboard.writeText(fullMessage)
       toast.success('تم النسخ إلى الحافظة!')
+    } catch (error) {
+      toast.error('فشل النسخ')
+      console.error('Copy failed:', error)
+    }
+  }
+
+  const handleCopyTelegramNames = async () => {
+    if (!data) return
+
+    const activeList = formatTelegramNames(data.activeUsers, false)
+    const completedList = formatTelegramNames(data.completedUsers, true)
+
+    let fullMessage = ''
+    if (activeList) {
+      fullMessage += `لم ينتهوا بعد:\n\n${activeList}`
+    }
+    if (completedList) {
+      fullMessage += `\n\nالمنتهون:\n\n${completedList}`
+    }
+
+    try {
+      await navigator.clipboard.writeText(fullMessage)
+      toast.success('تم نسخ الأسماء!')
     } catch (error) {
       toast.error('فشل النسخ')
       console.error('Copy failed:', error)
@@ -165,11 +199,30 @@ export default function PostDetail() {
                 />
               </svg>
             </button>
+            <button
+              onClick={handleCopyTelegramNames}
+              className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-lg transition-colors flex items-center gap-2"
+              title="نسخ أسماء تليجرام"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
+                />
+              </svg>
+            </button>
             <div className="text-right">
               <div className="text-sm text-slate-400">إجمالي المستخدمين</div>
               <div className="text-2xl font-bold text-white">{totalUsers}</div>
             </div>
-            
+
           </div>
         </div>
       </div>

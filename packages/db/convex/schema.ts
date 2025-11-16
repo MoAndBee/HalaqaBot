@@ -8,6 +8,7 @@ export default defineSchema({
     messageId: v.number(),
     userId: v.number(),
     firstName: v.string(),
+    lastName: v.optional(v.string()),
     username: v.optional(v.string()),
     messageText: v.optional(v.string()),
     channelId: v.optional(v.number()),
@@ -22,9 +23,6 @@ export default defineSchema({
     chatId: v.number(),
     postId: v.number(),
     userId: v.number(),
-    firstName: v.string(),
-    username: v.optional(v.string()),
-    displayName: v.optional(v.string()), // Detected name from message classification
     position: v.number(),
     channelId: v.optional(v.number()),
     createdAt: v.number(), // timestamp in ms
@@ -51,6 +49,7 @@ export default defineSchema({
     chatId: v.number(),
     postId: v.number(),
     messageId: v.number(),
+    messageText: v.optional(v.string()),
     containsName: v.boolean(),
     detectedNames: v.array(v.string()),
     channelId: v.optional(v.number()),
@@ -59,4 +58,15 @@ export default defineSchema({
     .index("by_chat_post_message", ["chatId", "postId", "messageId"])
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_channel_post", ["channelId", "postId"]),
+
+  users: defineTable({
+    userId: v.number(),
+    username: v.optional(v.string()), // Telegram username (@username)
+    telegramName: v.string(), // Concatenation of firstName + lastName from Telegram
+    realName: v.optional(v.string()), // AI-detected name from messages
+    realNameVerified: v.optional(v.boolean()), // Whether the real name has been verified
+    sourceMessageText: v.optional(v.string()), // The message text from which realName was detected
+    updatedAt: v.number(), // timestamp in ms
+  })
+    .index("by_user_id", ["userId"]),
 });

@@ -23,6 +23,7 @@ export const getMessageAuthor = query({
     return {
       id: message.userId,
       first_name: message.firstName,
+      last_name: message.lastName,
       username: message.username,
     };
   },
@@ -59,7 +60,7 @@ export const getUserList = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
-    const users = await ctx.db
+    const userListEntries = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId)
@@ -67,7 +68,7 @@ export const getUserList = query({
       .collect();
 
     // Sort by carriedOver first (true before false), then by position
-    users.sort((a, b) => {
+    userListEntries.sort((a, b) => {
       // Carried over users come first
       if (a.carriedOver && !b.carriedOver) return -1;
       if (!a.carriedOver && b.carriedOver) return 1;
@@ -75,29 +76,44 @@ export const getUserList = query({
       return a.position - b.position;
     });
 
+    // Join with users table to get name information
+    const usersWithData = await Promise.all(
+      userListEntries.map(async (entry) => {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", entry.userId))
+          .first();
+
+        return {
+          entry,
+          userData: user || null,
+        };
+      })
+    );
+
     // Separate active and completed users
-    const activeUsers = users
-      .filter((user) => !user.completedAt)
-      .map((user) => ({
-        id: user.userId,
-        first_name: user.firstName,
-        username: user.username,
-        displayName: user.displayName,
-        position: user.position,
-        carriedOver: user.carriedOver,
-        sessionType: user.sessionType,
+    const activeUsers = usersWithData
+      .filter(({ entry }) => !entry.completedAt)
+      .map(({ entry, userData }) => ({
+        id: entry.userId,
+        telegramName: userData?.telegramName || "",
+        realName: userData?.realName || null,
+        username: userData?.username || null,
+        position: entry.position,
+        carriedOver: entry.carriedOver,
+        sessionType: entry.sessionType,
       }));
 
-    const completedUsers = users
-      .filter((user) => user.completedAt)
-      .map((user) => ({
-        id: user.userId,
-        first_name: user.firstName,
-        username: user.username,
-        displayName: user.displayName,
-        position: user.position,
-        completedAt: user.completedAt,
-        sessionType: user.sessionType,
+    const completedUsers = usersWithData
+      .filter(({ entry }) => entry.completedAt)
+      .map(({ entry, userData }) => ({
+        id: entry.userId,
+        telegramName: userData?.telegramName || "",
+        realName: userData?.realName || null,
+        username: userData?.username || null,
+        position: entry.position,
+        completedAt: entry.completedAt,
+        sessionType: entry.sessionType,
       }));
 
     return {
@@ -221,6 +237,7 @@ export const getUnclassifiedMessages = query({
           user: {
             id: msg.userId,
             first_name: msg.firstName,
+            last_name: msg.lastName,
             username: msg.username,
           },
         });
@@ -306,5 +323,83 @@ export const getChannelIdForPost = query({
       .first();
 
     return message?.channelId ?? null;
+  },
+});
+
+export const getAllMessageClassifications = query({
+  args: {},
+  handler: async (ctx) => {
+    const classifications = await ctx.db
+      .query("messageClassifications")
+      .collect();
+
+    return classifications.map((classification) => ({
+      chatId: classification.chatId,
+      postId: classification.postId,
+      messageId: classification.messageId,
+      containsName: classification.containsName,
+      detectedNames: classification.detectedNames,
+      messageText: classification.messageText ?? null,
+    }));
+  },
+});
+
+export const getAllUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+
+    return users.map((user) => ({
+      userId: user.userId,
+      username: user.username,
+      telegramName: user.telegramName,
+      realName: user.realName,
+      sourceMessageText: user.sourceMessageText,
+      updatedAt: user.updatedAt,
+    }));
+  },
+});
+
+export const getUser = query({
+  args: {
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!user) return null;
+
+    return {
+      userId: user.userId,
+      username: user.username,
+      telegramName: user.telegramName,
+      realName: user.realName,
+      realNameVerified: user.realNameVerified,
+      sourceMessageText: user.sourceMessageText,
+      updatedAt: user.updatedAt,
+    };
+  },
+});
+
+export const getMessagesByUserId = query({
+  args: {
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query("messageAuthors")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+
+    return messages.map((msg) => ({
+      chatId: msg.chatId,
+      postId: msg.postId,
+      messageId: msg.messageId,
+      messageText: msg.messageText,
+      createdAt: msg.createdAt,
+    }));
   },
 });

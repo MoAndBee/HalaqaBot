@@ -3,9 +3,9 @@ import type { SessionType } from './SplitButton'
 
 interface CompletedUser {
   id: number
-  first_name: string
-  username?: string
-  displayName?: string
+  telegramName: string
+  realName?: string | null
+  username?: string | null
   position: number
   completedAt?: number
   sessionType?: string
@@ -14,7 +14,7 @@ interface CompletedUser {
 interface CompletedUsersSectionProps {
   users: CompletedUser[]
   onUpdateSessionType: (userId: number, sessionType: SessionType) => void
-  onUpdateDisplayName?: (userId: number, displayName: string) => void
+  onUpdateDisplayName?: (userId: number, realName: string) => void
 }
 
 function CompletedUserCard({
@@ -26,12 +26,12 @@ function CompletedUserCard({
   user: CompletedUser
   index: number
   onUpdateSessionType: (userId: number, sessionType: SessionType) => void
-  onUpdateDisplayName?: (userId: number, displayName: string) => void
+  onUpdateDisplayName?: (userId: number, realName: string) => void
 }) {
   const [isEditingType, setIsEditingType] = useState(false)
   const [isEditingName, setIsEditingName] = useState(false)
   const [selectedType, setSelectedType] = useState<SessionType | null>(null)
-  const [editedName, setEditedName] = useState(user.displayName || '')
+  const [editedName, setEditedName] = useState(user.realName || '')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -66,7 +66,7 @@ function CompletedUserCard({
   }
 
   const handleEditNameClick = () => {
-    setEditedName(user.displayName || '')
+    setEditedName(user.realName || '')
     setIsEditingName(true)
     setIsDropdownOpen(false)
   }
@@ -79,7 +79,7 @@ function CompletedUserCard({
   }
 
   const handleCancelName = () => {
-    setEditedName(user.displayName || '')
+    setEditedName(user.realName || '')
     setIsEditingName(false)
   }
 
@@ -108,9 +108,11 @@ function CompletedUserCard({
     }
   }
 
-  const primaryName = user.displayName || user.first_name
-  const secondaryText = user.displayName
-    ? `${user.first_name}${user.username ? ' @' + user.username : ''}`
+  // Show realName if available, otherwise show telegramName
+  const primaryName = user.realName || user.telegramName
+  // Show both realName and telegramName when realName is set
+  const secondaryText = user.realName
+    ? `${user.telegramName}${user.username ? ' @' + user.username : ''}`
     : user.username
     ? `@${user.username}`
     : null

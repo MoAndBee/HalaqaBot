@@ -87,6 +87,9 @@ export function registerAutoClassifyHandler(
     // Perform batch classification
     const classifications = await classificationService.classifyBatch(messagesToClassify);
 
+    // Create a map of messageId to messageText for easy lookup
+    const messageTextMap = new Map(messagesToClassify.map(msg => [msg.id, msg.text]));
+
     let reactedCount = 0;
     let totalWithNames = 0;
     const messageIdsWithNames: number[] = [];
@@ -99,6 +102,7 @@ export function registerAutoClassifyHandler(
         chatId,
         postId,
         messageId,
+        messageText: messageTextMap.get(messageId),
         containsName: classification.containsName,
         detectedNames: classification.detectedNames || [],
         channelId: channelId ?? undefined,
@@ -135,7 +139,7 @@ export function registerAutoClassifyHandler(
     if (messageIdsWithNames.length > 0) {
       console.log(`\nFetching authors for ${messageIdsWithNames.length} messages with names...`);
       const authors = [];
-      const userIdToDisplayName = new Map<number, string>();
+      const userIdToRealName = new Map<number, string>();
 
       for (const messageId of messageIdsWithNames) {
         const author = await messageService.getMessageAuthor(
@@ -149,7 +153,7 @@ export function registerAutoClassifyHandler(
           // Map author ID to detected name if available
           const detectedName = messageIdToName.get(messageId);
           if (detectedName) {
-            userIdToDisplayName.set(author.id, detectedName);
+            userIdToRealName.set(author.id, detectedName);
           }
         }
       }
@@ -160,7 +164,7 @@ export function registerAutoClassifyHandler(
           postId,
           authors,
           ctx.api,
-          userIdToDisplayName,
+          userIdToRealName,
           channelId ?? undefined
         );
       }

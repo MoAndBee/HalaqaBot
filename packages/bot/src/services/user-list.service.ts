@@ -2,15 +2,22 @@ import type { Api } from "grammy";
 import type { User, ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
 
+// Message author type from Telegram (different from User type in types.ts)
+export interface MessageAuthor {
+  id: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+}
+
 export class UserListService {
   constructor(private convex: ConvexHttpClient) {}
 
-  async addUserIfNew(chatId: number, postId: number, user: User, displayName?: string, channelId?: number): Promise<boolean> {
+  async addUserIfNew(chatId: number, postId: number, userId: number, channelId?: number): Promise<boolean> {
     return await this.convex.mutation(api.mutations.addUserToList, {
       chatId,
       postId,
-      user,
-      displayName,
+      userId,
       channelId,
     });
   }
@@ -32,10 +39,11 @@ export class UserListService {
   formatUserList(users: User[]): string {
     return users
       .map((user, index) => {
+        const displayName = user.realName || user.telegramName;
         const username = user.username ? `@${user.username}` : "";
         const arabicNumber = (index + 1).toLocaleString('ar-EG');
         const carriedOverLabel = user.carriedOver ? " (من الحلقة السابقة)" : "";
-        return `${arabicNumber}. ${user.first_name} ${username}${carriedOverLabel}`;
+        return `${arabicNumber}. ${displayName} ${username}${carriedOverLabel}`;
       })
       .join("\n");
   }
@@ -44,10 +52,11 @@ export class UserListService {
     const userList = await this.getUserList(chatId, postId);
     console.log("\n=== Current List ===");
     userList.forEach((user, index) => {
+      const displayName = user.realName || user.telegramName;
       const username = user.username ? `@${user.username}` : "";
       const carriedOverLabel = user.carriedOver ? " [CARRIED OVER]" : "";
       console.log(
-        `${index + 1}. ${user.first_name} ${username} (ID: ${user.id})${carriedOverLabel}`,
+        `${index + 1}. ${displayName} ${username} (ID: ${user.id})${carriedOverLabel}`,
       );
     });
     console.log("====================\n");
@@ -56,19 +65,36 @@ export class UserListService {
   async updateUserListInChat(
     chatId: number,
     postId: number,
-    users: User | User[],
+    users: MessageAuthor[],
     grammyApi: Api,
-    userIdToDisplayName?: Map<number, string>,
+    userIdToRealName?: Map<number, string>,
     channelId?: number
   ): Promise<boolean> {
     // Normalize to array
     const userArray = Array.isArray(users) ? users : [users];
 
+    // Update realName in users table if detected names are provided
+    if (userIdToRealName) {
+      for (const user of userArray) {
+        const realName = userIdToRealName.get(user.id);
+        if (realName) {
+          try {
+            await this.convex.mutation(api.mutations.updateUserRealName, {
+              userId: user.id,
+              realName,
+            });
+            console.log(`Updated realName for user ${user.id}: ${realName}`);
+          } catch (error) {
+            console.log(`Could not update realName for user ${user.id}:`, error);
+          }
+        }
+      }
+    }
+
     // Add users and track if list changed
     let listChanged = false;
     for (const user of userArray) {
-      const displayName = userIdToDisplayName?.get(user.id);
-      const changed = await this.addUserIfNew(chatId, postId, user, displayName, channelId);
+      const changed = await this.addUserIfNew(chatId, postId, user.id, channelId);
       if (changed) {
         listChanged = true;
       }
