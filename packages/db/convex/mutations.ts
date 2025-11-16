@@ -95,22 +95,6 @@ export const addUserToList = mutation({
     channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Check if user already in list
-    const existing = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post_user", (q) =>
-        q
-          .eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("userId", args.userId)
-      )
-      .first();
-
-    if (existing) {
-      // User already in list - no need to do anything
-      return false;
-    }
-
     // Get current users in this post
     const allUsers = await ctx.db
       .query("userLists")
@@ -166,28 +150,21 @@ export const addUserToList = mutation({
       )
       .collect();
 
-    // Check if this user was already carried over
-    const existingUser = updatedUsers.find((u) => u.userId === args.userId);
+    // Calculate next position and insert user (duplicates are now allowed)
+    const maxPosition =
+      updatedUsers.length > 0
+        ? Math.max(...updatedUsers.map((u) => u.position))
+        : 0;
 
-    if (existingUser) {
-      return true
-    } else {
-      // New user, insert them
-      const maxPosition =
-        updatedUsers.length > 0
-          ? Math.max(...updatedUsers.map((u) => u.position))
-          : 0;
-
-      await ctx.db.insert("userLists", {
-        chatId: args.chatId,
-        postId: args.postId,
-        userId: args.userId,
-        position: maxPosition + 1,
-        channelId: args.channelId,
-        createdAt: Date.now(),
-        carriedOver: false, // This is a new addition, not carried over
-      });
-    }
+    await ctx.db.insert("userLists", {
+      chatId: args.chatId,
+      postId: args.postId,
+      userId: args.userId,
+      position: maxPosition + 1,
+      channelId: args.channelId,
+      createdAt: Date.now(),
+      carriedOver: false, // This is a new addition, not carried over
+    });
 
     return true;
   },
