@@ -16,6 +16,10 @@ RUN bun install --frozen-lockfile
 COPY packages/bot ./packages/bot
 COPY packages/db ./packages/db
 
+# Generate convex dev deployment
+WORKDIR /app/packages/db
+RUN bunx convex dev --once
+
 # Set working directory to bot package
 WORKDIR /app/packages/bot
 
