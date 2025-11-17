@@ -25,6 +25,10 @@ export default defineSchema({
     userId: v.number(),
     position: v.number(),
     channelId: v.optional(v.number()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    username: v.optional(v.string()),
+    displayName: v.optional(v.string()),
     createdAt: v.number(), // timestamp in ms
     completedAt: v.optional(v.number()), // timestamp in ms when turn was completed
     sessionType: v.optional(v.string()), // "تلاوة" or "تسميع"
