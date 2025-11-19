@@ -23,7 +23,7 @@ export function PostsList({ posts }: PostsListProps) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {posts.map((post) => {
         const date = new Date(post.createdAt)
-        const formattedDate = date.toLocaleDateString('ar-SA', {
+        const formattedDate = date.toLocaleDateString('ar-EG', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',

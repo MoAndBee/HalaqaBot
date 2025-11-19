@@ -173,7 +173,7 @@ export default function PostDetail() {
 
     // Format the date
     const date = new Date(postDetails.createdAt)
-    const formattedDate = date.toLocaleDateString('ar-SA', {
+    const formattedDate = date.toLocaleDateString('ar-EG', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -207,7 +207,7 @@ export default function PostDetail() {
 
     // Format the date
     const date = new Date(postDetails.createdAt)
-    const formattedDate = date.toLocaleDateString('ar-SA', {
+    const formattedDate = date.toLocaleDateString('ar-EG', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -322,7 +322,7 @@ export default function PostDetail() {
           <div>
             {postDetails?.createdAt && (
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-white">
-                {new Date(postDetails.createdAt).toLocaleDateString('ar-SA', {
+                {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
