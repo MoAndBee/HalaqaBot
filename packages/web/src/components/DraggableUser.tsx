@@ -6,7 +6,7 @@ import type { User } from '@halakabot/db'
 interface DraggableUserProps {
   user: User
   index: number
-  onDelete: (userId: number) => void
+  onDelete: (entryId: string) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
 }
@@ -24,7 +24,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: user.id })
+  } = useSortable({ id: user.entryId || user.id.toString() })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -62,7 +62,9 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
 
   const handleDeleteClick = () => {
     if (window.confirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
-      onDelete(user.id)
+      if (user.entryId) {
+        onDelete(user.entryId)
+      }
     }
     setIsDropdownOpen(false)
   }

@@ -114,6 +114,7 @@ export const getUserList = query({
     const activeUsers = usersWithData
       .filter(({ entry }) => !entry.completedAt)
       .map(({ entry, userData }) => ({
+        entryId: entry._id,
         id: entry.userId,
         telegramName: userData?.telegramName || "",
         realName: userData?.realName || null,
@@ -126,6 +127,7 @@ export const getUserList = query({
     const completedUsers = usersWithData
       .filter(({ entry }) => entry.completedAt)
       .map(({ entry, userData }) => ({
+        entryId: entry._id,
         id: entry.userId,
         telegramName: userData?.telegramName || "",
         realName: userData?.realName || null,

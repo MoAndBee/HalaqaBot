@@ -506,44 +506,18 @@ export const storeClassification = mutation({
 
 export const updateUserPosition = mutation({
   args: {
-    chatId: v.number(),
-    postId: v.number(),
-    userId: v.number(),
+    entryId: v.id("userLists"),
     newPosition: v.number(),
-    sessionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Determine the session number
-    let sessionNumber = args.sessionNumber;
-    if (sessionNumber === undefined) {
-      const allEntries = await ctx.db
-        .query("userLists")
-        .withIndex("by_chat_post", (q) =>
-          q.eq("chatId", args.chatId).eq("postId", args.postId)
-        )
-        .collect();
-      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    // Get the entry
+    const currentEntry = await ctx.db.get(args.entryId);
+    
+    if (!currentEntry) {
+      throw new Error(`Entry not found`);
     }
 
-    // Get current user in this session
-    const currentUser = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post_user", (q) =>
-        q
-          .eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("userId", args.userId)
-      )
-      .filter(q => q.eq(q.field("sessionNumber"), sessionNumber))
-      .first();
-
-    if (!currentUser) {
-      throw new Error(
-        `User ${args.userId} not found in session ${sessionNumber} for chat ${args.chatId}, post ${args.postId}`
-      );
-    }
-
-    const currentPosition = currentUser.position;
+    const currentPosition = currentEntry.position;
 
     if (currentPosition === args.newPosition) {
       return;
@@ -553,7 +527,7 @@ export const updateUserPosition = mutation({
     const allUsers = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+        q.eq("chatId", currentEntry.chatId).eq("postId", currentEntry.postId).eq("sessionNumber", currentEntry.sessionNumber ?? 1)
       )
       .collect();
 
@@ -563,7 +537,7 @@ export const updateUserPosition = mutation({
         (u) =>
           u.position >= args.newPosition &&
           u.position < currentPosition &&
-          u.userId !== args.userId
+          u._id !== args.entryId
       );
 
       for (const user of usersToShift) {
@@ -575,7 +549,7 @@ export const updateUserPosition = mutation({
         (u) =>
           u.position > currentPosition &&
           u.position <= args.newPosition &&
-          u.userId !== args.userId
+          u._id !== args.entryId
       );
 
       for (const user of usersToShift) {
@@ -584,58 +558,32 @@ export const updateUserPosition = mutation({
     }
 
     // Update the target user's position
-    await ctx.db.patch(currentUser._id, { position: args.newPosition });
+    await ctx.db.patch(args.entryId, { position: args.newPosition });
   },
 });
 
 export const removeUserFromList = mutation({
   args: {
-    chatId: v.number(),
-    postId: v.number(),
-    userId: v.number(),
-    sessionNumber: v.optional(v.number()),
+    entryId: v.id("userLists"),
   },
   handler: async (ctx, args) => {
-    // Determine the session number
-    let sessionNumber = args.sessionNumber;
-    if (sessionNumber === undefined) {
-      const allEntries = await ctx.db
-        .query("userLists")
-        .withIndex("by_chat_post", (q) =>
-          q.eq("chatId", args.chatId).eq("postId", args.postId)
-        )
-        .collect();
-      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    // Get the entry to remove
+    const entryToRemove = await ctx.db.get(args.entryId);
+
+    if (!entryToRemove) {
+      throw new Error(`Entry not found`);
     }
 
-    // Find the user to remove in this session
-    const userToRemove = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post_user", (q) =>
-        q
-          .eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("userId", args.userId)
-      )
-      .filter(q => q.eq(q.field("sessionNumber"), sessionNumber))
-      .first();
+    const removedPosition = entryToRemove.position;
 
-    if (!userToRemove) {
-      throw new Error(
-        `User ${args.userId} not found in session ${sessionNumber} for chat ${args.chatId}, post ${args.postId}`
-      );
-    }
-
-    const removedPosition = userToRemove.position;
-
-    // Delete the user
-    await ctx.db.delete(userToRemove._id);
+    // Delete the entry
+    await ctx.db.delete(args.entryId);
 
     // Get all remaining users in this session with higher positions
     const usersToShift = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+        q.eq("chatId", entryToRemove.chatId).eq("postId", entryToRemove.postId).eq("sessionNumber", entryToRemove.sessionNumber ?? 1)
       )
       .collect();
 
@@ -650,45 +598,19 @@ export const removeUserFromList = mutation({
 
 export const completeUserTurn = mutation({
   args: {
-    chatId: v.number(),
-    postId: v.number(),
-    userId: v.number(),
+    entryId: v.id("userLists"),
     sessionType: v.string(), // "تلاوة" or "تسميع"
-    sessionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Determine the session number
-    let sessionNumber = args.sessionNumber;
-    if (sessionNumber === undefined) {
-      const allEntries = await ctx.db
-        .query("userLists")
-        .withIndex("by_chat_post", (q) =>
-          q.eq("chatId", args.chatId).eq("postId", args.postId)
-        )
-        .collect();
-      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
-    }
+    // Get the entry
+    const entry = await ctx.db.get(args.entryId);
 
-    // Find the user in this session
-    const user = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post_user", (q) =>
-        q
-          .eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("userId", args.userId)
-      )
-      .filter(q => q.eq(q.field("sessionNumber"), sessionNumber))
-      .first();
-
-    if (!user) {
-      throw new Error(
-        `User ${args.userId} not found in session ${sessionNumber} for chat ${args.chatId}, post ${args.postId}`
-      );
+    if (!entry) {
+      throw new Error(`Entry not found`);
     }
 
     // Mark as completed
-    await ctx.db.patch(user._id, {
+    await ctx.db.patch(args.entryId, {
       completedAt: Date.now(),
       sessionType: args.sessionType,
     });
@@ -697,29 +619,21 @@ export const completeUserTurn = mutation({
 
 export const skipUserTurn = mutation({
   args: {
-    chatId: v.number(),
-    postId: v.number(),
-    userId: v.number(),
-    sessionNumber: v.optional(v.number()),
+    entryId: v.id("userLists"),
   },
   handler: async (ctx, args) => {
-    // Determine the session number
-    let sessionNumber = args.sessionNumber;
-    if (sessionNumber === undefined) {
-      const allEntries = await ctx.db
-        .query("userLists")
-        .withIndex("by_chat_post", (q) =>
-          q.eq("chatId", args.chatId).eq("postId", args.postId)
-        )
-        .collect();
-      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    // Get the entry
+    const currentEntry = await ctx.db.get(args.entryId);
+
+    if (!currentEntry) {
+      throw new Error(`Entry not found`);
     }
 
     // Get all users in this session
     const allUsers = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+        q.eq("chatId", currentEntry.chatId).eq("postId", currentEntry.postId).eq("sessionNumber", currentEntry.sessionNumber ?? 1)
       )
       .collect();
 
@@ -731,76 +645,44 @@ export const skipUserTurn = mutation({
       throw new Error("Cannot skip turn - not enough active users");
     }
 
-    // Find current user (should be first in active users)
-    const currentUser = activeUsers.find((u) => u.userId === args.userId);
-    if (!currentUser) {
-      throw new Error(
-        `User ${args.userId} not found or already completed their turn`
-      );
+    // Find current user
+    const currentIndex = activeUsers.findIndex((u) => u._id === args.entryId);
+    if (currentIndex === -1) {
+      throw new Error(`Entry not found or already completed`);
     }
 
-    // Find next user (second in active users)
-    const currentIndex = activeUsers.findIndex((u) => u.userId === args.userId);
-    if (currentIndex === -1 || currentIndex >= activeUsers.length - 1) {
+    if (currentIndex >= activeUsers.length - 1) {
       throw new Error("Cannot skip - no next user available");
     }
 
     const nextUser = activeUsers[currentIndex + 1];
 
     // Swap positions
-    const tempPosition = currentUser.position;
-    await ctx.db.patch(currentUser._id, { position: nextUser.position });
+    const tempPosition = currentEntry.position;
+    await ctx.db.patch(args.entryId, { position: nextUser.position });
     await ctx.db.patch(nextUser._id, { position: tempPosition });
   },
 });
 
 export const updateSessionType = mutation({
   args: {
-    chatId: v.number(),
-    postId: v.number(),
-    userId: v.number(),
+    entryId: v.id("userLists"),
     sessionType: v.string(), // "تلاوة" or "تسميع"
-    sessionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Determine the session number
-    let sessionNumber = args.sessionNumber;
-    if (sessionNumber === undefined) {
-      const allEntries = await ctx.db
-        .query("userLists")
-        .withIndex("by_chat_post", (q) =>
-          q.eq("chatId", args.chatId).eq("postId", args.postId)
-        )
-        .collect();
-      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    // Get the entry
+    const entry = await ctx.db.get(args.entryId);
+
+    if (!entry) {
+      throw new Error(`Entry not found`);
     }
 
-    // Find the user in this session
-    const user = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post_user", (q) =>
-        q
-          .eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("userId", args.userId)
-      )
-      .filter(q => q.eq(q.field("sessionNumber"), sessionNumber))
-      .first();
-
-    if (!user) {
-      throw new Error(
-        `User ${args.userId} not found in session ${sessionNumber} for chat ${args.chatId}, post ${args.postId}`
-      );
-    }
-
-    if (!user.completedAt) {
-      throw new Error(
-        `Cannot update session type for user ${args.userId} - turn not completed yet`
-      );
+    if (!entry.completedAt) {
+      throw new Error(`Cannot update session type - turn not completed yet`);
     }
 
     // Update session type
-    await ctx.db.patch(user._id, {
+    await ctx.db.patch(args.entryId, {
       sessionType: args.sessionType,
     });
   },

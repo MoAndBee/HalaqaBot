@@ -1,4 +1,5 @@
 export interface User {
+  entryId?: string; // Convex _id for this specific list entry (allows duplicate users)
   id: number;
   telegramName: string;
   realName?: string | null;

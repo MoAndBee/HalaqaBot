@@ -32,11 +32,11 @@ interface UserListProps {
   postId: number
   activeUsers: (User & { displayName?: string; carriedOver?: boolean })[]
   completedUsers: CompletedUser[]
-  onReorder: (userId: number, newPosition: number) => Promise<void>
-  onDelete: (userId: number) => Promise<void>
-  onComplete: (userId: number, sessionType: SessionType) => Promise<void>
-  onSkip: (userId: number) => Promise<void>
-  onUpdateSessionType: (userId: number, sessionType: SessionType) => Promise<void>
+  onReorder: (entryId: string, newPosition: number) => Promise<void>
+  onDelete: (entryId: string) => Promise<void>
+  onComplete: (entryId: string, sessionType: SessionType) => Promise<void>
+  onSkip: (entryId: string) => Promise<void>
+  onUpdateSessionType: (entryId: string, sessionType: SessionType) => Promise<void>
   onUpdateDisplayName: (userId: number, displayName: string) => Promise<void>
   onAddTurnAfter3: (userId: number, currentPosition: number | undefined) => Promise<void>
 }
@@ -84,8 +84,8 @@ export function UserList({
       return
     }
 
-    const oldIndex = items.findIndex((user) => user.id === active.id)
-    const newIndex = items.findIndex((user) => user.id === over.id)
+    const oldIndex = items.findIndex((user) => user.entryId === active.id)
+    const newIndex = items.findIndex((user) => user.entryId === over.id)
 
     if (oldIndex === -1 || newIndex === -1) {
       return
@@ -103,7 +103,7 @@ export function UserList({
     try {
       // Call the server function to persist the change
       // Position is 1-indexed in the database
-      await onReorder(active.id as number, newIndex + 1)
+      await onReorder(active.id as string, newIndex + 1)
     } catch (error) {
       console.error('Failed to reorder user:', error)
       // Revert to original order on error
@@ -117,17 +117,17 @@ export function UserList({
     }
   }
 
-  const handleDelete = async (userId: number) => {
+  const handleDelete = async (entryId: string) => {
     // Store original items for potential rollback
     const originalItems = [...items]
 
     // Optimistically remove from local state
-    setItems(items.filter((user) => user.id !== userId))
+    setItems(items.filter((user) => user.entryId !== entryId))
     setIsDeleting(true)
     setError(null)
 
     try {
-      await onDelete(userId)
+      await onDelete(entryId)
     } catch (error) {
       console.error('Failed to delete user:', error)
       // Revert on error
@@ -145,11 +145,13 @@ export function UserList({
     if (items.length === 0) return
 
     const currentUser = items[0] // First user in active list
+    if (!currentUser.entryId) return
+
     setIsProcessing(true)
     setError(null)
 
     try {
-      await onComplete(currentUser.id, sessionType)
+      await onComplete(currentUser.entryId, sessionType)
     } catch (error) {
       console.error('Failed to complete turn:', error)
       setError('فشل إتمام الدور. الرجاء المحاولة مرة أخرى.')
@@ -165,11 +167,13 @@ export function UserList({
     if (items.length < 2) return
 
     const currentUser = items[0] // First user in active list
+    if (!currentUser.entryId) return
+
     setIsProcessing(true)
     setError(null)
 
     try {
-      await onSkip(currentUser.id)
+      await onSkip(currentUser.entryId)
     } catch (error) {
       console.error('Failed to skip turn:', error)
       setError('فشل تخطي الدور. الرجاء المحاولة مرة أخرى.')
@@ -181,12 +185,12 @@ export function UserList({
     }
   }
 
-  const handleUpdateSessionType = async (userId: number, sessionType: SessionType) => {
+  const handleUpdateSessionType = async (entryId: string, sessionType: SessionType) => {
     setIsProcessing(true)
     setError(null)
 
     try {
-      await onUpdateSessionType(userId, sessionType)
+      await onUpdateSessionType(entryId, sessionType)
     } catch (error) {
       console.error('Failed to update session type:', error)
       setError('فشل تحديث نوع الجلسة. الرجاء المحاولة مرة أخرى.')
@@ -264,13 +268,13 @@ export function UserList({
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={items.map((user) => user.id)}
+              items={items.map((user) => user.entryId || user.id.toString())}
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-2">
                 {items.map((user, index) => (
                   <DraggableUser
-                    key={user.id}
+                    key={user.entryId || user.id}
                     user={user}
                     index={index}
                     onDelete={handleDelete}

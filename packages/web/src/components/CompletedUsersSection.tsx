@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { SessionType } from './SplitButton'
 
 interface CompletedUser {
+  entryId?: string
   id: number
   telegramName: string
   realName?: string | null
@@ -13,9 +14,9 @@ interface CompletedUser {
 
 interface CompletedUsersSectionProps {
   users: CompletedUser[]
-  onUpdateSessionType: (userId: number, sessionType: SessionType) => void
+  onUpdateSessionType: (entryId: string, sessionType: SessionType) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
-  onDelete?: (userId: number) => void
+  onDelete?: (entryId: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
 }
 
@@ -29,9 +30,9 @@ function CompletedUserCard({
 }: {
   user: CompletedUser
   index: number
-  onUpdateSessionType: (userId: number, sessionType: SessionType) => void
+  onUpdateSessionType: (entryId: string, sessionType: SessionType) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
-  onDelete?: (userId: number) => void
+  onDelete?: (entryId: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
 }) {
   const [isEditingType, setIsEditingType] = useState(false)
@@ -60,8 +61,8 @@ function CompletedUserCard({
   }
 
   const handleConfirmType = () => {
-    if (selectedType) {
-      onUpdateSessionType(user.id, selectedType)
+    if (selectedType && user.entryId) {
+      onUpdateSessionType(user.entryId, selectedType)
       setIsEditingType(false)
     }
   }
@@ -90,8 +91,8 @@ function CompletedUserCard({
   }
 
   const handleDelete = () => {
-    if (onDelete && window.confirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
-      onDelete(user.id)
+    if (onDelete && user.entryId && window.confirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
+      onDelete(user.entryId)
     }
     setIsDropdownOpen(false)
   }
@@ -359,7 +360,7 @@ export function CompletedUsersSection({
         <div className="mt-2 space-y-2">
           {users.map((user, index) => (
             <CompletedUserCard
-              key={user.id}
+              key={user.entryId || user.id}
               user={user}
               index={index}
               onUpdateSessionType={onUpdateSessionType}

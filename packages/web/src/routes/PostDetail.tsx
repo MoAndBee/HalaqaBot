@@ -76,51 +76,36 @@ export default function PostDetail() {
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
 
-  const handleReorder = async (userId: number, newPosition: number) => {
+  const handleReorder = async (entryId: string, newPosition: number) => {
     await updatePosition({
-      chatId,
-      postId,
-      userId,
+      entryId,
       newPosition,
-      sessionNumber: data?.currentSession,
     })
   }
 
-  const handleDelete = async (userId: number) => {
+  const handleDelete = async (entryId: string) => {
     await removeUser({
-      chatId,
-      postId,
-      userId,
-      sessionNumber: data?.currentSession,
+      entryId,
     })
   }
 
-  const handleComplete = async (userId: number, sessionType: SessionType) => {
+  const handleComplete = async (entryId: string, sessionType: SessionType) => {
     await completeUserTurn({
-      chatId,
-      postId,
-      userId,
+      entryId,
       sessionType,
-      sessionNumber: data?.currentSession,
     })
   }
 
-  const handleSkip = async (userId: number) => {
+  const handleSkip = async (entryId: string) => {
     await skipUserTurn({
-      chatId,
-      postId,
-      userId,
-      sessionNumber: data?.currentSession,
+      entryId,
     })
   }
 
-  const handleUpdateSessionType = async (userId: number, sessionType: SessionType) => {
+  const handleUpdateSessionType = async (entryId: string, sessionType: SessionType) => {
     await updateSessionType({
-      chatId,
-      postId,
-      userId,
+      entryId,
       sessionType,
-      sessionNumber: data?.currentSession,
     })
   }
 
