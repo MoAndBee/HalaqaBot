@@ -93,22 +93,28 @@ export const addUserToList = mutation({
     postId: v.number(),
     userId: v.number(),
     channelId: v.optional(v.number()),
+    sessionNumber: v.optional(v.number()), // if not provided, use latest session
   },
   handler: async (ctx, args) => {
-    // Check if user already in list
-    const existing = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post_user", (q) =>
-        q
-          .eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("userId", args.userId)
-      )
-      .first();
+    // Determine the session number to use
+    let sessionNumber = args.sessionNumber;
 
-    if (existing) {
-      // User already in list - no need to do anything
-      return false;
+    if (sessionNumber === undefined) {
+      // Find all entries for this post
+      const allEntries = await ctx.db
+        .query("userLists")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .collect();
+
+      if (allEntries.length === 0) {
+        // No entries yet, start with session 1
+        sessionNumber = 1;
+      } else {
+        // Always use the max session number (add to current/latest session)
+        sessionNumber = Math.max(...allEntries.map(e => e.sessionNumber ?? 1));
+      }
     }
 
     // Get current users in this post
@@ -153,6 +159,7 @@ export const addUserToList = mutation({
             channelId: args.channelId,
             createdAt: Date.now(),
             carriedOver: true, // Mark as carried over
+            sessionNumber,
           });
         }
       }
@@ -166,28 +173,158 @@ export const addUserToList = mutation({
       )
       .collect();
 
-    // Check if this user was already carried over
-    const existingUser = updatedUsers.find((u) => u.userId === args.userId);
+    // Always insert the user (allow duplicates)
+    const maxPosition =
+      updatedUsers.length > 0
+        ? Math.max(...updatedUsers.map((u) => u.position))
+        : 0;
 
-    if (existingUser) {
-      return true
-    } else {
-      // New user, insert them
-      const maxPosition =
-        updatedUsers.length > 0
-          ? Math.max(...updatedUsers.map((u) => u.position))
-          : 0;
+    await ctx.db.insert("userLists", {
+      chatId: args.chatId,
+      postId: args.postId,
+      userId: args.userId,
+      position: maxPosition + 1,
+      channelId: args.channelId,
+      createdAt: Date.now(),
+      carriedOver: false, // This is a new addition, not carried over
+      sessionNumber,
+    });
 
-      await ctx.db.insert("userLists", {
-        chatId: args.chatId,
-        postId: args.postId,
-        userId: args.userId,
-        position: maxPosition + 1,
-        channelId: args.channelId,
-        createdAt: Date.now(),
-        carriedOver: false, // This is a new addition, not carried over
-      });
+    return true;
+  },
+});
+
+export const addUserAtPosition = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    userId: v.number(),
+    currentPosition: v.optional(v.number()), // For NOT DONE users: their current position. For DONE users: undefined
+    turnsToWait: v.number(), // How many turns to wait (e.g., 3 means skip 3 users)
+    channelId: v.optional(v.number()),
+    sessionNumber: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Determine the session number
+    let sessionNumber = args.sessionNumber;
+    if (sessionNumber === undefined) {
+      const allEntries = await ctx.db
+        .query("userLists")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .collect();
+      sessionNumber = allEntries.length > 0
+        ? Math.max(...allEntries.map(e => e.sessionNumber ?? 1))
+        : 1;
     }
+
+    // Get all users in this session
+    const allUsers = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+      )
+      .collect();
+
+    // Get only active users, sorted by position
+    const activeUsers = allUsers
+      .filter(u => !u.completedAt)
+      .sort((a, b) => a.position - b.position);
+
+    if (activeUsers.length === 0) {
+      throw new Error("No active users in session");
+    }
+
+    let targetIndex: number;
+
+    if (args.currentPosition !== undefined) {
+      // Case 1 & 2: NOT DONE user
+      // Find the index of the current user in the active users list
+      const currentIndex = activeUsers.findIndex(u => u.position === args.currentPosition);
+
+      if (currentIndex === -1) {
+        throw new Error(`User at position ${args.currentPosition} not found in active users`);
+      }
+
+      // Calculate target index: skip turnsToWait active users after current
+      // Example: currentIndex = 2, turnsToWait = 3 → targetIndex = 5
+      // This means insert at index 5, which is after indexes 3, 4, 5 (wait for 3 people)
+      targetIndex = currentIndex + args.turnsToWait;
+    } else {
+      // Case 3 & 4: DONE user
+      // Insert at index 3 (4th position in active list, 0-indexed)
+      targetIndex = 3;
+    }
+
+    let insertAfterPosition: number;
+
+    // Determine where to insert based on targetIndex
+    if (targetIndex >= activeUsers.length) {
+      // Case 2 or Case 4: targetIndex is beyond the last active user
+      // Insert after the last active user (at the end)
+      insertAfterPosition = activeUsers[activeUsers.length - 1].position;
+    } else {
+      // Case 1 or Case 3: targetIndex is within the active users array
+      // Insert before the user at targetIndex
+      // Which means insert after the user at targetIndex - 1
+      if (targetIndex === 0) {
+        // Special case: insert before the first active user
+        insertAfterPosition = 0; // Will be handled specially
+      } else {
+        insertAfterPosition = activeUsers[targetIndex - 1].position;
+      }
+    }
+
+    // Now we need to find the actual database position to insert at
+    let targetPosition: number;
+
+    if (targetIndex >= activeUsers.length) {
+      // Case 2 or Case 4: Add after the last active user
+      targetPosition = activeUsers[activeUsers.length - 1].position + 1;
+    } else if (targetIndex === 0) {
+      // Special case: insert before first active user
+      const firstActivePosition = activeUsers[0].position;
+      if (firstActivePosition === 1) {
+        // No room before, need to shift everyone down
+        targetPosition = 1;
+        // Shift all active users down by 1
+        for (const user of activeUsers) {
+          await ctx.db.patch(user._id, { position: user.position + 1 });
+        }
+      } else {
+        // There's room before the first active user
+        targetPosition = firstActivePosition - 1;
+      }
+    } else {
+      // Case 1 or Case 3: Insert between active users
+      const beforeUser = activeUsers[targetIndex - 1];
+      const afterUser = activeUsers[targetIndex];
+
+      if (afterUser.position === beforeUser.position + 1) {
+        // No gap, need to shift users at targetIndex and after
+        targetPosition = afterUser.position;
+        // Shift all active users from targetIndex onwards down by 1
+        for (let i = targetIndex; i < activeUsers.length; i++) {
+          await ctx.db.patch(activeUsers[i]._id, { position: activeUsers[i].position + 1 });
+        }
+      } else {
+        // There's a gap, insert in the gap
+        targetPosition = beforeUser.position + 1;
+      }
+    }
+
+    // Insert the new user at target position
+    await ctx.db.insert("userLists", {
+      chatId: args.chatId,
+      postId: args.postId,
+      userId: args.userId,
+      position: targetPosition,
+      channelId: args.channelId,
+      createdAt: Date.now(),
+      carriedOver: false,
+      sessionNumber,
+    });
 
     return true;
   },
@@ -373,9 +510,22 @@ export const updateUserPosition = mutation({
     postId: v.number(),
     userId: v.number(),
     newPosition: v.number(),
+    sessionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Get current user
+    // Determine the session number
+    let sessionNumber = args.sessionNumber;
+    if (sessionNumber === undefined) {
+      const allEntries = await ctx.db
+        .query("userLists")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .collect();
+      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    }
+
+    // Get current user in this session
     const currentUser = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_user", (q) =>
@@ -384,11 +534,12 @@ export const updateUserPosition = mutation({
           .eq("postId", args.postId)
           .eq("userId", args.userId)
       )
+      .filter(q => q.eq(q.field("sessionNumber"), sessionNumber))
       .first();
 
     if (!currentUser) {
       throw new Error(
-        `User ${args.userId} not found in list for chat ${args.chatId}, post ${args.postId}`
+        `User ${args.userId} not found in session ${sessionNumber} for chat ${args.chatId}, post ${args.postId}`
       );
     }
 
@@ -398,11 +549,11 @@ export const updateUserPosition = mutation({
       return;
     }
 
-    // Get all users in the list
+    // Get all users in this session
     const allUsers = await ctx.db
       .query("userLists")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
@@ -442,9 +593,22 @@ export const removeUserFromList = mutation({
     chatId: v.number(),
     postId: v.number(),
     userId: v.number(),
+    sessionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Find the user to remove
+    // Determine the session number
+    let sessionNumber = args.sessionNumber;
+    if (sessionNumber === undefined) {
+      const allEntries = await ctx.db
+        .query("userLists")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .collect();
+      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    }
+
+    // Find the user to remove in this session
     const userToRemove = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_user", (q) =>
@@ -453,11 +617,12 @@ export const removeUserFromList = mutation({
           .eq("postId", args.postId)
           .eq("userId", args.userId)
       )
+      .filter(q => q.eq(q.field("sessionNumber"), sessionNumber))
       .first();
 
     if (!userToRemove) {
       throw new Error(
-        `User ${args.userId} not found in list for chat ${args.chatId}, post ${args.postId}`
+        `User ${args.userId} not found in session ${sessionNumber} for chat ${args.chatId}, post ${args.postId}`
       );
     }
 
@@ -466,11 +631,11 @@ export const removeUserFromList = mutation({
     // Delete the user
     await ctx.db.delete(userToRemove._id);
 
-    // Get all remaining users with higher positions
+    // Get all remaining users in this session with higher positions
     const usersToShift = await ctx.db
       .query("userLists")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
@@ -489,9 +654,22 @@ export const completeUserTurn = mutation({
     postId: v.number(),
     userId: v.number(),
     sessionType: v.string(), // "تلاوة" or "تسميع"
+    sessionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Find the user
+    // Determine the session number
+    let sessionNumber = args.sessionNumber;
+    if (sessionNumber === undefined) {
+      const allEntries = await ctx.db
+        .query("userLists")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .collect();
+      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    }
+
+    // Find the user in this session
     const user = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_user", (q) =>
@@ -500,11 +678,12 @@ export const completeUserTurn = mutation({
           .eq("postId", args.postId)
           .eq("userId", args.userId)
       )
+      .filter(q => q.eq(q.field("sessionNumber"), sessionNumber))
       .first();
 
     if (!user) {
       throw new Error(
-        `User ${args.userId} not found in list for chat ${args.chatId}, post ${args.postId}`
+        `User ${args.userId} not found in session ${sessionNumber} for chat ${args.chatId}, post ${args.postId}`
       );
     }
 
@@ -521,13 +700,26 @@ export const skipUserTurn = mutation({
     chatId: v.number(),
     postId: v.number(),
     userId: v.number(),
+    sessionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Get all active (incomplete) users
+    // Determine the session number
+    let sessionNumber = args.sessionNumber;
+    if (sessionNumber === undefined) {
+      const allEntries = await ctx.db
+        .query("userLists")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .collect();
+      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    }
+
+    // Get all users in this session
     const allUsers = await ctx.db
       .query("userLists")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
@@ -568,9 +760,22 @@ export const updateSessionType = mutation({
     postId: v.number(),
     userId: v.number(),
     sessionType: v.string(), // "تلاوة" or "تسميع"
+    sessionNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Find the user
+    // Determine the session number
+    let sessionNumber = args.sessionNumber;
+    if (sessionNumber === undefined) {
+      const allEntries = await ctx.db
+        .query("userLists")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .collect();
+      sessionNumber = Math.max(1, ...allEntries.map(e => e.sessionNumber ?? 1));
+    }
+
+    // Find the user in this session
     const user = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_user", (q) =>
@@ -579,11 +784,12 @@ export const updateSessionType = mutation({
           .eq("postId", args.postId)
           .eq("userId", args.userId)
       )
+      .filter(q => q.eq(q.field("sessionNumber"), sessionNumber))
       .first();
 
     if (!user) {
       throw new Error(
-        `User ${args.userId} not found in list for chat ${args.chatId}, post ${args.postId}`
+        `User ${args.userId} not found in session ${sessionNumber} for chat ${args.chatId}, post ${args.postId}`
       );
     }
 
@@ -690,5 +896,67 @@ export const upsertUser = mutation({
       });
       return { created: true, userId: args.userId };
     }
+  },
+});
+
+export const startNewSession = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    teacherName: v.string(), // name of the teacher for this session
+    carryOverIncomplete: v.optional(v.boolean()), // whether to carry over incomplete users
+  },
+  handler: async (ctx, args) => {
+    // Get all entries for this post
+    const allEntries = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    // Find the max session number (defaulting to 1 for entries without sessionNumber)
+    const currentMaxSession = Math.max(
+      1,
+      ...allEntries.map(e => e.sessionNumber ?? 1)
+    );
+
+    const newSessionNumber = currentMaxSession + 1;
+
+    // Store session metadata with teacher name
+    await ctx.db.insert("sessions", {
+      chatId: args.chatId,
+      postId: args.postId,
+      sessionNumber: newSessionNumber,
+      teacherName: args.teacherName,
+      createdAt: Date.now(),
+    });
+
+    // If carryOverIncomplete is true, copy incomplete users from previous session
+    if (args.carryOverIncomplete) {
+      const previousSessionEntries = allEntries.filter(
+        e => (e.sessionNumber ?? 1) === currentMaxSession && !e.completedAt
+      );
+
+      // Sort by position
+      previousSessionEntries.sort((a, b) => a.position - b.position);
+
+      // Copy to new session
+      for (let i = 0; i < previousSessionEntries.length; i++) {
+        const entry = previousSessionEntries[i];
+        await ctx.db.insert("userLists", {
+          chatId: args.chatId,
+          postId: args.postId,
+          userId: entry.userId,
+          position: i + 1,
+          channelId: entry.channelId,
+          createdAt: Date.now(),
+          carriedOver: true,
+          sessionNumber: newSessionNumber,
+        });
+      }
+    }
+
+    return { newSessionNumber, usersCarriedOver: args.carryOverIncomplete ? true : false };
   },
 });

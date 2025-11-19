@@ -7,4 +7,5 @@ export interface Post {
   chatId: number
   postId: number
   userCount: number
+  createdAt: number
 }

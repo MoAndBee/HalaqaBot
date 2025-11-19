@@ -140,3 +140,9 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Convex compiled files (except _generated)
+packages/db/convex/*.js
+packages/db/convex/*.d.ts
+packages/db/convex/*.map
+!packages/db/convex/_generated/

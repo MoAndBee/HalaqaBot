@@ -8,9 +8,10 @@ interface DraggableUserProps {
   index: number
   onDelete: (userId: number) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
+  onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAddTurnAfter3 }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -60,7 +61,17 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
   }
 
   const handleDeleteClick = () => {
-    onDelete(user.id)
+    if (window.confirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
+      onDelete(user.id)
+    }
+    setIsDropdownOpen(false)
+  }
+
+  const handleAddTurnAfter3 = () => {
+    if (onAddTurnAfter3) {
+      const currentPosition = user.position ?? (index + 1)
+      onAddTurnAfter3(user.id, currentPosition)
+    }
     setIsDropdownOpen(false)
   }
 
@@ -76,14 +87,14 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
       ref={setNodeRef}
       style={style}
       className={`
-        ${user.carriedOver ? 'bg-amber-950/20' : 'bg-slate-800'} border rounded-lg p-4
+        ${user.carriedOver ? 'bg-amber-950/20' : 'bg-slate-800'} border rounded-lg p-2 sm:p-3
         ${isDragging ? 'opacity-50 border-blue-500 shadow-lg z-50' : user.carriedOver ? 'border-amber-700/50' : 'border-slate-700'}
         ${!isDragging ? user.carriedOver ? 'hover:border-amber-600/70 hover:bg-amber-950/30' : 'hover:border-slate-600 hover:bg-slate-750' : ''}
         transition-colors duration-200
       `}
       dir="rtl"
     >
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Actions dropdown - positioned on the left in RTL */}
         {!isEditing && (
           <div className="relative order-first" ref={dropdownRef}>
@@ -99,7 +110,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
 
             {/* Dropdown menu */}
             {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
+              <div className="absolute right-0 top-full mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
                 {onUpdateDisplayName && (
                   <button
                     onClick={handleEdit}
@@ -112,6 +123,22 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
                         strokeLinejoin="round"
                         strokeWidth={2}
                         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </button>
+                )}
+                {onAddTurnAfter3 && (
+                  <button
+                    onClick={handleAddTurnAfter3}
+                    className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
+                  >
+                    <span>إضافة دور بعد ٣</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v16m8-8H4"
                       />
                     </svg>
                   </button>
@@ -139,11 +166,11 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300 transition-colors"
+          className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300 transition-colors p-2 -m-2 touch-manipulation"
           aria-label="اسحب لإعادة الترتيب"
         >
           <svg
-            className="w-5 h-5"
+            className="w-6 h-6 sm:w-5 sm:h-5"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -158,12 +185,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
         </button>
 
         {/* Position number */}
-        <div className={`${user.carriedOver ? 'text-amber-400' : 'text-slate-400'} font-mono text-sm w-8`}>
+        <div className={`${user.carriedOver ? 'text-amber-400' : 'text-slate-400'} font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0`}>
           {index + 1}.
         </div>
 
         {/* User info */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {isEditing ? (
             <div className="flex flex-col gap-2">
               <input
@@ -191,16 +218,16 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName }: Dr
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-2">
-                <div className="text-white font-medium">{primaryName}</div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="text-white font-medium text-sm sm:text-base">{primaryName}</div>
                 {user.carriedOver && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-900/30 text-amber-400 border border-amber-700/50">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-900/30 text-amber-400 border border-amber-700/50">
                     من الحلقة السابقة
                   </span>
                 )}
               </div>
               {secondaryText && (
-                <div className="text-slate-400 text-sm">{secondaryText}</div>
+                <div className="text-slate-400 text-xs sm:text-sm truncate">{secondaryText}</div>
               )}
             </>
           )}

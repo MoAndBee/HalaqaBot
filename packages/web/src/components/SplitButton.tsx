@@ -49,7 +49,7 @@ export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) 
         onClick={handleComplete}
         disabled={isCompleteDisabled}
         className={`
-          px-4 py-2 rounded-r-lg font-medium text-white
+          px-3 py-2 sm:px-4 sm:py-2 rounded-r-lg font-medium text-white text-sm sm:text-base
           transition-colors duration-200
           ${
             isCompleteDisabled
@@ -66,7 +66,7 @@ export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) 
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         disabled={disabled}
         className={`
-          px-2 border-r border-green-700 rounded-l-lg
+          px-1.5 sm:px-2 border-r border-green-700 rounded-l-lg
           transition-colors duration-200
           ${
             disabled

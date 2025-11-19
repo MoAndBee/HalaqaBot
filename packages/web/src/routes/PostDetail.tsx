@@ -1,3 +1,4 @@
+import React from 'react'
 import { Link, useParams } from 'wouter'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@halakabot/db'
@@ -23,12 +24,15 @@ function formatUserList(users: User[], isDone: boolean = false): string {
     .join('\n')
 }
 
-function formatTelegramNames(users: User[], isDone: boolean = false): string {
-  return users
+function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
+  const allUsers = [...completedUsers, ...activeUsers]
+  return allUsers
     .map((user, index) => {
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
-      const doneIcon = isDone ? '✅ ' : ''
-      return `${arabicNumber}. ${doneIcon}${user.telegramName}`
+      const name = user.realName || user.telegramName
+      const isDone = completedUsers.some(cu => cu.id === user.id)
+      const doneIcon = isDone ? ' ✅' : ''
+      return `${arabicNumber}. ${name}${doneIcon}`
     })
     .join('\n')
 }
@@ -38,13 +42,23 @@ export default function PostDetail() {
   const chatId = Number(params.chatId)
   const postId = Number(params.postId)
 
-  const data = useQuery(api.queries.getUserList, { chatId, postId })
+  const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
+
+  const data = useQuery(api.queries.getUserList, { chatId, postId, sessionNumber: selectedSession })
+  const availableSessions = useQuery(api.queries.getAvailableSessions, { chatId, postId })
+  const postDetails = useQuery(api.queries.getPostDetails, { chatId, postId })
+  const sessionInfo = useQuery(
+    api.queries.getSessionInfo,
+    data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession } : 'skip'
+  )
   const updatePosition = useMutation(api.mutations.updateUserPosition)
   const removeUser = useMutation(api.mutations.removeUserFromList)
   const completeUserTurn = useMutation(api.mutations.completeUserTurn)
   const skipUserTurn = useMutation(api.mutations.skipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
   const updateUserRealName = useMutation(api.mutations.updateUserRealName)
+  const startNewSession = useMutation(api.mutations.startNewSession)
+  const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
 
   const handleReorder = async (userId: number, newPosition: number) => {
     await updatePosition({
@@ -52,6 +66,7 @@ export default function PostDetail() {
       postId,
       userId,
       newPosition,
+      sessionNumber: data?.currentSession,
     })
   }
 
@@ -60,6 +75,7 @@ export default function PostDetail() {
       chatId,
       postId,
       userId,
+      sessionNumber: data?.currentSession,
     })
   }
 
@@ -69,6 +85,7 @@ export default function PostDetail() {
       postId,
       userId,
       sessionType,
+      sessionNumber: data?.currentSession,
     })
   }
 
@@ -77,6 +94,7 @@ export default function PostDetail() {
       chatId,
       postId,
       userId,
+      sessionNumber: data?.currentSession,
     })
   }
 
@@ -86,6 +104,7 @@ export default function PostDetail() {
       postId,
       userId,
       sessionType,
+      sessionNumber: data?.currentSession,
     })
   }
 
@@ -96,13 +115,45 @@ export default function PostDetail() {
     })
   }
 
+  const handleAddTurnAfter3 = async (userId: number, currentPosition: number | undefined) => {
+    try {
+      console.log('Adding turn after 3:', { userId, currentPosition, turnsToWait: 3, sessionNumber: data?.currentSession })
+      await addUserAtPosition({
+        chatId,
+        postId,
+        userId,
+        currentPosition, // undefined for completed users, position number for active users
+        turnsToWait: 3,
+        sessionNumber: data?.currentSession,
+      })
+      toast.success('تم إضافة الدور!')
+    } catch (error) {
+      console.error('Failed to add turn:', error)
+      toast.error('فشل إضافة الدور')
+    }
+  }
+
   const handleCopyList = async () => {
-    if (!data) return
+    if (!data || !postDetails) return
 
     const activeList = formatUserList(data.activeUsers, false)
     const completedList = formatUserList(data.completedUsers, true)
 
-    let fullMessage = ''
+    // Format the date
+    const date = new Date(postDetails.createdAt)
+    const formattedDate = date.toLocaleDateString('ar-SA', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+
+    // Build the header
+    let fullMessage = `${formattedDate}\n`
+    if (sessionInfo?.teacherName) {
+      fullMessage += `${sessionInfo.teacherName}\n`
+    }
+    fullMessage += '\n'
+
     if (activeList) {
       fullMessage += `📋 القائمة:\n\n${activeList}`
     }
@@ -120,25 +171,86 @@ export default function PostDetail() {
   }
 
   const handleCopyTelegramNames = async () => {
-    if (!data) return
+    if (!data || !postDetails) return
 
-    const activeList = formatTelegramNames(data.activeUsers, false)
-    const completedList = formatTelegramNames(data.completedUsers, true)
+    // Format the date
+    const date = new Date(postDetails.createdAt)
+    const formattedDate = date.toLocaleDateString('ar-SA', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
 
-    let fullMessage = ''
-    if (activeList) {
-      fullMessage += `لم ينتهوا بعد:\n\n${activeList}`
+    // Build the header
+    let fullMessage = `${formattedDate}\n`
+    if (sessionInfo?.teacherName) {
+      fullMessage += `${sessionInfo.teacherName}\n`
     }
-    if (completedList) {
-      fullMessage += `\n\nالمنتهون:\n\n${completedList}`
-    }
+    fullMessage += '\n'
+
+    // Add the names list
+    fullMessage += formatRealNames(data.activeUsers, data.completedUsers)
 
     try {
       await navigator.clipboard.writeText(fullMessage)
-      toast.success('تم نسخ الأسماء!')
+      toast.success('تم نسخ الأسماء الحقيقية!')
     } catch (error) {
       toast.error('فشل النسخ')
       console.error('Copy failed:', error)
+    }
+  }
+
+  const handleStartNewSession = async () => {
+    if (!data) return
+
+    // Prompt for teacher name
+    const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:')
+    if (!teacherName || teacherName.trim() === '') {
+      toast.error('يجب إدخال اسم المعلم')
+      return
+    }
+
+    const incompleteCount = data.activeUsers.length
+
+    // Ask user if they want to carry over incomplete users
+    if (incompleteCount > 0) {
+      const confirmed = window.confirm(
+        `يوجد ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الجلسة الحالية.\n\nهل تريد نقلهم إلى الجلسة الجديدة؟`
+      )
+
+      try {
+        const result = await startNewSession({
+          chatId,
+          postId,
+          teacherName: teacherName.trim(),
+          carryOverIncomplete: confirmed
+        })
+        setSelectedSession(result.newSessionNumber)
+
+        if (confirmed) {
+          toast.success(`تم بدء الجلسة رقم ${result.newSessionNumber.toLocaleString('ar-EG')} ونقل ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك' : 'مشتركين'}!`)
+        } else {
+          toast.success(`تم بدء الجلسة رقم ${result.newSessionNumber.toLocaleString('ar-EG')}!`)
+        }
+      } catch (error) {
+        toast.error('فشل بدء الجلسة الجديدة')
+        console.error('Start new session failed:', error)
+      }
+    } else {
+      // No incomplete users, just start new session
+      try {
+        const result = await startNewSession({
+          chatId,
+          postId,
+          teacherName: teacherName.trim(),
+          carryOverIncomplete: false
+        })
+        setSelectedSession(result.newSessionNumber)
+        toast.success(`تم بدء الجلسة رقم ${result.newSessionNumber.toLocaleString('ar-EG')}!`)
+      } catch (error) {
+        toast.error('فشل بدء الجلسة الجديدة')
+        console.error('Start new session failed:', error)
+      }
     }
   }
 
@@ -153,12 +265,12 @@ export default function PostDetail() {
   const totalUsers = data.activeUsers.length + data.completedUsers.length
 
   return (
-    <div className="p-8 h-full flex flex-col">
-      <div className="mb-6">
+    <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
+      <div className="mb-3 sm:mb-4 md:mb-6">
         <Link href="/">
-          <a className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4">
+          <a className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-2 sm:mb-3 md:mb-4">
             <svg
-              className="w-5 h-5"
+              className="w-4 h-4 sm:w-5 sm:h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -170,23 +282,65 @@ export default function PostDetail() {
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            العودة للمنشورات
+            <span className="text-sm sm:text-base">العودة للمنشورات</span>
           </a>
         </Link>
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-black text-white">المنشور {postId}</h1>
-            <p className="text-slate-400 mt-1">معرف المحادثة: {chatId}</p>
+            {postDetails?.createdAt && (
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-white">
+                {new Date(postDetails.createdAt).toLocaleDateString('ar-SA', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </h1>
+            )}
+            <p className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
+            <p className="text-slate-400 text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            {availableSessions && availableSessions.length > 1 && (
+              <select
+                value={selectedSession ?? data.currentSession}
+                onChange={(e) => setSelectedSession(Number(e.target.value))}
+                className="bg-slate-700 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none text-xs sm:text-sm"
+              >
+                {availableSessions.map((session) => (
+                  <option key={session.sessionNumber} value={session.sessionNumber}>
+                    الجلسة {session.sessionNumber.toLocaleString('ar-EG')}
+                    {session.teacherName && ` (${session.teacherName})`}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={handleStartNewSession}
+              className="bg-gray-600 hover:bg-gray-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
+              title="بدء جلسة جديدة"
+            >
+              <svg
+                className="w-4 h-4 sm:w-5 sm:h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>
             <button
               onClick={handleCopyList}
-              className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg transition-colors flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
               title="نسخ القائمة إلى الحافظة"
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4 sm:w-5 sm:h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -201,11 +355,11 @@ export default function PostDetail() {
             </button>
             <button
               onClick={handleCopyTelegramNames}
-              className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-lg transition-colors flex items-center gap-2"
-              title="نسخ أسماء تليجرام"
+              className="bg-purple-600 hover:bg-purple-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
+              title="نسخ الأسماء الحقيقية"
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4 sm:w-5 sm:h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -219,8 +373,8 @@ export default function PostDetail() {
               </svg>
             </button>
             <div className="text-right">
-              <div className="text-sm text-slate-400">إجمالي المستخدمين</div>
-              <div className="text-2xl font-bold text-white">{totalUsers}</div>
+              <div className="text-xs sm:text-sm text-slate-400">إجمالي المستخدمين</div>
+              <div className="text-lg sm:text-xl md:text-2xl font-bold text-white">{totalUsers}</div>
             </div>
 
           </div>
@@ -239,6 +393,7 @@ export default function PostDetail() {
           onSkip={handleSkip}
           onUpdateSessionType={handleUpdateSessionType}
           onUpdateDisplayName={handleUpdateDisplayName}
+          onAddTurnAfter3={handleAddTurnAfter3}
         />
       </div>
     </div>

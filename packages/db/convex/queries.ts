@@ -58,12 +58,31 @@ export const getUserList = query({
   args: {
     chatId: v.number(),
     postId: v.number(),
+    sessionNumber: v.optional(v.number()), // if not provided, get latest session
   },
   handler: async (ctx, args) => {
+    let sessionNumber = args.sessionNumber;
+
+    // If no session number provided, find the latest session
+    if (sessionNumber === undefined) {
+      const allEntries = await ctx.db
+        .query("userLists")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .collect();
+
+      // Find the max session number (defaulting to 1 for entries without sessionNumber)
+      sessionNumber = Math.max(
+        1,
+        ...allEntries.map(e => e.sessionNumber ?? 1)
+      );
+    }
+
     const userListEntries = await ctx.db
       .query("userLists")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
@@ -119,6 +138,70 @@ export const getUserList = query({
     return {
       activeUsers,
       completedUsers,
+      currentSession: sessionNumber,
+    };
+  },
+});
+
+export const getAvailableSessions = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const allEntries = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    // Get unique session numbers (defaulting to 1 for entries without sessionNumber)
+    const sessionNumbers = new Set(
+      allEntries.map(e => e.sessionNumber ?? 1)
+    );
+
+    // Get session metadata for each session
+    const sessions = await Promise.all(
+      Array.from(sessionNumbers).map(async (sessionNumber) => {
+        const sessionMeta = await ctx.db
+          .query("sessions")
+          .withIndex("by_chat_post_session", (q) =>
+            q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+          )
+          .first();
+
+        return {
+          sessionNumber,
+          teacherName: sessionMeta?.teacherName ?? null,
+        };
+      })
+    );
+
+    return sessions.sort((a, b) => b.sessionNumber - a.sessionNumber); // newest first
+  },
+});
+
+export const getSessionInfo = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const sessionMeta = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!sessionMeta) return null;
+
+    return {
+      sessionNumber: sessionMeta.sessionNumber,
+      teacherName: sessionMeta.teacherName,
+      createdAt: sessionMeta.createdAt,
     };
   },
 });
@@ -254,10 +337,21 @@ export const getAllPosts = query({
   args: {},
   handler: async (ctx) => {
     const allUsers = await ctx.db.query("userLists").collect();
+    const allMessages = await ctx.db.query("messageAuthors").collect();
+
+    // Create a map of post keys to earliest message timestamp
+    const postDatesMap = new Map<string, number>();
+    for (const msg of allMessages) {
+      const key = `${msg.chatId}-${msg.postId}`;
+      const existingDate = postDatesMap.get(key);
+      if (!existingDate || msg.createdAt < existingDate) {
+        postDatesMap.set(key, msg.createdAt);
+      }
+    }
 
     const postsMap = new Map<
       string,
-      { chatId: number; postId: number; userCount: number }
+      { chatId: number; postId: number; userCount: number; createdAt: number }
     >();
 
     for (const user of allUsers) {
@@ -267,6 +361,7 @@ export const getAllPosts = query({
           chatId: user.chatId,
           postId: user.postId,
           userCount: 0,
+          createdAt: postDatesMap.get(key) ?? Date.now(),
         });
       }
       postsMap.get(key)!.userCount++;
@@ -301,9 +396,18 @@ export const getPostDetails = query({
       )
       .collect();
 
+    // Get the earliest message for creation date
+    const firstMessage = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .first();
+
     return {
       userCount: users.length,
       messageCount: messages.length,
+      createdAt: firstMessage?.createdAt ?? Date.now(),
     };
   },
 });

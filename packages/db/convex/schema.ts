@@ -25,19 +25,17 @@ export default defineSchema({
     userId: v.number(),
     position: v.number(),
     channelId: v.optional(v.number()),
-    firstName: v.optional(v.string()),
-    lastName: v.optional(v.string()),
-    username: v.optional(v.string()),
-    displayName: v.optional(v.string()),
     createdAt: v.number(), // timestamp in ms
     completedAt: v.optional(v.number()), // timestamp in ms when turn was completed
     sessionType: v.optional(v.string()), // "تلاوة" or "تسميع"
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous post
+    sessionNumber: v.optional(v.number()), // session number within this post (defaults to 1 for existing records)
   })
     .index("by_chat_post_user", ["chatId", "postId", "userId"])
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_chat_post_position", ["chatId", "postId", "position"])
-    .index("by_channel_post", ["channelId", "postId"]),
+    .index("by_channel_post", ["channelId", "postId"])
+    .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
 
   lastListMessages: defineTable({
     chatId: v.number(),
@@ -73,4 +71,14 @@ export default defineSchema({
     updatedAt: v.number(), // timestamp in ms
   })
     .index("by_user_id", ["userId"]),
+
+  sessions: defineTable({
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    teacherName: v.string(), // Name of the teacher for this session
+    createdAt: v.number(), // timestamp in ms
+  })
+    .index("by_chat_post", ["chatId", "postId"])
+    .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
 });

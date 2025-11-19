@@ -6,6 +6,7 @@ export interface User {
   position?: number;
   carriedOver?: boolean;
   sessionType?: string;
+  sessionNumber?: number;
 }
 
 export interface ChatStorage {

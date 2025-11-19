@@ -38,6 +38,7 @@ interface UserListProps {
   onSkip: (userId: number) => Promise<void>
   onUpdateSessionType: (userId: number, sessionType: SessionType) => Promise<void>
   onUpdateDisplayName: (userId: number, displayName: string) => Promise<void>
+  onAddTurnAfter3: (userId: number, currentPosition: number | undefined) => Promise<void>
 }
 
 export function UserList({
@@ -50,7 +51,8 @@ export function UserList({
   onComplete,
   onSkip,
   onUpdateSessionType,
-  onUpdateDisplayName
+  onUpdateDisplayName,
+  onAddTurnAfter3
 }: UserListProps) {
   const [items, setItems] = useState(activeUsers)
   const [isReordering, setIsReordering] = useState(false)
@@ -250,6 +252,8 @@ export function UserList({
           users={completedUsers}
           onUpdateSessionType={handleUpdateSessionType}
           onUpdateDisplayName={handleUpdateDisplayName}
+          onDelete={handleDelete}
+          onAddTurnAfter3={onAddTurnAfter3}
         />
 
         {/* Active Users List */}
@@ -271,6 +275,7 @@ export function UserList({
                     index={index}
                     onDelete={handleDelete}
                     onUpdateDisplayName={handleUpdateDisplayName}
+                    onAddTurnAfter3={onAddTurnAfter3}
                   />
                 ))}
               </div>
