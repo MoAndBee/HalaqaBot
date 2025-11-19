@@ -5,6 +5,7 @@ import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { Loader } from '~/components/Loader'
 import { UserList } from '~/components/UserList'
+import { AddUserModal } from '~/components/AddUserModal'
 import type { SessionType } from '~/components/SplitButton'
 import toast from 'react-hot-toast'
 
@@ -43,6 +44,20 @@ export default function PostDetail() {
   const postId = Number(params.postId)
 
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
+  const [isActionsDropdownOpen, setIsActionsDropdownOpen] = React.useState(false)
+  const actionsDropdownRef = React.useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionsDropdownRef.current && !actionsDropdownRef.current.contains(event.target as Node)) {
+        setIsActionsDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const data = useQuery(api.queries.getUserList, { chatId, postId, sessionNumber: selectedSession })
   const availableSessions = useQuery(api.queries.getAvailableSessions, { chatId, postId })
@@ -59,6 +74,7 @@ export default function PostDetail() {
   const updateUserRealName = useMutation(api.mutations.updateUserRealName)
   const startNewSession = useMutation(api.mutations.startNewSession)
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
+  const addUserToList = useMutation(api.mutations.addUserToList)
 
   const handleReorder = async (userId: number, newPosition: number) => {
     await updatePosition({
@@ -130,6 +146,22 @@ export default function PostDetail() {
     } catch (error) {
       console.error('Failed to add turn:', error)
       toast.error('فشل إضافة الدور')
+    }
+  }
+
+  const handleAddUser = async (userId: number) => {
+    try {
+      await addUserToList({
+        chatId,
+        postId,
+        userId,
+        sessionNumber: data?.currentSession,
+      })
+      toast.success('تم إضافة المستخدم!')
+      setIsAddUserModalOpen(false)
+    } catch (error) {
+      toast.error('فشل إضافة المستخدم')
+      console.error('Failed to add user:', error)
     }
   }
 
@@ -315,25 +347,56 @@ export default function PostDetail() {
                 ))}
               </select>
             )}
-            <button
-              onClick={handleStartNewSession}
-              className="bg-gray-600 hover:bg-gray-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
-              title="بدء جلسة جديدة"
-            >
-              <svg
-                className="w-4 h-4 sm:w-5 sm:h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="relative" ref={actionsDropdownRef}>
+              <button
+                onClick={() => setIsActionsDropdownOpen(!isActionsDropdownOpen)}
+                className="bg-gray-600 hover:bg-gray-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
+                title="إجراءات إضافية"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-            </button>
+                <svg
+                  className="w-4 h-4 sm:w-5 sm:h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+              </button>
+              
+              {isActionsDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      handleStartNewSession()
+                      setIsActionsDropdownOpen(false)
+                    }}
+                    className="w-full px-4 py-3 text-right text-white hover:bg-slate-700 transition-colors text-sm border-b border-slate-700 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    بدء جلسة جديدة
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsAddUserModalOpen(true)
+                      setIsActionsDropdownOpen(false)
+                    }}
+                    className="w-full px-4 py-3 text-right text-white hover:bg-slate-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                    إضافة مستخدم يدوياً
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={handleCopyList}
               className="bg-blue-600 hover:bg-blue-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
@@ -396,6 +459,12 @@ export default function PostDetail() {
           onAddTurnAfter3={handleAddTurnAfter3}
         />
       </div>
+
+      <AddUserModal
+        isOpen={isAddUserModalOpen}
+        onClose={() => setIsAddUserModalOpen(false)}
+        onAdd={handleAddUser}
+      />
     </div>
   )
 }

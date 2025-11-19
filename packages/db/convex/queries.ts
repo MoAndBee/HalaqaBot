@@ -507,3 +507,37 @@ export const getMessagesByUserId = query({
     }));
   },
 });
+
+export const searchUsers = query({
+  args: {
+    query: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (!args.query.trim()) {
+      return [];
+    }
+
+    const users = await ctx.db.query("users").collect();
+    const lowerQuery = args.query.toLowerCase();
+
+    return users
+      .filter((user) => {
+        const realName = user.realName?.toLowerCase() || "";
+        const telegramName = user.telegramName.toLowerCase();
+        const username = user.username?.toLowerCase() || "";
+
+        return (
+          realName.includes(lowerQuery) ||
+          telegramName.includes(lowerQuery) ||
+          username.includes(lowerQuery)
+        );
+      })
+      .slice(0, 20) // Limit results
+      .map((user) => ({
+        userId: user.userId,
+        username: user.username,
+        telegramName: user.telegramName,
+        realName: user.realName,
+      }));
+  },
+});
