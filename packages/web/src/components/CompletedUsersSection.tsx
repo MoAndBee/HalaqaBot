@@ -160,7 +160,7 @@ function CompletedUserCard({
 
             {/* Dropdown menu */}
             {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
+              <div className="fixed sm:absolute right-2 sm:right-0 top-auto sm:top-full mt-1 w-40 max-w-[10rem] bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
                 {onUpdateDisplayName && (
                   <button
                     onClick={handleEditNameClick}

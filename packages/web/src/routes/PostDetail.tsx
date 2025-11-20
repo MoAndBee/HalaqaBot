@@ -354,7 +354,7 @@ export default function PostDetail() {
               </button>
               
               {isActionsDropdownOpen && (
-                <div className="absolute left-0 top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 overflow-hidden">
+                <div className="fixed sm:absolute left-auto right-2 sm:left-0 sm:right-auto top-auto sm:top-full mt-1 w-48 sm:w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 overflow-hidden">
                   <button
                     onClick={() => {
                       handleStartNewSession()

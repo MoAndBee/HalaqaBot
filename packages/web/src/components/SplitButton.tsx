@@ -94,7 +94,7 @@ export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) 
 
       {/* Dropdown menu */}
       {isDropdownOpen && (
-        <div className="absolute left-0 top-full mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-10">
+        <div className="fixed sm:absolute left-auto right-2 sm:left-0 sm:right-auto top-auto sm:top-full mt-1 w-32 sm:w-full bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
           <button
             onClick={() => handleSelectType('تلاوة')}
             className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-t-lg"
