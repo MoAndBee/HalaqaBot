@@ -288,6 +288,7 @@ function CompletedUserCard({
                 <option value="">اختر</option>
                 <option value="تلاوة">تلاوة</option>
                 <option value="تسميع">تسميع</option>
+                <option value="تطبيق">تطبيق</option>
               </select>
               <button
                 onClick={handleConfirmType}
