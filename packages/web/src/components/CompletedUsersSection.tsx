@@ -336,7 +336,7 @@ export function CompletedUsersSection({
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between p-3 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-750 transition-colors rounded-lg border border-gray-200 dark:border-slate-700"
       >
-        <span className="text-gray-900 dark:text-slate-300 font-medium">الأدوار الفائتة</span>
+        <span className="text-gray-900 dark:text-slate-300 font-medium">الأدوار الفائتة ({users.length})</span>
         <svg
           className={`w-5 h-5 text-gray-600 dark:text-slate-400 transition-transform duration-200 ${
             isExpanded ? 'rotate-180' : ''
