@@ -9,9 +9,12 @@ interface DraggableUserProps {
   onDelete: (entryId: string) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
+  onMoveToEnd?: (entryId: string) => void
+  onMoveToPosition?: (entryId: string, position: number) => void
+  totalUsers?: number
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAddTurnAfter3 }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, totalUsers }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -74,6 +77,48 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
       const currentPosition = user.position ?? (index + 1)
       onAddTurnAfter3(user.id, currentPosition)
     }
+    setIsDropdownOpen(false)
+  }
+
+  const handleMoveToEnd = () => {
+    if (onMoveToEnd && user.entryId) {
+      onMoveToEnd(user.entryId)
+    }
+    setIsDropdownOpen(false)
+  }
+
+  const handleMoveToPosition = () => {
+    if (!onMoveToPosition || !user.entryId || !totalUsers) {
+      return
+    }
+
+    const currentPosition = index + 1
+    const positionInput = window.prompt(
+      `أدخل رقم الدور (من 1 إلى ${totalUsers})\nالدور الحالي: ${currentPosition}`,
+      currentPosition.toString()
+    )
+
+    if (positionInput === null) {
+      // User cancelled
+      setIsDropdownOpen(false)
+      return
+    }
+
+    const newPosition = parseInt(positionInput.trim(), 10)
+
+    if (isNaN(newPosition) || newPosition < 1 || newPosition > totalUsers) {
+      alert(`الرجاء إدخال رقم صحيح بين 1 و ${totalUsers}`)
+      setIsDropdownOpen(false)
+      return
+    }
+
+    if (newPosition === currentPosition) {
+      // No change needed
+      setIsDropdownOpen(false)
+      return
+    }
+
+    onMoveToPosition(user.entryId, newPosition)
     setIsDropdownOpen(false)
   }
 
@@ -141,6 +186,38 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
                         strokeLinejoin="round"
                         strokeWidth={2}
                         d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                  </button>
+                )}
+                {onMoveToEnd && (
+                  <button
+                    onClick={handleMoveToEnd}
+                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
+                  >
+                    <span>نقل إلى آخر القائمة</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                      />
+                    </svg>
+                  </button>
+                )}
+                {onMoveToPosition && (
+                  <button
+                    onClick={handleMoveToPosition}
+                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
+                  >
+                    <span>نقل إلى دور معين</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
                       />
                     </svg>
                   </button>
