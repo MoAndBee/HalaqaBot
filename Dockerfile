@@ -20,6 +20,8 @@ COPY packages/db ./packages/db
 WORKDIR /app/packages/db
 RUN bunx convex dev --once
 
+RUN bunx convex deploy
+
 # Set working directory to bot package
 WORKDIR /app/packages/bot
 
