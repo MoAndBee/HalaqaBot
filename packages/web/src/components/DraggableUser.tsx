@@ -102,7 +102,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
           <div className="relative order-first" ref={dropdownRef}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="text-slate-400 hover:text-white bg-slate-700/50 hover:bg-slate-600 transition-colors p-1 rounded"
+              className="text-slate-300 bg-slate-700 active:bg-slate-600 transition-colors p-1 rounded"
               aria-label="خيارات"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
