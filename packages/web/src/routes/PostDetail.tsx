@@ -355,7 +355,7 @@ export default function PostDetail() {
               <select
                 value={selectedSession ?? data.currentSession}
                 onChange={(e) => setSelectedSession(Number(e.target.value))}
-                className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-gray-300 dark:border-slate-600 focus:border-blue-500 focus:outline-none text-xs sm:text-sm"
+                className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-gray-300 dark:border-slate-600 focus:border-blue-500 focus:outline-none text-sm h-[34px] sm:h-[42px]"
               >
                 {availableSessions.map((session) => (
                   <option key={session.sessionNumber} value={session.sessionNumber}>
