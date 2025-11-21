@@ -368,11 +368,11 @@ export default function PostDetail() {
             <div className="relative" ref={actionsDropdownRef}>
               <button
                 onClick={() => setIsActionsDropdownOpen(!isActionsDropdownOpen)}
-                className="bg-gray-600 dark:bg-gray-600 hover:bg-gray-700 dark:hover:bg-gray-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
+                className="bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-white border border-gray-300 dark:border-slate-600 p-1.5 sm:p-2 rounded-lg transition-colors flex items-center gap-1.5"
                 title="إجراءات إضافية"
               >
                 <svg
-                  className="w-5 h-5 sm:w-6 sm:h-6"
+                  className="w-5 h-5"
                   fill="currentColor"
                   viewBox="0 0 24 24"
                 >
