@@ -150,7 +150,7 @@ function CompletedUserCard({
           <div className="relative order-first" ref={dropdownRef}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="text-slate-300 bg-slate-700 active:bg-slate-600 transition-colors p-1 rounded"
+              className="text-gray-700 bg-gray-200 active:bg-gray-300 dark:text-slate-300 dark:bg-slate-700 dark:active:bg-slate-600 transition-colors p-1 rounded"
               aria-label="خيارات"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
