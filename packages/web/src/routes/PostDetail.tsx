@@ -75,6 +75,7 @@ export default function PostDetail() {
   const startNewSession = useMutation(api.mutations.startNewSession)
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
+  const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
 
   const handleReorder = async (entryId: string, newPosition: number) => {
     await updatePosition({
@@ -167,7 +168,7 @@ export default function PostDetail() {
     // Build the header
     let fullMessage = `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
-      fullMessage += `${sessionInfo.teacherName}\n`
+      fullMessage += `المعلمة) ${sessionInfo.teacherName}\n`
     }
     fullMessage += '\n'
 
@@ -201,7 +202,7 @@ export default function PostDetail() {
     // Build the header
     let fullMessage = `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
-      fullMessage += `${sessionInfo.teacherName}\n`
+      fullMessage += `المعلمة) ${sessionInfo.teacherName}\n`
     }
     fullMessage += '\n'
 
@@ -271,6 +272,38 @@ export default function PostDetail() {
     }
   }
 
+  const handleEditTeacherName = async () => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+    const currentTeacherName = sessionInfo?.teacherName || ''
+
+    // Prompt for teacher name with current value as default
+    const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:', currentTeacherName)
+
+    // User cancelled
+    if (teacherName === null) return
+
+    // Empty name validation
+    if (teacherName.trim() === '') {
+      toast.error('يجب إدخال اسم المعلم')
+      return
+    }
+
+    try {
+      await updateSessionTeacher({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        teacherName: teacherName.trim(),
+      })
+      toast.success('تم تحديث اسم المعلم!')
+    } catch (error) {
+      toast.error('فشل تحديث اسم المعلم')
+      console.error('Update teacher name failed:', error)
+    }
+  }
+
   if (!data) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -285,7 +318,7 @@ export default function PostDetail() {
     <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
       <div className="mb-3 sm:mb-4 md:mb-6">
         <Link href="/">
-          <a className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-2 sm:mb-3 md:mb-4">
+          <a className="inline-flex items-center gap-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-2 sm:mb-3 md:mb-4">
             <svg
               className="w-4 h-4 sm:w-5 sm:h-5"
               fill="none"
@@ -306,7 +339,7 @@ export default function PostDetail() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             {postDetails?.createdAt && (
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-white">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
                 {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
                   year: 'numeric',
                   month: 'long',
@@ -314,15 +347,15 @@ export default function PostDetail() {
                 })}
               </h1>
             )}
-            <p className="text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
-            <p className="text-slate-400 text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
+            <p className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
+            <p className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {availableSessions && availableSessions.length > 1 && (
               <select
                 value={selectedSession ?? data.currentSession}
                 onChange={(e) => setSelectedSession(Number(e.target.value))}
-                className="bg-slate-700 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none text-xs sm:text-sm"
+                className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-gray-300 dark:border-slate-600 focus:border-blue-500 focus:outline-none text-xs sm:text-sm"
               >
                 {availableSessions.map((session) => (
                   <option key={session.sessionNumber} value={session.sessionNumber}>
@@ -335,34 +368,30 @@ export default function PostDetail() {
             <div className="relative" ref={actionsDropdownRef}>
               <button
                 onClick={() => setIsActionsDropdownOpen(!isActionsDropdownOpen)}
-                className="bg-gray-600 hover:bg-gray-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
+                className="bg-gray-600 dark:bg-gray-600 hover:bg-gray-700 dark:hover:bg-gray-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
                 title="إجراءات إضافية"
               >
                 <svg
-                  className="w-4 h-4 sm:w-5 sm:h-5"
-                  fill="none"
-                  stroke="currentColor"
+                  className="w-5 h-5 sm:w-6 sm:h-6"
+                  fill="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
+                  <circle cx="12" cy="5" r="2" />
+                  <circle cx="12" cy="12" r="2" />
+                  <circle cx="12" cy="19" r="2" />
                 </svg>
               </button>
-              
+
               {isActionsDropdownOpen && (
-                <div className="fixed sm:absolute left-auto right-2 sm:left-0 sm:right-auto top-auto sm:top-full mt-1 w-48 sm:w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 overflow-hidden">
+                <div className="fixed sm:absolute left-auto right-2 sm:left-0 sm:right-auto top-auto sm:top-full mt-1 w-56 sm:w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 overflow-hidden">
                   <button
                     onClick={() => {
                       handleStartNewSession()
                       setIsActionsDropdownOpen(false)
                     }}
-                    className="w-full px-4 py-3 text-right text-white hover:bg-slate-700 transition-colors text-sm border-b border-slate-700 flex items-center gap-2"
+                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
                   >
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                     بدء جلسة جديدة
@@ -372,57 +401,55 @@ export default function PostDetail() {
                       setIsAddUserModalOpen(true)
                       setIsActionsDropdownOpen(false)
                     }}
-                    className="w-full px-4 py-3 text-right text-white hover:bg-slate-700 transition-colors text-sm flex items-center gap-2"
+                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
                   >
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                     </svg>
                     إضافة مستخدم يدوياً
                   </button>
+                  <button
+                    onClick={() => {
+                      handleEditTeacherName()
+                      setIsActionsDropdownOpen(false)
+                    }}
+                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    تعديل اسم المعلم
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleCopyList()
+                      setIsActionsDropdownOpen(false)
+                    }}
+                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    نسخ القائمة
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleCopyTelegramNames()
+                      setIsActionsDropdownOpen(false)
+                    }}
+                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                    </svg>
+                    نسخ الأسماء الحقيقية
+                  </button>
                 </div>
               )}
             </div>
-            <button
-              onClick={handleCopyList}
-              className="bg-blue-600 hover:bg-blue-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
-              title="نسخ القائمة إلى الحافظة"
-            >
-              <svg
-                className="w-4 h-4 sm:w-5 sm:h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={handleCopyTelegramNames}
-              className="bg-purple-600 hover:bg-purple-700 text-white p-2 sm:p-2.5 rounded-lg transition-colors flex items-center gap-1.5"
-              title="نسخ الأسماء الحقيقية"
-            >
-              <svg
-                className="w-4 h-4 sm:w-5 sm:h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
-                />
-              </svg>
-            </button>
             <div className="text-right">
-              <div className="text-xs sm:text-sm text-slate-400">إجمالي المستخدمين</div>
-              <div className="text-lg sm:text-xl md:text-2xl font-bold text-white">{totalUsers}</div>
+              <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">إجمالي المستخدمين</div>
+              <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{totalUsers}</div>
             </div>
 
           </div>

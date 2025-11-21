@@ -16,7 +16,7 @@ export default function Home() {
 
   return (
     <div className="p-8 h-full flex flex-col">
-      <h1 className="text-3xl font-black text-white mb-6">المنشورات</h1>
+      <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-6">المنشورات</h1>
       <div className="flex-1 min-h-0">
         <PostsList posts={posts} />
       </div>

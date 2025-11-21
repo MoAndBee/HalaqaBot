@@ -1,5 +1,39 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
+import type { GenericMutationCtx } from "convex/server";
+import type { DataModel } from "./_generated/dataModel";
+
+/**
+ * Helper function to resequence active users to have contiguous positions [1, 2, 3, 4...]
+ * This ensures frontend array indices always match database positions.
+ */
+async function resequenceActiveUsers(
+  ctx: GenericMutationCtx<DataModel>,
+  chatId: number,
+  postId: number,
+  sessionNumber: number
+): Promise<void> {
+  // Get all users in this session
+  const allUsers = await ctx.db
+    .query("userLists")
+    .withIndex("by_chat_post_session", (q) =>
+      q.eq("chatId", chatId).eq("postId", postId).eq("sessionNumber", sessionNumber)
+    )
+    .collect();
+
+  // Filter only active users and sort by position
+  const activeUsers = allUsers
+    .filter(u => !u.completedAt)
+    .sort((a, b) => a.position - b.position);
+
+  // Resequence positions to be [1, 2, 3, 4...]
+  for (let i = 0; i < activeUsers.length; i++) {
+    const expectedPosition = i + 1;
+    if (activeUsers[i].position !== expectedPosition) {
+      await ctx.db.patch(activeUsers[i]._id, { position: expectedPosition });
+    }
+  }
+}
 
 export const addMessageAuthor = mutation({
   args: {
@@ -248,83 +282,44 @@ export const addUserAtPosition = mutation({
       }
 
       // Calculate target index: skip turnsToWait active users after current
-      // Example: currentIndex = 2, turnsToWait = 3 → targetIndex = 5
-      // This means insert at index 5, which is after indexes 3, 4, 5 (wait for 3 people)
-      targetIndex = currentIndex + args.turnsToWait;
+      // Example: currentIndex = 2, turnsToWait = 3 → targetIndex = 6 (insert after waiting for 3 users)
+      targetIndex = Math.min(currentIndex + args.turnsToWait + 1, activeUsers.length);
     } else {
       // Case 3 & 4: DONE user
       // Insert at index 3 (4th position in active list, 0-indexed)
-      targetIndex = 3;
+      targetIndex = Math.min(3, activeUsers.length);
     }
 
-    let insertAfterPosition: number;
+    // Create a temporary position (will be resequenced anyway)
+    const tempPosition = activeUsers.length > 0
+      ? Math.max(...activeUsers.map(u => u.position)) + 1
+      : 1;
 
-    // Determine where to insert based on targetIndex
-    if (targetIndex >= activeUsers.length) {
-      // Case 2 or Case 4: targetIndex is beyond the last active user
-      // Insert after the last active user (at the end)
-      insertAfterPosition = activeUsers[activeUsers.length - 1].position;
-    } else {
-      // Case 1 or Case 3: targetIndex is within the active users array
-      // Insert before the user at targetIndex
-      // Which means insert after the user at targetIndex - 1
-      if (targetIndex === 0) {
-        // Special case: insert before the first active user
-        insertAfterPosition = 0; // Will be handled specially
-      } else {
-        insertAfterPosition = activeUsers[targetIndex - 1].position;
-      }
-    }
-
-    // Now we need to find the actual database position to insert at
-    let targetPosition: number;
-
-    if (targetIndex >= activeUsers.length) {
-      // Case 2 or Case 4: Add after the last active user
-      targetPosition = activeUsers[activeUsers.length - 1].position + 1;
-    } else if (targetIndex === 0) {
-      // Special case: insert before first active user
-      const firstActivePosition = activeUsers[0].position;
-      if (firstActivePosition === 1) {
-        // No room before, need to shift everyone down
-        targetPosition = 1;
-        // Shift all active users down by 1
-        for (const user of activeUsers) {
-          await ctx.db.patch(user._id, { position: user.position + 1 });
-        }
-      } else {
-        // There's room before the first active user
-        targetPosition = firstActivePosition - 1;
-      }
-    } else {
-      // Case 1 or Case 3: Insert between active users
-      const beforeUser = activeUsers[targetIndex - 1];
-      const afterUser = activeUsers[targetIndex];
-
-      if (afterUser.position === beforeUser.position + 1) {
-        // No gap, need to shift users at targetIndex and after
-        targetPosition = afterUser.position;
-        // Shift all active users from targetIndex onwards down by 1
-        for (let i = targetIndex; i < activeUsers.length; i++) {
-          await ctx.db.patch(activeUsers[i]._id, { position: activeUsers[i].position + 1 });
-        }
-      } else {
-        // There's a gap, insert in the gap
-        targetPosition = beforeUser.position + 1;
-      }
-    }
-
-    // Insert the new user at target position
-    await ctx.db.insert("userLists", {
+    // Insert the new user with a temporary position
+    const newEntry = await ctx.db.insert("userLists", {
       chatId: args.chatId,
       postId: args.postId,
       userId: args.userId,
-      position: targetPosition,
+      position: tempPosition,
       channelId: args.channelId,
       createdAt: Date.now(),
       carriedOver: false,
       sessionNumber,
     });
+
+    // Get the newly inserted entry
+    const insertedEntry = await ctx.db.get(newEntry);
+    if (!insertedEntry) {
+      throw new Error("Failed to retrieve inserted entry");
+    }
+
+    // Add the new entry to the active users array at the target index
+    activeUsers.splice(targetIndex, 0, insertedEntry);
+
+    // Resequence all active users (including the newly added one)
+    for (let i = 0; i < activeUsers.length; i++) {
+      await ctx.db.patch(activeUsers[i]._id, { position: i + 1 });
+    }
 
     return true;
   },
@@ -512,53 +507,56 @@ export const updateUserPosition = mutation({
   handler: async (ctx, args) => {
     // Get the entry
     const currentEntry = await ctx.db.get(args.entryId);
-    
+
     if (!currentEntry) {
       throw new Error(`Entry not found`);
     }
 
-    const currentPosition = currentEntry.position;
-
-    if (currentPosition === args.newPosition) {
-      return;
+    if (currentEntry.completedAt) {
+      throw new Error("Cannot reorder completed users");
     }
+
+    const sessionNumber = currentEntry.sessionNumber ?? 1;
 
     // Get all users in this session
     const allUsers = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", currentEntry.chatId).eq("postId", currentEntry.postId).eq("sessionNumber", currentEntry.sessionNumber ?? 1)
+        q.eq("chatId", currentEntry.chatId).eq("postId", currentEntry.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
-    if (args.newPosition < currentPosition) {
-      // Moving up: shift users down
-      const usersToShift = allUsers.filter(
-        (u) =>
-          u.position >= args.newPosition &&
-          u.position < currentPosition &&
-          u._id !== args.entryId
-      );
+    // Get only active users, sorted by position
+    const activeUsers = allUsers
+      .filter(u => !u.completedAt)
+      .sort((a, b) => a.position - b.position);
 
-      for (const user of usersToShift) {
-        await ctx.db.patch(user._id, { position: user.position + 1 });
-      }
-    } else {
-      // Moving down: shift users up
-      const usersToShift = allUsers.filter(
-        (u) =>
-          u.position > currentPosition &&
-          u.position <= args.newPosition &&
-          u._id !== args.entryId
-      );
-
-      for (const user of usersToShift) {
-        await ctx.db.patch(user._id, { position: user.position - 1 });
-      }
+    // Find the current index in the active users array (0-indexed)
+    const oldIndex = activeUsers.findIndex(u => u._id === args.entryId);
+    if (oldIndex === -1) {
+      throw new Error("Entry not found in active users");
     }
 
-    // Update the target user's position
-    await ctx.db.patch(args.entryId, { position: args.newPosition });
+    // newPosition is the desired final position (1-indexed), convert to 0-indexed
+    const newIndex = args.newPosition - 1;
+
+    // Validate new position
+    if (newIndex < 0 || newIndex >= activeUsers.length) {
+      throw new Error(`Invalid position: ${args.newPosition}`);
+    }
+
+    if (oldIndex === newIndex) {
+      return;
+    }
+
+    // Reorder the array using the same logic as frontend's arrayMove
+    const [movedUser] = activeUsers.splice(oldIndex, 1);
+    activeUsers.splice(newIndex, 0, movedUser);
+
+    // Resequence all active users to [1, 2, 3, 4...]
+    for (let i = 0; i < activeUsers.length; i++) {
+      await ctx.db.patch(activeUsers[i]._id, { position: i + 1 });
+    }
   },
 });
 
@@ -574,25 +572,18 @@ export const removeUserFromList = mutation({
       throw new Error(`Entry not found`);
     }
 
-    const removedPosition = entryToRemove.position;
+    const sessionNumber = entryToRemove.sessionNumber ?? 1;
 
     // Delete the entry
     await ctx.db.delete(args.entryId);
 
-    // Get all remaining users in this session with higher positions
-    const usersToShift = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", entryToRemove.chatId).eq("postId", entryToRemove.postId).eq("sessionNumber", entryToRemove.sessionNumber ?? 1)
-      )
-      .collect();
-
-    // Shift down all users with higher positions
-    for (const user of usersToShift) {
-      if (user.position > removedPosition) {
-        await ctx.db.patch(user._id, { position: user.position - 1 });
-      }
-    }
+    // Resequence remaining active users to close the gap
+    await resequenceActiveUsers(
+      ctx,
+      entryToRemove.chatId,
+      entryToRemove.postId,
+      sessionNumber
+    );
   },
 });
 
@@ -609,11 +600,21 @@ export const completeUserTurn = mutation({
       throw new Error(`Entry not found`);
     }
 
+    const sessionNumber = entry.sessionNumber ?? 1;
+
     // Mark as completed
     await ctx.db.patch(args.entryId, {
       completedAt: Date.now(),
       sessionType: args.sessionType,
     });
+
+    // Resequence remaining active users to close the gap
+    await resequenceActiveUsers(
+      ctx,
+      entry.chatId,
+      entry.postId,
+      sessionNumber
+    );
   },
 });
 
@@ -629,11 +630,13 @@ export const skipUserTurn = mutation({
       throw new Error(`Entry not found`);
     }
 
+    const sessionNumber = currentEntry.sessionNumber ?? 1;
+
     // Get all users in this session
     const allUsers = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", currentEntry.chatId).eq("postId", currentEntry.postId).eq("sessionNumber", currentEntry.sessionNumber ?? 1)
+        q.eq("chatId", currentEntry.chatId).eq("postId", currentEntry.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
@@ -655,12 +658,14 @@ export const skipUserTurn = mutation({
       throw new Error("Cannot skip - no next user available");
     }
 
-    const nextUser = activeUsers[currentIndex + 1];
+    // Swap positions in the array
+    [activeUsers[currentIndex], activeUsers[currentIndex + 1]] =
+      [activeUsers[currentIndex + 1], activeUsers[currentIndex]];
 
-    // Swap positions
-    const tempPosition = currentEntry.position;
-    await ctx.db.patch(args.entryId, { position: nextUser.position });
-    await ctx.db.patch(nextUser._id, { position: tempPosition });
+    // Resequence all active users to reflect the swap
+    for (let i = 0; i < activeUsers.length; i++) {
+      await ctx.db.patch(activeUsers[i]._id, { position: i + 1 });
+    }
   },
 });
 
@@ -840,5 +845,44 @@ export const startNewSession = mutation({
     }
 
     return { newSessionNumber, usersCarriedOver: args.carryOverIncomplete ? true : false };
+  },
+});
+
+export const updateSessionTeacher = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    teacherName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      // If session doesn't exist, create it with the teacher name
+      await ctx.db.insert("sessions", {
+        chatId: args.chatId,
+        postId: args.postId,
+        sessionNumber: args.sessionNumber,
+        teacherName: args.teacherName,
+        createdAt: Date.now(),
+      });
+      return { created: true };
+    }
+
+    // Update the existing session's teacher name
+    await ctx.db.patch(session._id, {
+      teacherName: args.teacherName,
+    });
+
+    return { created: false };
   },
 });

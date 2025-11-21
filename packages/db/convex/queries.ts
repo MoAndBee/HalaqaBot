@@ -86,14 +86,8 @@ export const getUserList = query({
       )
       .collect();
 
-    // Sort by carriedOver first (true before false), then by position
-    userListEntries.sort((a, b) => {
-      // Carried over users come first
-      if (a.carriedOver && !b.carriedOver) return -1;
-      if (!a.carriedOver && b.carriedOver) return 1;
-      // Then sort by position
-      return a.position - b.position;
-    });
+    // Sort by position only
+    userListEntries.sort((a, b) => a.position - b.position);
 
     // Join with users table to get name information
     const usersWithData = await Promise.all(
@@ -122,7 +116,8 @@ export const getUserList = query({
         position: entry.position,
         carriedOver: entry.carriedOver,
         sessionType: entry.sessionType,
-      }));
+      }))
+      .sort((a, b) => a.position - b.position); // Ensure active users are sorted by position
 
     const completedUsers = usersWithData
       .filter(({ entry }) => entry.completedAt)

@@ -94,16 +94,16 @@ export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) 
 
       {/* Dropdown menu */}
       {isDropdownOpen && (
-        <div className="fixed sm:absolute left-auto right-2 sm:left-0 sm:right-auto top-auto sm:top-full mt-1 w-32 sm:w-full bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
+        <div className="fixed sm:absolute left-auto right-2 sm:left-0 sm:right-auto top-auto sm:top-full mt-1 w-32 sm:w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
           <button
             onClick={() => handleSelectType('تلاوة')}
-            className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-t-lg"
+            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-t-lg"
           >
             تلاوة
           </button>
           <button
             onClick={() => handleSelectType('تسميع')}
-            className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-b-lg"
+            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-b-lg"
           >
             تسميع
           </button>

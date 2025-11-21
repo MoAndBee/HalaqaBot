@@ -89,9 +89,9 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
       ref={setNodeRef}
       style={style}
       className={`
-        ${user.carriedOver ? 'bg-amber-950/20' : 'bg-slate-800'} border rounded-lg p-2 sm:p-3
-        ${isDragging ? 'opacity-50 border-blue-500 shadow-lg z-50' : user.carriedOver ? 'border-amber-700/50' : 'border-slate-700'}
-        ${!isDragging ? user.carriedOver ? 'hover:border-amber-600/70 hover:bg-amber-950/30' : 'hover:border-slate-600 hover:bg-slate-750' : ''}
+        ${user.carriedOver ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-white dark:bg-slate-800'} border rounded-lg p-2 sm:p-3
+        ${isDragging ? 'opacity-50 border-blue-500 shadow-lg z-50' : user.carriedOver ? 'border-amber-300 dark:border-amber-700/50' : 'border-gray-200 dark:border-slate-700'}
+        ${!isDragging ? user.carriedOver ? 'hover:border-amber-400 dark:hover:border-amber-600/70 hover:bg-amber-100 dark:hover:bg-amber-950/30' : 'hover:border-gray-300 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-750' : ''}
         transition-colors duration-200
       `}
       dir="rtl"
@@ -112,11 +112,11 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
 
             {/* Dropdown menu */}
             {isDropdownOpen && (
-              <div className="fixed sm:absolute right-2 sm:right-0 top-auto sm:top-full mt-1 w-40 max-w-[10rem] bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
+              <div className="absolute right-0 top-full mt-1 w-40 max-w-[10rem] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                 {onUpdateDisplayName && (
                   <button
                     onClick={handleEdit}
-                    className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
+                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
                   >
                     <span>تعديل</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -132,7 +132,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
                 {onAddTurnAfter3 && (
                   <button
                     onClick={handleAddTurnAfter3}
-                    className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
+                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
                   >
                     <span>إضافة دور بعد ٣</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,7 +147,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
                 )}
                 <button
                   onClick={handleDeleteClick}
-                  className="w-full px-4 py-2 text-right text-red-400 hover:bg-slate-700 hover:text-red-300 transition-colors rounded-b-lg flex items-center gap-2 justify-end"
+                  className="w-full px-4 py-2 text-right text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-red-700 dark:hover:text-red-300 transition-colors rounded-b-lg flex items-center gap-2 justify-end"
                 >
                   <span>حذف</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,7 +187,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
         </button>
 
         {/* Position number */}
-        <div className={`${user.carriedOver ? 'text-amber-400' : 'text-slate-400'} font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0`}>
+        <div className={`${user.carriedOver ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-slate-400'} font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0`}>
           {index + 1}.
         </div>
 
@@ -199,20 +199,20 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
                 type="text"
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
-                className="bg-slate-700 text-white px-2 py-1 rounded border border-slate-600 text-sm"
+                className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1 rounded border border-gray-300 dark:border-slate-600 text-sm"
                 placeholder="أدخل الاسم"
                 autoFocus
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleSave}
-                  className="text-green-500 hover:text-green-400 text-xs"
+                  className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
                 >
                   حفظ
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="text-slate-400 hover:text-slate-300 text-xs"
+                  className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
                 >
                   إلغاء
                 </button>
@@ -221,15 +221,15 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
           ) : (
             <>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <div className="text-white font-medium text-sm sm:text-base">{primaryName}</div>
+                <div className="text-gray-900 dark:text-white font-medium text-sm sm:text-base">{primaryName}</div>
                 {user.carriedOver && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-900/30 text-amber-400 border border-amber-700/50">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-700/50">
                     من الحلقة السابقة
                   </span>
                 )}
               </div>
               {secondaryText && (
-                <div className="text-slate-400 text-xs sm:text-sm truncate">{secondaryText}</div>
+                <div className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm truncate">{secondaryText}</div>
               )}
             </>
           )}

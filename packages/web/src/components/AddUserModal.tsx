@@ -46,16 +46,16 @@ export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div 
+      <div
         ref={modalRef}
-        className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col h-[50vh]"
+        className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col h-[50vh]"
         dir="rtl"
       >
-        <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-white">إضافة مستخدم</h3>
-          <button 
+        <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">إضافة مستخدم</h3>
+          <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -70,13 +70,13 @@ export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
             placeholder="ابحث بالاسم أو المعرف..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 text-white px-4 py-3 rounded-lg border border-slate-700 focus:border-blue-500 focus:outline-none transition-colors"
+            className="w-full bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-white px-4 py-3 rounded-lg border border-gray-300 dark:border-slate-700 focus:border-blue-500 focus:outline-none transition-colors"
           />
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-[200px]">
           {debouncedQuery.trim() === '' ? (
-            <div className="text-center text-slate-500 py-8">
+            <div className="text-center text-gray-500 dark:text-slate-500 py-8">
               ابدأ الكتابة للبحث عن مستخدمين
             </div>
           ) : !searchResults ? (
@@ -84,7 +84,7 @@ export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
               <Loader />
             </div>
           ) : searchResults.length === 0 ? (
-            <div className="text-center text-slate-500 py-8">
+            <div className="text-center text-gray-500 dark:text-slate-500 py-8">
               لا يوجد نتائج
             </div>
           ) : (
@@ -92,18 +92,18 @@ export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
               <button
                 key={user.userId}
                 onClick={() => onAdd(user.userId)}
-                className="w-full text-right p-3 rounded-lg hover:bg-slate-700 transition-colors flex items-center justify-between group"
+                className="w-full text-right p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-between group"
               >
                 <div>
-                  <div className="text-white font-medium">
+                  <div className="text-gray-900 dark:text-white font-medium">
                     {user.realName || user.telegramName}
                   </div>
-                  <div className="text-slate-400 text-sm">
+                  <div className="text-gray-600 dark:text-slate-400 text-sm">
                     {user.telegramName}
                     {user.username && ` • @${user.username}`}
                   </div>
                 </div>
-                <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
+                <div className="text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
                   إضافة
                 </div>
               </button>

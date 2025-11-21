@@ -15,7 +15,7 @@ export function TurnControls({
 }: TurnControlsProps) {
   return (
     <div
-      className="sticky top-0 z-20 bg-slate-900 border-b border-slate-700 p-2 sm:p-3"
+      className="sticky top-0 z-20 bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 p-2 sm:p-3"
       dir="rtl"
     >
       <div className="flex gap-2 sm:gap-3 justify-start">
@@ -29,7 +29,7 @@ export function TurnControls({
             transition-colors duration-200
             ${
               disabled || !canSkip
-                ? 'bg-slate-600 cursor-not-allowed opacity-50'
+                ? 'bg-gray-400 dark:bg-slate-600 cursor-not-allowed opacity-50'
                 : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
             }
           `}

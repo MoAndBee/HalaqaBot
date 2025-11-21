@@ -141,7 +141,7 @@ function CompletedUserCard({
 
   return (
     <div
-      className="bg-slate-800/40 border border-green-900/30 rounded-lg p-2 sm:p-3 opacity-75"
+      className="bg-green-50/50 dark:bg-slate-800/40 border border-green-300 dark:border-green-900/30 rounded-lg p-2 sm:p-3 opacity-75"
       dir="rtl"
     >
       <div className="flex items-center gap-2 sm:gap-3">
@@ -160,11 +160,11 @@ function CompletedUserCard({
 
             {/* Dropdown menu */}
             {isDropdownOpen && (
-              <div className="fixed sm:absolute right-2 sm:right-0 top-auto sm:top-full mt-1 w-40 max-w-[10rem] bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
+              <div className="absolute right-0 top-full mt-1 w-40 max-w-[10rem] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                 {onUpdateDisplayName && (
                   <button
                     onClick={handleEditNameClick}
-                    className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
+                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
                   >
                     <span>تعديل الاسم</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,7 +179,7 @@ function CompletedUserCard({
                 )}
                 <button
                   onClick={handleEditTypeClick}
-                  className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
+                  className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
                 >
                   <span>تعديل النوع</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -194,7 +194,7 @@ function CompletedUserCard({
                 {onAddTurnAfter3 && (
                   <button
                     onClick={handleAddTurnAfter3}
-                    className="w-full px-4 py-2 text-right text-white hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
+                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
                   >
                     <span>إضافة دور بعد ٣</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -210,7 +210,7 @@ function CompletedUserCard({
                 {onDelete && (
                   <button
                     onClick={handleDelete}
-                    className="w-full px-4 py-2 text-right text-red-400 hover:bg-slate-700 transition-colors rounded-b-lg flex items-center gap-2 justify-end"
+                    className="w-full px-4 py-2 text-right text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-b-lg flex items-center gap-2 justify-end"
                   >
                     <span>حذف</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,9 +239,6 @@ function CompletedUserCard({
           </svg>
         </div>
 
-        {/* Position number */}
-        <div className="text-slate-500 font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0">{user.position}.</div>
-
         {/* User info */}
         <div className="flex-1 min-w-0">
           {isEditingName ? (
@@ -250,20 +247,20 @@ function CompletedUserCard({
                 type="text"
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
-                className="bg-slate-700 text-white px-2 py-1 rounded border border-slate-600 text-sm"
+                className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1 rounded border border-gray-300 dark:border-slate-600 text-sm"
                 placeholder="أدخل الاسم"
                 autoFocus
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveName}
-                  className="text-green-500 hover:text-green-400 text-xs"
+                  className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
                 >
                   حفظ
                 </button>
                 <button
                   onClick={handleCancelName}
-                  className="text-slate-400 hover:text-slate-300 text-xs"
+                  className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
                 >
                   إلغاء
                 </button>
@@ -271,9 +268,9 @@ function CompletedUserCard({
             </div>
           ) : (
             <>
-              <div className="text-slate-300 text-xs sm:text-sm font-medium truncate">{primaryName}</div>
+              <div className="text-gray-700 dark:text-slate-300 text-xs sm:text-sm font-medium truncate">{primaryName}</div>
               {secondaryText && (
-                <div className="text-slate-500 text-xs truncate">{secondaryText}</div>
+                <div className="text-gray-500 dark:text-slate-500 text-xs truncate">{secondaryText}</div>
               )}
             </>
           )}
@@ -286,7 +283,7 @@ function CompletedUserCard({
               <select
                 value={selectedType || ''}
                 onChange={(e) => setSelectedType(e.target.value as SessionType)}
-                className="bg-slate-700 text-white text-xs sm:text-sm px-1.5 sm:px-2 py-1 rounded border border-slate-600"
+                className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white text-xs sm:text-sm px-1.5 sm:px-2 py-1 rounded border border-gray-300 dark:border-slate-600"
               >
                 <option value="">اختر</option>
                 <option value="تلاوة">تلاوة</option>
@@ -294,26 +291,26 @@ function CompletedUserCard({
               </select>
               <button
                 onClick={handleConfirmType}
-                className="text-green-500 hover:text-green-400 text-xs"
+                className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
               >
                 تأكيد
               </button>
               <button
                 onClick={handleCancelType}
-                className="text-slate-400 hover:text-slate-300 text-xs"
+                className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
               >
                 إلغاء
               </button>
             </div>
           ) : (
-            <span className="bg-slate-700 text-slate-300 text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded whitespace-nowrap">
+            <span className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded whitespace-nowrap">
               {user.sessionType || 'غير محدد'}
             </span>
           )}
         </div>
 
         {/* Timestamp */}
-        <div className="text-slate-500 text-xs hidden sm:block shrink-0">{formatTimestamp(user.completedAt)}</div>
+        <div className="text-gray-500 dark:text-slate-500 text-xs hidden sm:block shrink-0">{formatTimestamp(user.completedAt)}</div>
       </div>
     </div>
   )
@@ -336,11 +333,11 @@ export function CompletedUsersSection({
     <div className="mb-4" dir="rtl">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-3 bg-slate-800 hover:bg-slate-750 transition-colors rounded-lg border border-slate-700"
+        className="w-full flex items-center justify-between p-3 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-750 transition-colors rounded-lg border border-gray-200 dark:border-slate-700"
       >
-        <span className="text-slate-300 font-medium">الأدوار الفائتة</span>
+        <span className="text-gray-900 dark:text-slate-300 font-medium">الأدوار الفائتة</span>
         <svg
-          className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${
+          className={`w-5 h-5 text-gray-600 dark:text-slate-400 transition-transform duration-200 ${
             isExpanded ? 'rotate-180' : ''
           }`}
           fill="none"
