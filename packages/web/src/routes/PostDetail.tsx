@@ -6,6 +6,7 @@ import type { User } from '@halakabot/db'
 import { Loader } from '~/components/Loader'
 import { UserList } from '~/components/UserList'
 import { AddUserModal } from '~/components/AddUserModal'
+import { EditNotesModal } from '~/components/EditNotesModal'
 import type { SessionType } from '~/components/SplitButton'
 import toast from 'react-hot-toast'
 
@@ -46,6 +47,12 @@ export default function PostDetail() {
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = React.useState(false)
+  const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
+  const [notesModalState, setNotesModalState] = React.useState<{
+    entryId: string
+    currentNotes?: string | null
+    userName: string
+  } | null>(null)
   const actionsDropdownRef = React.useRef<HTMLDivElement>(null)
 
   // Close dropdown when clicking outside
@@ -72,6 +79,7 @@ export default function PostDetail() {
   const skipUserTurn = useMutation(api.mutations.skipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
   const updateUserRealName = useMutation(api.mutations.updateUserRealName)
+  const updateUserNotes = useMutation(api.mutations.updateUserNotes)
   const startNewSession = useMutation(api.mutations.startNewSession)
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
@@ -115,6 +123,35 @@ export default function PostDetail() {
       userId,
       realName,
     })
+  }
+
+  const handleOpenEditNotes = (entryId: string, currentNotes?: string | null) => {
+    // Find the user to get their name
+    const user = [...data.activeUsers, ...data.completedUsers].find(u => u.entryId === entryId)
+    if (!user) return
+
+    setNotesModalState({
+      entryId,
+      currentNotes,
+      userName: user.realName || user.telegramName,
+    })
+    setIsEditNotesModalOpen(true)
+  }
+
+  const handleSaveNotes = async (notes: string) => {
+    if (!notesModalState) return
+
+    try {
+      await updateUserNotes({
+        entryId: notesModalState.entryId,
+        notes,
+      })
+      toast.success('تم حفظ الملاحظات!')
+    } catch (error) {
+      console.error('Failed to save notes:', error)
+      toast.error('فشل حفظ الملاحظات')
+      throw error
+    }
   }
 
   const handleAddTurnAfter3 = async (userId: number, currentPosition: number | undefined) => {
@@ -469,6 +506,7 @@ export default function PostDetail() {
           onUpdateSessionType={handleUpdateSessionType}
           onUpdateDisplayName={handleUpdateDisplayName}
           onAddTurnAfter3={handleAddTurnAfter3}
+          onEditNotes={handleOpenEditNotes}
         />
       </div>
 
@@ -476,6 +514,14 @@ export default function PostDetail() {
         isOpen={isAddUserModalOpen}
         onClose={() => setIsAddUserModalOpen(false)}
         onAdd={handleAddUser}
+      />
+
+      <EditNotesModal
+        isOpen={isEditNotesModalOpen}
+        onClose={() => setIsEditNotesModalOpen(false)}
+        onSave={handleSaveNotes}
+        currentNotes={notesModalState?.currentNotes}
+        userName={notesModalState?.userName || ''}
       />
     </div>
   )

@@ -8,6 +8,7 @@ export interface User {
   carriedOver?: boolean;
   sessionType?: string;
   sessionNumber?: number;
+  notes?: string | null;
 }
 
 export interface ChatStorage {

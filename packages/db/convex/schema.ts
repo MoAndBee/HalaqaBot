@@ -30,6 +30,7 @@ export default defineSchema({
     sessionType: v.optional(v.string()), // "تلاوة" or "تسميع"
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous post
     sessionNumber: v.optional(v.number()), // session number within this post (defaults to 1 for existing records)
+    notes: v.optional(v.string()), // optional notes for this participant
   })
     .index("by_chat_post_user", ["chatId", "postId", "userId"])
     .index("by_chat_post", ["chatId", "postId"])
