@@ -265,6 +265,49 @@ export function UserList({
     }
   }
 
+  const handleMoveToPosition = async (entryId: string, newPosition: number) => {
+    const userIndex = items.findIndex((user) => user.entryId === entryId)
+
+    if (userIndex === -1) {
+      return
+    }
+
+    const currentPosition = userIndex + 1
+
+    // If already at the target position, do nothing
+    if (currentPosition === newPosition) {
+      return
+    }
+
+    // Store original items for potential rollback
+    const originalItems = [...items]
+
+    // Optimistically move user to new position in local state
+    const newItems = [...items]
+    const [movedUser] = newItems.splice(userIndex, 1)
+    newItems.splice(newPosition - 1, 0, movedUser)
+
+    setItems(newItems)
+    setIsReordering(true)
+    setError(null)
+
+    try {
+      // Call the server function to persist the change
+      // Position is 1-indexed
+      await onReorder(entryId, newPosition)
+    } catch (error) {
+      console.error('Failed to move user to position:', error)
+      // Revert to original order on error
+      setItems(originalItems)
+      setError('فشل نقل المستخدم إلى الدور المحدد. الرجاء المحاولة مرة أخرى.')
+
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsReordering(false)
+    }
+  }
+
   const hasUsers = items.length > 0 || completedUsers.length > 0
 
   if (!hasUsers) {
@@ -327,6 +370,8 @@ export function UserList({
                     onUpdateDisplayName={handleUpdateDisplayName}
                     onAddTurnAfter3={onAddTurnAfter3}
                     onMoveToEnd={handleMoveToEnd}
+                    onMoveToPosition={handleMoveToPosition}
+                    totalUsers={items.length}
                   />
                 ))}
               </div>
