@@ -4,6 +4,7 @@ import type { UserListService } from "../services/user-list.service";
 import type { ClassificationService } from "../services/classification.service";
 import type { ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
+import type { Config } from "../config/environment";
 
 export function registerReactionHandler(
   bot: Bot,
@@ -11,6 +12,7 @@ export function registerReactionHandler(
   userListService: UserListService,
   classificationService: ClassificationService,
   convex: ConvexHttpClient,
+  config: Config,
 ) {
   bot.on("message_reaction", async (ctx: Context) => {
     console.log("Reaction received:");
@@ -79,6 +81,12 @@ export function registerReactionHandler(
         }
       } catch (error) {
         console.error(`❌ Error checking channel admin status for user ${userId}:`, error);
+        return;
+      }
+
+      // Check if user is in the allowed whitelist
+      if (!config.allowedReactionUserIds.includes(userId)) {
+        console.log(`⚠️  User ${userId} is not in the allowed reaction whitelist, ignoring reaction`);
         return;
       }
 

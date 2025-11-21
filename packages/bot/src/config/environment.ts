@@ -3,6 +3,7 @@ export interface Config {
   forwardChatId: string;
   groqApiKey: string;
   autoReactionEmoji: "❤" | "👍" | "👎" | "🔥" | "🥰";
+  allowedReactionUserIds: number[];
 }
 
 export function loadConfig(): Config {
@@ -10,6 +11,9 @@ export function loadConfig(): Config {
   const forwardChatId = process.env.FORWARD_CHAT_ID;
   const groqApiKey = process.env.GROQ_API_KEY;
   const autoReactionEmoji = (process.env.AUTO_REACTION_EMOJI || "❤") as "❤" | "👍" | "👎" | "🔥" | "🥰";
+  const allowedReactionUserIds = process.env.ALLOWED_REACTION_USER_IDS
+    ? process.env.ALLOWED_REACTION_USER_IDS.split(",").map((id: string) => parseInt(id.trim(), 10))
+    : [5627601992, 1093520031];
 
   if (!botToken) {
     console.error("Error: BOT_TOKEN environment variable is not set");
@@ -40,5 +44,6 @@ export function loadConfig(): Config {
     forwardChatId,
     groqApiKey,
     autoReactionEmoji,
+    allowedReactionUserIds,
   };
 }
