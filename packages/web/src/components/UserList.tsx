@@ -224,6 +224,47 @@ export function UserList({
     }
   }
 
+  const handleMoveToEnd = async (entryId: string) => {
+    const userIndex = items.findIndex((user) => user.entryId === entryId)
+
+    if (userIndex === -1) {
+      return
+    }
+
+    // If already at the end, do nothing
+    if (userIndex === items.length - 1) {
+      return
+    }
+
+    // Store original items for potential rollback
+    const originalItems = [...items]
+
+    // Optimistically move user to end in local state
+    const newItems = [...items]
+    const [movedUser] = newItems.splice(userIndex, 1)
+    newItems.push(movedUser)
+
+    setItems(newItems)
+    setIsReordering(true)
+    setError(null)
+
+    try {
+      // Call the server function to persist the change
+      // Position is 1-indexed, and we want to move to the last position
+      await onReorder(entryId, items.length)
+    } catch (error) {
+      console.error('Failed to move user to end:', error)
+      // Revert to original order on error
+      setItems(originalItems)
+      setError('فشل نقل المستخدم إلى آخر القائمة. الرجاء المحاولة مرة أخرى.')
+
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsReordering(false)
+    }
+  }
+
   const hasUsers = items.length > 0 || completedUsers.length > 0
 
   if (!hasUsers) {
@@ -285,6 +326,7 @@ export function UserList({
                     onDelete={handleDelete}
                     onUpdateDisplayName={handleUpdateDisplayName}
                     onAddTurnAfter3={onAddTurnAfter3}
+                    onMoveToEnd={handleMoveToEnd}
                   />
                 ))}
               </div>
