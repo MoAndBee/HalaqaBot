@@ -24,7 +24,7 @@ const classificationService = new ClassificationService();
 const bot = new Bot(config.botToken);
 
 // Register event handlers
-registerReactionHandler(bot, messageService, userListService, classificationService, convex);
+registerReactionHandler(bot, messageService, userListService, classificationService, convex, config);
 registerAutoClassifyHandler(bot, classificationService, messageService, userListService, convex, config);
 registerMessageHandler(bot, messageService, classificationService, convex);
 
