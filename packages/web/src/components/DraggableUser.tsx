@@ -11,10 +11,11 @@ interface DraggableUserProps {
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
   onMoveToEnd?: (entryId: string) => void
   onMoveToPosition?: (entryId: string, position: number) => void
+  onEditNotes?: (entryId: string, currentNotes?: string | null) => void
   totalUsers?: number
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, totalUsers }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, totalUsers }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -122,6 +123,13 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
     setIsDropdownOpen(false)
   }
 
+  const handleEditNotes = () => {
+    if (onEditNotes && user.entryId) {
+      onEditNotes(user.entryId, user.notes)
+    }
+    setIsDropdownOpen(false)
+  }
+
   // Show realName if available, otherwise show telegramName
   const primaryName = user.realName || user.telegramName
   // Show both realName and telegramName when realName is set
@@ -164,6 +172,22 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
                     className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
                   >
                     <span>تعديل</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </button>
+                )}
+                {onEditNotes && (
+                  <button
+                    onClick={handleEditNotes}
+                    className={`w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end ${!onUpdateDisplayName ? 'rounded-t-lg' : ''}`}
+                  >
+                    <span>إضافة ملاحظات</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
@@ -307,6 +331,11 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
               </div>
               {secondaryText && (
                 <div className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm truncate">{secondaryText}</div>
+              )}
+              {user.notes && (
+                <div className="mt-1 text-gray-500 dark:text-slate-500 text-xs sm:text-sm italic">
+                  {user.notes}
+                </div>
               )}
             </>
           )}

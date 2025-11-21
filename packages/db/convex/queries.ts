@@ -116,6 +116,7 @@ export const getUserList = query({
         position: entry.position,
         carriedOver: entry.carriedOver,
         sessionType: entry.sessionType,
+        notes: entry.notes || null,
       }))
       .sort((a, b) => a.position - b.position); // Ensure active users are sorted by position
 
@@ -130,6 +131,7 @@ export const getUserList = query({
         position: entry.position,
         completedAt: entry.completedAt,
         sessionType: entry.sessionType,
+        notes: entry.notes || null,
       }));
 
     return {

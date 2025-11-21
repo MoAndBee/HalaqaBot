@@ -746,6 +746,26 @@ export const updateUserTelegramName = mutation({
   },
 });
 
+export const updateUserNotes = mutation({
+  args: {
+    entryId: v.id("userLists"),
+    notes: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get the entry
+    const entry = await ctx.db.get(args.entryId);
+
+    if (!entry) {
+      throw new Error(`Entry not found`);
+    }
+
+    // Update notes (trim and set to undefined if empty)
+    await ctx.db.patch(args.entryId, {
+      notes: args.notes.trim() || undefined,
+    });
+  },
+});
+
 export const upsertUser = mutation({
   args: {
     userId: v.number(),
