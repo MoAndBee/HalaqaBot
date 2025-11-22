@@ -134,20 +134,26 @@ export const addUserToList = mutation({
     let sessionNumber = args.sessionNumber;
 
     if (sessionNumber === undefined) {
-      // Find all entries for this post
-      const allEntries = await ctx.db
-        .query("userLists")
+      // Find latest session from sessions table
+      const allSessions = await ctx.db
+        .query("sessions")
         .withIndex("by_chat_post", (q) =>
           q.eq("chatId", args.chatId).eq("postId", args.postId)
         )
         .collect();
 
-      if (allEntries.length === 0) {
-        // No entries yet, start with session 1
+      if (allSessions.length === 0) {
+        // No sessions exist, default to session 1
         sessionNumber = 1;
       } else {
-        // Always use the max session number (add to current/latest session)
-        sessionNumber = Math.max(...allEntries.map(e => e.sessionNumber ?? 1));
+        // Sort by createdAt (newest first), with sessionNumber as tiebreaker
+        allSessions.sort((a, b) => {
+          if (b.createdAt !== a.createdAt) {
+            return b.createdAt - a.createdAt;
+          }
+          return b.sessionNumber - a.sessionNumber;
+        });
+        sessionNumber = allSessions[0].sessionNumber;
       }
     }
 
@@ -242,15 +248,27 @@ export const addUserAtPosition = mutation({
     // Determine the session number
     let sessionNumber = args.sessionNumber;
     if (sessionNumber === undefined) {
-      const allEntries = await ctx.db
-        .query("userLists")
+      // Find latest session from sessions table
+      const allSessions = await ctx.db
+        .query("sessions")
         .withIndex("by_chat_post", (q) =>
           q.eq("chatId", args.chatId).eq("postId", args.postId)
         )
         .collect();
-      sessionNumber = allEntries.length > 0
-        ? Math.max(...allEntries.map(e => e.sessionNumber ?? 1))
-        : 1;
+
+      if (allSessions.length === 0) {
+        // No sessions exist, default to session 1
+        sessionNumber = 1;
+      } else {
+        // Sort by createdAt (newest first), with sessionNumber as tiebreaker
+        allSessions.sort((a, b) => {
+          if (b.createdAt !== a.createdAt) {
+            return b.createdAt - a.createdAt;
+          }
+          return b.sessionNumber - a.sessionNumber;
+        });
+        sessionNumber = allSessions[0].sessionNumber;
+      }
     }
 
     // Get all users in this session
@@ -814,21 +832,28 @@ export const startNewSession = mutation({
     carryOverIncomplete: v.optional(v.boolean()), // whether to carry over incomplete users
   },
   handler: async (ctx, args) => {
-    // Get all entries for this post
+    // Get all existing sessions for this post
+    const allSessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    // Find the max session number from sessions table
+    const currentMaxSession = allSessions.length > 0
+      ? Math.max(...allSessions.map(s => s.sessionNumber))
+      : 0;
+
+    const newSessionNumber = currentMaxSession + 1;
+
+    // Also get userLists entries for carryover functionality
     const allEntries = await ctx.db
       .query("userLists")
       .withIndex("by_chat_post", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId)
       )
       .collect();
-
-    // Find the max session number (defaulting to 1 for entries without sessionNumber)
-    const currentMaxSession = Math.max(
-      1,
-      ...allEntries.map(e => e.sessionNumber ?? 1)
-    );
-
-    const newSessionNumber = currentMaxSession + 1;
 
     // Store session metadata with teacher name
     await ctx.db.insert("sessions", {
