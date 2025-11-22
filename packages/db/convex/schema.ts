@@ -27,7 +27,7 @@ export default defineSchema({
     channelId: v.optional(v.number()),
     createdAt: v.number(), // timestamp in ms
     completedAt: v.optional(v.number()), // timestamp in ms when turn was completed
-    sessionType: v.optional(v.string()), // "تلاوة" or "تسميع"
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", or "اختبار"
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous post
     sessionNumber: v.optional(v.number()), // session number within this post (defaults to 1 for existing records)
     notes: v.optional(v.string()), // optional notes for this participant

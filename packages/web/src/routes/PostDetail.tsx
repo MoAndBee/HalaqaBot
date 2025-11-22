@@ -205,7 +205,7 @@ export default function PostDetail() {
     // Build the header
     let fullMessage = `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
-      fullMessage += `المعلمة) ${sessionInfo.teacherName}\n`
+      fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
     fullMessage += '\n'
 
@@ -239,7 +239,7 @@ export default function PostDetail() {
     // Build the header
     let fullMessage = `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
-      fullMessage += `المعلمة) ${sessionInfo.teacherName}\n`
+      fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
     fullMessage += '\n'
 
