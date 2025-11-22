@@ -65,18 +65,26 @@ export const getUserList = query({
 
     // If no session number provided, find the latest session
     if (sessionNumber === undefined) {
-      const allEntries = await ctx.db
-        .query("userLists")
+      const allSessions = await ctx.db
+        .query("sessions")
         .withIndex("by_chat_post", (q) =>
           q.eq("chatId", args.chatId).eq("postId", args.postId)
         )
         .collect();
 
-      // Find the max session number (defaulting to 1 for entries without sessionNumber)
-      sessionNumber = Math.max(
-        1,
-        ...allEntries.map(e => e.sessionNumber ?? 1)
-      );
+      if (allSessions.length === 0) {
+        // No sessions exist, default to session 1
+        sessionNumber = 1;
+      } else {
+        // Sort by createdAt (newest first), with sessionNumber as tiebreaker
+        allSessions.sort((a, b) => {
+          if (b.createdAt !== a.createdAt) {
+            return b.createdAt - a.createdAt;
+          }
+          return b.sessionNumber - a.sessionNumber;
+        });
+        sessionNumber = allSessions[0].sessionNumber;
+      }
     }
 
     const userListEntries = await ctx.db
@@ -148,36 +156,27 @@ export const getAvailableSessions = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
-    const allEntries = await ctx.db
-      .query("userLists")
+    // Query sessions table directly to get all sessions
+    const allSessions = await ctx.db
+      .query("sessions")
       .withIndex("by_chat_post", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId)
       )
       .collect();
 
-    // Get unique session numbers (defaulting to 1 for entries without sessionNumber)
-    const sessionNumbers = new Set(
-      allEntries.map(e => e.sessionNumber ?? 1)
-    );
+    // Sort by createdAt (newest first), with sessionNumber as tiebreaker
+    const sortedSessions = allSessions.sort((a, b) => {
+      if (b.createdAt !== a.createdAt) {
+        return b.createdAt - a.createdAt;
+      }
+      return b.sessionNumber - a.sessionNumber;
+    });
 
-    // Get session metadata for each session
-    const sessions = await Promise.all(
-      Array.from(sessionNumbers).map(async (sessionNumber) => {
-        const sessionMeta = await ctx.db
-          .query("sessions")
-          .withIndex("by_chat_post_session", (q) =>
-            q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
-          )
-          .first();
-
-        return {
-          sessionNumber,
-          teacherName: sessionMeta?.teacherName ?? null,
-        };
-      })
-    );
-
-    return sessions.sort((a, b) => b.sessionNumber - a.sessionNumber); // newest first
+    return sortedSessions.map(session => ({
+      sessionNumber: session.sessionNumber,
+      teacherName: session.teacherName,
+      createdAt: session.createdAt,
+    }));
   },
 });
 
