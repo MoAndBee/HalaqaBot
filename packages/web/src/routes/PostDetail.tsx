@@ -263,7 +263,7 @@ export default function PostDetail() {
     // Prompt for teacher name
     const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:')
     if (!teacherName || teacherName.trim() === '') {
-      toast.error('يجب إدخال اسم المعلم')
+      toast.error('يجب إدخال اسم المعلمة')
       return
     }
 
@@ -325,7 +325,7 @@ export default function PostDetail() {
 
     // Empty name validation
     if (teacherName.trim() === '') {
-      toast.error('يجب إدخال اسم المعلم')
+      toast.error('يجب إدخال اسم المعلمة')
       return
     }
 
@@ -336,9 +336,9 @@ export default function PostDetail() {
         sessionNumber: currentSession,
         teacherName: teacherName.trim(),
       })
-      toast.success('تم تحديث اسم المعلم!')
+      toast.success('تم تحديث اسم المعلمة!')
     } catch (error) {
-      toast.error('فشل تحديث اسم المعلم')
+      toast.error('فشل تحديث اسم المعلمة')
       console.error('Update teacher name failed:', error)
     }
   }
@@ -458,7 +458,7 @@ export default function PostDetail() {
                     <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
-                    تعديل اسم المعلم
+                    تعديل اسم المعلمة
                   </button>
                   <button
                     onClick={() => {
