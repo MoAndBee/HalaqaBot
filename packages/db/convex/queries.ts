@@ -539,3 +539,68 @@ export const searchUsers = query({
       }));
   },
 });
+
+export const getParticipationSummary = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Get all sessions for this post
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    const sessionsCount = sessions.length;
+
+    // Get all user list entries for this post (all sessions)
+    const allEntries = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    // Calculate unique attendance (unique user IDs)
+    const uniqueUserIds = new Set(allEntries.map((entry) => entry.userId));
+    const totalAttendance = uniqueUserIds.size;
+
+    // Get completed participations only
+    const completedEntries = allEntries.filter((entry) => entry.completedAt);
+    const totalParticipations = completedEntries.length;
+
+    // Calculate participation rate
+    const participationRate = totalAttendance > 0
+      ? Math.round((totalParticipations / totalAttendance) * 100)
+      : 0;
+
+    // Group by session type
+    const byType: Record<string, { count: number; nonParticipantCount: number }> = {};
+
+    const sessionTypes = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار'];
+
+    for (const type of sessionTypes) {
+      const typeEntries = completedEntries.filter(
+        (entry) => entry.sessionType === type
+      );
+
+      if (typeEntries.length > 0) {
+        byType[type] = {
+          count: typeEntries.length,
+          nonParticipantCount: totalAttendance - typeEntries.length,
+        };
+      }
+    }
+
+    return {
+      sessionsCount,
+      totalAttendance,
+      totalParticipations,
+      participationRate,
+      byType,
+    };
+  },
+});

@@ -484,9 +484,19 @@ export default function PostDetail() {
                 </div>
               )}
             </div>
-            <div className="text-right">
-              <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">إجمالي المستخدمين</div>
-              <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{totalUsers}</div>
+            <div className="text-right flex items-center gap-2">
+              <div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">إجمالي المستخدمين</div>
+                <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{totalUsers}</div>
+              </div>
+              <Link href={`/posts/${chatId}/${postId}/summary`}>
+                <a
+                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors text-xl"
+                  title="عرض ملخص المشاركة"
+                >
+                  ℹ️
+                </a>
+              </Link>
             </div>
 
           </div>

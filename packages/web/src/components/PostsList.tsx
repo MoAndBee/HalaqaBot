@@ -58,6 +58,17 @@ export function PostsList({ posts }: PostsListProps) {
                 <span className="text-gray-700 dark:text-slate-300 font-medium">
                   {post.userCount} {post.userCount === 1 ? 'مستخدم' : 'مستخدمين'}
                 </span>
+                <Link
+                  href={`/posts/${post.chatId}/${post.postId}/summary`}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                >
+                  <a
+                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors text-lg"
+                    title="عرض ملخص المشاركة"
+                  >
+                    ℹ️
+                  </a>
+                </Link>
               </div>
             </div>
             </a>
