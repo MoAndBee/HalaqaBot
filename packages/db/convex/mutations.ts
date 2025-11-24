@@ -165,58 +165,10 @@ export const addUserToList = mutation({
       )
       .collect();
 
-    // If this is the first user being added to the post, copy incomplete users from previous post
-    if (allUsers.length === 0) {
-      // Find previous post in same chat
-      const allPosts = await ctx.db.query("userLists").collect();
-      const postsInChat = allPosts
-        .filter((u) => u.chatId === args.chatId && u.postId < args.postId)
-        .map((u) => u.postId);
-
-      if (postsInChat.length > 0) {
-        const previousPostId = Math.max(...postsInChat);
-
-        // Get incomplete users from previous post
-        const incompleteUsers = await ctx.db
-          .query("userLists")
-          .withIndex("by_chat_post", (q) =>
-            q.eq("chatId", args.chatId).eq("postId", previousPostId)
-          )
-          .collect();
-
-        const usersToCarryOver = incompleteUsers
-          .filter((u) => !u.completedAt)
-          .sort((a, b) => a.position - b.position);
-
-        // Copy them to new post with resequenced positions and mark as carried over
-        for (let i = 0; i < usersToCarryOver.length; i++) {
-          const user = usersToCarryOver[i];
-          await ctx.db.insert("userLists", {
-            chatId: args.chatId,
-            postId: args.postId,
-            userId: user.userId,
-            position: i + 1,
-            channelId: args.channelId,
-            createdAt: Date.now(),
-            carriedOver: true, // Mark as carried over
-            sessionNumber,
-          });
-        }
-      }
-    }
-
-    // Get updated max position after potential carry-over
-    const updatedUsers = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
-      )
-      .collect();
-
     // Always insert the user (allow duplicates)
     const maxPosition =
-      updatedUsers.length > 0
-        ? Math.max(...updatedUsers.map((u) => u.position))
+      allUsers.length > 0
+        ? Math.max(...allUsers.map((u) => u.position))
         : 0;
 
     await ctx.db.insert("userLists", {

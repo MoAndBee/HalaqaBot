@@ -24,6 +24,7 @@ export function PostsList({ posts }: PostsListProps) {
       {posts.map((post) => {
         const date = new Date(post.createdAt)
         const formattedDate = date.toLocaleDateString('ar-EG', {
+          weekday: 'long',
           year: 'numeric',
           month: 'long',
           day: 'numeric',
@@ -56,7 +57,7 @@ export function PostsList({ posts }: PostsListProps) {
                   />
                 </svg>
                 <span className="text-gray-700 dark:text-slate-300 font-medium">
-                  {post.userCount} {post.userCount === 1 ? 'مستخدم' : 'مستخدمين'}
+                  {post.userCount} مستخدم
                 </span>
               </div>
             </div>

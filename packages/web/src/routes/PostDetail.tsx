@@ -197,6 +197,7 @@ export default function PostDetail() {
     // Format the date
     const date = new Date(postDetails.createdAt)
     const formattedDate = date.toLocaleDateString('ar-EG', {
+      weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -231,6 +232,7 @@ export default function PostDetail() {
     // Format the date
     const date = new Date(postDetails.createdAt)
     const formattedDate = date.toLocaleDateString('ar-EG', {
+      weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -261,7 +263,7 @@ export default function PostDetail() {
     // Prompt for teacher name
     const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:')
     if (!teacherName || teacherName.trim() === '') {
-      toast.error('يجب إدخال اسم المعلم')
+      toast.error('يجب إدخال اسم المعلمة')
       return
     }
 
@@ -270,7 +272,7 @@ export default function PostDetail() {
     // Ask user if they want to carry over incomplete users
     if (incompleteCount > 0) {
       const confirmed = window.confirm(
-        `يوجد ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الجلسة الحالية.\n\nهل تريد نقلهم إلى الجلسة الجديدة؟`
+        `يوجد ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الحلقة الحالية.\n\nهل تريد نقلهم إلى الحلقة الجديدة؟`
       )
 
       try {
@@ -283,12 +285,12 @@ export default function PostDetail() {
         setSelectedSession(result.newSessionNumber)
 
         if (confirmed) {
-          toast.success(`تم بدء الجلسة رقم ${result.newSessionNumber.toLocaleString('ar-EG')} ونقل ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك' : 'مشتركين'}!`)
+          toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')} ونقل ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك' : 'مشتركين'}!`)
         } else {
-          toast.success(`تم بدء الجلسة رقم ${result.newSessionNumber.toLocaleString('ar-EG')}!`)
+          toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')}!`)
         }
       } catch (error) {
-        toast.error('فشل بدء الجلسة الجديدة')
+        toast.error('فشل بدء الحلقة الجديدة')
         console.error('Start new session failed:', error)
       }
     } else {
@@ -301,9 +303,9 @@ export default function PostDetail() {
           carryOverIncomplete: false
         })
         setSelectedSession(result.newSessionNumber)
-        toast.success(`تم بدء الجلسة رقم ${result.newSessionNumber.toLocaleString('ar-EG')}!`)
+        toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')}!`)
       } catch (error) {
-        toast.error('فشل بدء الجلسة الجديدة')
+        toast.error('فشل بدء الحلقة الجديدة')
         console.error('Start new session failed:', error)
       }
     }
@@ -323,7 +325,7 @@ export default function PostDetail() {
 
     // Empty name validation
     if (teacherName.trim() === '') {
-      toast.error('يجب إدخال اسم المعلم')
+      toast.error('يجب إدخال اسم المعلمة')
       return
     }
 
@@ -334,9 +336,9 @@ export default function PostDetail() {
         sessionNumber: currentSession,
         teacherName: teacherName.trim(),
       })
-      toast.success('تم تحديث اسم المعلم!')
+      toast.success('تم تحديث اسم المعلمة!')
     } catch (error) {
-      toast.error('فشل تحديث اسم المعلم')
+      toast.error('فشل تحديث اسم المعلمة')
       console.error('Update teacher name failed:', error)
     }
   }
@@ -378,6 +380,7 @@ export default function PostDetail() {
             {postDetails?.createdAt && (
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
                 {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
+                  weekday: 'long',
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
@@ -396,7 +399,7 @@ export default function PostDetail() {
               >
                 {availableSessions.map((session) => (
                   <option key={session.sessionNumber} value={session.sessionNumber}>
-                    الجلسة {session.sessionNumber.toLocaleString('ar-EG')}
+                    الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
                     {session.teacherName && ` (${session.teacherName})`}
                   </option>
                 ))}
@@ -431,7 +434,7 @@ export default function PostDetail() {
                     <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    بدء جلسة جديدة
+                    بدء حلقة جديدة
                   </button>
                   <button
                     onClick={() => {
@@ -455,7 +458,7 @@ export default function PostDetail() {
                     <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
-                    تعديل اسم المعلم
+                    تعديل اسم المعلمة
                   </button>
                   <button
                     onClick={() => {
