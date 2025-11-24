@@ -1,5 +1,5 @@
 // Main export file for @halakabot/db package
-export type { User, ChatStorage } from './types'
+export type { User, ChatStorage, ParticipationSummary, ParticipationTypeStats } from './types'
 
 // Re-export Convex API
 export { api } from '../convex/_generated/api'

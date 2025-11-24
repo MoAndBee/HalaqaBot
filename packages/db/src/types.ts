@@ -15,3 +15,16 @@ export interface ChatStorage {
   chatId: number;
   lastListMessageId: number | null;
 }
+
+export interface ParticipationSummary {
+  sessionsCount: number;
+  totalAttendance: number;
+  totalParticipations: number;
+  participationRate: number;
+  byType: Record<string, ParticipationTypeStats>;
+}
+
+export interface ParticipationTypeStats {
+  count: number;
+  nonParticipantCount: number;
+}
