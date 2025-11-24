@@ -24,6 +24,7 @@ export function PostsList({ posts }: PostsListProps) {
       {posts.map((post) => {
         const date = new Date(post.createdAt)
         const formattedDate = date.toLocaleDateString('ar-EG', {
+          weekday: 'long',
           year: 'numeric',
           month: 'long',
           day: 'numeric',

@@ -197,6 +197,7 @@ export default function PostDetail() {
     // Format the date
     const date = new Date(postDetails.createdAt)
     const formattedDate = date.toLocaleDateString('ar-EG', {
+      weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -231,6 +232,7 @@ export default function PostDetail() {
     // Format the date
     const date = new Date(postDetails.createdAt)
     const formattedDate = date.toLocaleDateString('ar-EG', {
+      weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -378,6 +380,7 @@ export default function PostDetail() {
             {postDetails?.createdAt && (
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
                 {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
+                  weekday: 'long',
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
