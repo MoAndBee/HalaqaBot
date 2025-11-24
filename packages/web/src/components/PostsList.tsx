@@ -57,7 +57,7 @@ export function PostsList({ posts }: PostsListProps) {
                   />
                 </svg>
                 <span className="text-gray-700 dark:text-slate-300 font-medium">
-                  {post.userCount} {post.userCount === 1 ? 'مستخدم' : 'مستخدمين'}
+                  {post.userCount} مستخدم
                 </span>
               </div>
             </div>
