@@ -31,7 +31,7 @@ FROM nginx:alpine
 COPY --from=builder /app/packages/web/dist /usr/share/nginx/html
 
 # Copy nginx configuration for SPA routing
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY packages/web/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80
 EXPOSE 80
