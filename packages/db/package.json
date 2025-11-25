@@ -9,7 +9,8 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "deploy": "bunx convex deploy"
+    "deploy": "bunx convex deploy",
+    "convex:dev": "bunx convex dev --once"
   },
   "dependencies": {
     "bun": "^1.0.0",
