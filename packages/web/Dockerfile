@@ -16,9 +16,6 @@ RUN bun install --frozen-lockfile
 COPY packages/web ./packages/web
 COPY packages/db ./packages/db
 
-# Copy environment file if it exists (optional)
-COPY .env* ./ 2>/dev/null || true
-
 # Generate convex dev deployment (needed for db package)
 WORKDIR /app/packages/db
 RUN bunx convex dev --once
