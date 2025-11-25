@@ -21,6 +21,8 @@ RUN bun -F @halakabot/db convex:dev
 
 COPY packages/db/convex ./packages/db/
 
+RUN ls ./packages/db/convex/_generated
+
 # Build the web application
 WORKDIR /app/packages/web
 RUN bun run build
