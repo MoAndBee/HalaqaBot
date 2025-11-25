@@ -20,7 +20,7 @@ COPY packages/db ./packages/db
 WORKDIR /app/packages/db
 RUN bunx convex dev --once
 
-COPY packages/db/convex/_generated ./packages/db/convex/_generated
+COPY packages/db/convex/_generated ./convex/_generated
 
 # Build the web application
 WORKDIR /app/packages/web
