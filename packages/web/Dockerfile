@@ -19,7 +19,7 @@ COPY packages/db ./packages/db
 # Generate convex dev deployment (needed for db package)
 RUN bun -F @halakabot/db convex:dev
 
-COPY packages/db ./packages/db
+COPY packages/db/convex ./packages/db/
 
 # Build the web application
 WORKDIR /app/packages/web
