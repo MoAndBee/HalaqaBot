@@ -576,13 +576,18 @@ export const getParticipationSummary = query({
       : 0;
 
     // Group by session type
-    const byType: Record<string, { count: number; nonParticipantCount: number }> = {};
+    const byType: Record<string, { label: string; count: number; nonParticipantCount: number }> = {};
 
-    const sessionTypes = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار'];
+    const sessionTypes = [
+      { key: 'tilawa', label: 'تلاوة' },
+      { key: 'tasmee', label: 'تسميع' },
+      { key: 'tatbeeq', label: 'تطبيق' },
+      { key: 'ikhtebar', label: 'اختبار' },
+    ];
 
     for (const type of sessionTypes) {
       const typeEntries = completedEntries.filter(
-        (entry) => entry.sessionType === type
+        (entry) => entry.sessionType?.includes(type.label) || entry.sessionType === type.label
       );
 
       // Calculate non-participants for this specific session type
@@ -590,7 +595,8 @@ export const getParticipationSummary = query({
       const typeUserIds = new Set(typeEntries.map((entry) => entry.userId));
 
       if (typeEntries.length > 0) {
-        byType[type] = {
+        byType[type.key] = {
+          label: type.label,
           count: typeEntries.length,
           nonParticipantCount: totalAttendance - typeUserIds.size,
         };

@@ -32,10 +32,10 @@ export default function ParticipationSummary() {
   })
 
   const sessionTypes = [
-    { key: 'تلاوة', label: 'تلاوة' },
-    { key: 'تسميع', label: 'تسميع' },
-    { key: 'تطبيق', label: 'تطبيق' },
-    { key: 'اختبار', label: 'اختبار' },
+    { key: 'tilawa', label: 'تلاوة' },
+    { key: 'tasmee', label: 'تسميع' },
+    { key: 'tatbeeq', label: 'تطبيق' },
+    { key: 'ikhtebar', label: 'اختبار' },
   ]
 
   return (
@@ -136,7 +136,7 @@ export default function ParticipationSummary() {
 
             return (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {sessionTypes.map(({ key, label }) => {
+                {sessionTypes.map(({ key }) => {
                   const typeData = summary.byType[key]
 
                   // Hide types with 0 participations
@@ -150,7 +150,7 @@ export default function ParticipationSummary() {
                       className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6"
                     >
                       <h4 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white mb-3">
-                        {label}
+                        {typeData.label}
                       </h4>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
