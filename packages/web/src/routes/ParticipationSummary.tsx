@@ -12,7 +12,7 @@ export default function ParticipationSummary() {
   const summary = useQuery(api.queries.getParticipationSummary, { chatId, postId })
   const postDetails = useQuery(api.queries.getPostDetails, { chatId, postId })
 
-  if (!summary || !postDetails) {
+  if (summary === undefined || postDetails === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />
@@ -42,7 +42,7 @@ export default function ParticipationSummary() {
     <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
       <div className="mb-3 sm:mb-4 md:mb-6">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(`/posts/${chatId}/${postId}`)}
           className="inline-flex items-center gap-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-2 sm:mb-3 md:mb-4 bg-transparent border-none cursor-pointer"
         >
           <svg

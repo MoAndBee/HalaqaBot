@@ -385,8 +385,6 @@ export const getPostDetails = query({
       )
       .collect();
 
-    if (users.length === 0) return null;
-
     const messages = await ctx.db
       .query("messageAuthors")
       .withIndex("by_chat_post", (q) =>
