@@ -62,7 +62,6 @@ export const getUserList = query({
   },
   handler: async (ctx, args) => {
     let sessionNumber = args.sessionNumber;
-    let hasNoSessions = false;
 
     // If no session number provided, find the latest session
     if (sessionNumber === undefined) {
@@ -74,8 +73,8 @@ export const getUserList = query({
         .collect();
 
       if (allSessions.length === 0) {
-        // No sessions exist, use all userList entries without sessionNumber filter
-        hasNoSessions = true;
+        // No sessions exist, default to session 1
+        sessionNumber = 1;
       } else {
         // Sort by createdAt (newest first), with sessionNumber as tiebreaker
         allSessions.sort((a, b) => {
@@ -88,20 +87,12 @@ export const getUserList = query({
       }
     }
 
-    // Query userLists - if no sessions exist, get all entries for this post
-    const userListEntries = hasNoSessions
-      ? await ctx.db
-          .query("userLists")
-          .withIndex("by_chat_post", (q) =>
-            q.eq("chatId", args.chatId).eq("postId", args.postId)
-          )
-          .collect()
-      : await ctx.db
-          .query("userLists")
-          .withIndex("by_chat_post_session", (q) =>
-            q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber!)
-          )
-          .collect();
+    const userListEntries = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+      )
+      .collect();
 
     // Sort by position only
     userListEntries.sort((a, b) => a.position - b.position);
@@ -154,7 +145,7 @@ export const getUserList = query({
     return {
       activeUsers,
       completedUsers,
-      currentSession: sessionNumber ?? 1,
+      currentSession: sessionNumber,
     };
   },
 });
