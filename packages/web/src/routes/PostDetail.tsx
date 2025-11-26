@@ -489,7 +489,7 @@ export default function PostDetail() {
             </div>
             <div className="text-right flex items-center gap-2">
               <div>
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">إجمالي المستخدمين</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">حضور</div>
                 <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{totalUsers}</div>
               </div>
               <Link href={`/posts/${chatId}/${postId}/summary`}>
