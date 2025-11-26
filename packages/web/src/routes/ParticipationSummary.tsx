@@ -101,7 +101,7 @@ export default function ParticipationSummary() {
             </div>
             <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6">
               <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 mb-2">
-                إجمالي المشاركات
+                نسبة المشاركة
               </div>
               <div className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 dark:text-white">
                 {summary.totalParticipations.toLocaleString('ar-EG')}
@@ -156,10 +156,10 @@ export default function ParticipationSummary() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
                             <span>✅</span>
-                            <span>شاركوا</span>
+                            <span>شاركن</span>
                           </span>
                           <span className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-                            {typeData.count.toLocaleString('ar-EG')} مشاركة
+                            {typeData.count.toLocaleString('ar-EG')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -170,7 +170,7 @@ export default function ParticipationSummary() {
                               disabled
                             >
                               <span>ℹ️</span>
-                              <span>لم يشاركوا</span>
+                              <span>لم يشاركن</span>
                             </button>
                           </span>
                           <span className="text-lg sm:text-xl font-bold text-gray-600 dark:text-slate-400">
