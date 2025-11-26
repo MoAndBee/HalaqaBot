@@ -883,3 +883,49 @@ export const updateSessionTeacher = mutation({
     return { created: false };
   },
 });
+
+// Mutation to fix userList entries with missing sessionNumber
+export const fixMissingSessionNumbers = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    defaultSessionNumber: v.optional(v.number()), // Default to 1 if not provided
+  },
+  handler: async (ctx, args) => {
+    const defaultSession = args.defaultSessionNumber ?? 1;
+
+    // Get all entries for this post
+    const allEntries = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    // Filter entries where sessionNumber is undefined
+    const entriesWithoutSessionNumber = allEntries.filter(
+      (entry) => entry.sessionNumber === undefined
+    );
+
+    console.log(
+      `Found ${entriesWithoutSessionNumber.length} entries without sessionNumber`
+    );
+
+    // Update each entry to set sessionNumber
+    let updated = 0;
+    for (const entry of entriesWithoutSessionNumber) {
+      await ctx.db.patch(entry._id, {
+        sessionNumber: defaultSession,
+      });
+      updated++;
+    }
+
+    console.log(`✅ Updated ${updated} entries with sessionNumber = ${defaultSession}`);
+
+    return {
+      totalEntries: allEntries.length,
+      entriesFixed: updated,
+      defaultSessionNumber: defaultSession,
+    };
+  },
+});

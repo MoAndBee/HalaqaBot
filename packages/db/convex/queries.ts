@@ -612,3 +612,52 @@ export const getParticipationSummary = query({
     };
   },
 });
+
+// Diagnostic query to find userList entries with missing sessionNumber
+export const findEntriesWithoutSessionNumber = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Get all entries for this post
+    const allEntries = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    // Filter entries where sessionNumber is undefined
+    const entriesWithoutSessionNumber = allEntries.filter(
+      (entry) => entry.sessionNumber === undefined
+    );
+
+    // Get user details for these entries
+    const entriesWithUserData = await Promise.all(
+      entriesWithoutSessionNumber.map(async (entry) => {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", entry.userId))
+          .first();
+
+        return {
+          entryId: entry._id,
+          userId: entry.userId,
+          position: entry.position,
+          createdAt: entry.createdAt,
+          completedAt: entry.completedAt,
+          sessionNumber: entry.sessionNumber,
+          userName: user?.telegramName || "Unknown",
+          realName: user?.realName || null,
+        };
+      })
+    );
+
+    return {
+      totalEntries: allEntries.length,
+      entriesWithoutSessionNumber: entriesWithoutSessionNumber.length,
+      entries: entriesWithUserData,
+    };
+  },
+});
