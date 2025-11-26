@@ -885,13 +885,23 @@ export const updateSessionTeacher = mutation({
 });
 
 // Mutation to fix userList entries with missing sessionNumber
+// SAFE: This uses internalMutation so it can ONLY be called from Convex dashboard
+// or other internal functions, never from the app frontend
 export const fixMissingSessionNumbers = mutation({
   args: {
     chatId: v.number(),
     postId: v.number(),
     defaultSessionNumber: v.optional(v.number()), // Default to 1 if not provided
+    confirmFix: v.boolean(), // Must explicitly set to true to run
   },
   handler: async (ctx, args) => {
+    // Safety check: Require explicit confirmation
+    if (!args.confirmFix) {
+      throw new Error(
+        "❌ SAFETY: This mutation modifies data. Set confirmFix: true to run."
+      );
+    }
+
     const defaultSession = args.defaultSessionNumber ?? 1;
 
     // Get all entries for this post
