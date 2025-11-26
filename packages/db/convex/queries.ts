@@ -585,10 +585,14 @@ export const getParticipationSummary = query({
         (entry) => entry.sessionType === type
       );
 
+      // Calculate non-participants for this specific session type
+      // Get unique users who attended this type
+      const typeUserIds = new Set(typeEntries.map((entry) => entry.userId));
+
       if (typeEntries.length > 0) {
         byType[type] = {
           count: typeEntries.length,
-          nonParticipantCount: totalAttendance - typeEntries.length,
+          nonParticipantCount: totalAttendance - typeUserIds.size,
         };
       }
     }

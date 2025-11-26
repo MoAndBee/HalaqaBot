@@ -119,61 +119,71 @@ export default function ParticipationSummary() {
             <span>📚</span>
             <span>حسب نوع المشاركة</span>
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {sessionTypes.map(({ key, label }) => {
-              const typeData = summary.byType[key]
+          {(() => {
+            const hasAnyData = sessionTypes.some(
+              ({ key }) => summary.byType[key] && summary.byType[key].count > 0
+            )
 
-              // Hide types with 0 participations
-              if (!typeData || typeData.count === 0) {
-                return null
-              }
-
+            if (!hasAnyData) {
               return (
-                <div
-                  key={key}
-                  className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6"
-                >
-                  <h4 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white mb-3">
-                    {label}
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
-                        <span>✅</span>
-                        <span>شاركوا</span>
-                      </span>
-                      <span className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-                        {typeData.count.toLocaleString('ar-EG')} مشاركة
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
-                        <button
-                          className="flex items-center gap-2 bg-transparent border-none cursor-not-allowed opacity-50"
-                          title="سيتم إضافة تقرير مفصل قريباً"
-                          disabled
-                        >
-                          <span>ℹ️</span>
-                          <span>لم يشاركوا</span>
-                        </button>
-                      </span>
-                      <span className="text-lg sm:text-xl font-bold text-gray-600 dark:text-slate-400">
-                        {typeData.nonParticipantCount.toLocaleString('ar-EG')}
-                      </span>
-                    </div>
-                  </div>
+                <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-8 text-center">
+                  <p className="text-gray-600 dark:text-slate-400">
+                    لا توجد مشاركات مكتملة حتى الآن
+                  </p>
                 </div>
               )
-            })}
-          </div>
+            }
 
-          {Object.keys(summary.byType).length === 0 && (
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-8 text-center">
-              <p className="text-gray-600 dark:text-slate-400">
-                لا توجد مشاركات مكتملة حتى الآن
-              </p>
-            </div>
-          )}
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {sessionTypes.map(({ key, label }) => {
+                  const typeData = summary.byType[key]
+
+                  // Hide types with 0 participations
+                  if (!typeData || typeData.count === 0) {
+                    return null
+                  }
+
+                  return (
+                    <div
+                      key={key}
+                      className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6"
+                    >
+                      <h4 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white mb-3">
+                        {label}
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
+                            <span>✅</span>
+                            <span>شاركوا</span>
+                          </span>
+                          <span className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                            {typeData.count.toLocaleString('ar-EG')} مشاركة
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
+                            <button
+                              className="flex items-center gap-2 bg-transparent border-none cursor-not-allowed opacity-50"
+                              title="سيتم إضافة تقرير مفصل قريباً"
+                              disabled
+                            >
+                              <span>ℹ️</span>
+                              <span>لم يشاركوا</span>
+                            </button>
+                          </span>
+                          <span className="text-lg sm:text-xl font-bold text-gray-600 dark:text-slate-400">
+                            {typeData.nonParticipantCount.toLocaleString('ar-EG')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>
