@@ -336,7 +336,6 @@ export const getAllPosts = query({
   handler: async (ctx) => {
     const allUsers = await ctx.db.query("userLists").collect();
     const allMessages = await ctx.db.query("messageAuthors").collect();
-    const allSessions = await ctx.db.query("sessions").collect();
 
     // Create a map of post keys to earliest message timestamp
     const postDatesMap = new Map<string, number>();
@@ -348,31 +347,13 @@ export const getAllPosts = query({
       }
     }
 
-    // Create a map of post keys to latest session number
-    const latestSessionMap = new Map<string, number>();
-    for (const session of allSessions) {
-      const key = `${session.chatId}-${session.postId}`;
-      const existingSession = latestSessionMap.get(key);
-      if (!existingSession || session.sessionNumber > existingSession) {
-        latestSessionMap.set(key, session.sessionNumber);
-      }
-    }
-
     const postsMap = new Map<
       string,
       { chatId: number; postId: number; userCount: number; createdAt: number }
     >();
 
-    // Group users by post and count only users in the latest session
     for (const user of allUsers) {
       const key = `${user.chatId}-${user.postId}`;
-      const latestSession = latestSessionMap.get(key);
-
-      // Skip users not in the latest session (if sessions exist)
-      if (latestSession !== undefined && user.sessionNumber !== latestSession) {
-        continue;
-      }
-
       if (!postsMap.has(key)) {
         postsMap.set(key, {
           chatId: user.chatId,
