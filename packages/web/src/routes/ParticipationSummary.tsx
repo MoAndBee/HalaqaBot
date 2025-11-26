@@ -82,7 +82,7 @@ export default function ParticipationSummary() {
             <span>📊</span>
             <span>إحصائيات عامة</span>
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6">
               <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 mb-2">
                 عدد الحلقات

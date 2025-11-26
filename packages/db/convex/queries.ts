@@ -575,6 +575,10 @@ export const getParticipationSummary = query({
       ? Math.round((totalParticipations / totalAttendance) * 100)
       : 0;
 
+    // Get total users count from users table
+    const allUsers = await ctx.db.query("users").collect();
+    const totalUsersCount = allUsers.length;
+
     // Group by session type
     const byType: Record<string, { label: string; count: number; nonParticipantCount: number }> = {};
 
@@ -591,14 +595,14 @@ export const getParticipationSummary = query({
       );
 
       // Calculate non-participants for this specific session type
-      // Get unique users who attended this type
+      // Get unique users who participated in this type
       const typeUserIds = new Set(typeEntries.map((entry) => entry.userId));
 
       if (typeEntries.length > 0) {
         byType[type.key] = {
           label: type.label,
           count: typeEntries.length,
-          nonParticipantCount: totalAttendance - typeUserIds.size,
+          nonParticipantCount: totalUsersCount - typeUserIds.size,
         };
       }
     }
