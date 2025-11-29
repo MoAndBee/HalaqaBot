@@ -331,6 +331,7 @@ export function UserList({
           onSkip={handleSkip}
           canSkip={items.length >= 2}
           disabled={isProcessing}
+          defaultSessionType={(items[0]?.sessionType as SessionType) || null}
         />
       )}
 

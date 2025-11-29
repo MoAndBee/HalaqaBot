@@ -5,12 +5,18 @@ export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختب
 interface SplitButtonProps {
   onComplete: (sessionType: SessionType) => void
   disabled?: boolean
+  defaultSessionType?: SessionType | null
 }
 
-export function SplitButton({ onComplete, disabled = false }: SplitButtonProps) {
-  const [selectedType, setSelectedType] = useState<SessionType | null>(null)
+export function SplitButton({ onComplete, disabled = false, defaultSessionType = null }: SplitButtonProps) {
+  const [selectedType, setSelectedType] = useState<SessionType | null>(defaultSessionType)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Update selectedType when defaultSessionType changes (e.g., when user changes)
+  useEffect(() => {
+    setSelectedType(defaultSessionType)
+  }, [defaultSessionType])
 
   // Close dropdown when clicking outside
   useEffect(() => {

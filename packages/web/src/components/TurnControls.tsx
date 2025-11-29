@@ -5,13 +5,15 @@ interface TurnControlsProps {
   onSkip: () => void
   canSkip: boolean
   disabled?: boolean
+  defaultSessionType?: SessionType | null
 }
 
 export function TurnControls({
   onComplete,
   onSkip,
   canSkip,
-  disabled = false
+  disabled = false,
+  defaultSessionType = null
 }: TurnControlsProps) {
   return (
     <div
@@ -19,7 +21,7 @@ export function TurnControls({
       dir="rtl"
     >
       <div className="flex gap-2 sm:gap-3 justify-start">
-        <SplitButton onComplete={onComplete} disabled={disabled} />
+        <SplitButton onComplete={onComplete} disabled={disabled} defaultSessionType={defaultSessionType} />
 
         <button
           onClick={onSkip}
