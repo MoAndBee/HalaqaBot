@@ -28,6 +28,16 @@ const batchClassificationSchema = z.object({
   ),
 });
 
+// Lightweight schema for activity type detection only (no name detection)
+const activityTypeOnlySchema = z.object({
+  results: z.array(
+    z.object({
+      message_id: z.number(),
+      activity_type: z.enum(["تسميع", "تلاوة"]).nullable(),
+    })
+  ),
+});
+
 export class ClassificationService {
 
   constructor() {
@@ -89,6 +99,77 @@ Messages: ${messagesList}`
       return results;
     } catch (error) {
       console.error("Batch classification error:", error);
+      // Return false for all messages on error
+      const results = new Map<number, ClassificationResult>();
+      for (const msg of messages) {
+        results.set(msg.id, {
+          containsName: false,
+          detectedNames: [],
+          activityType: null,
+          rawResponse: `Error: ${error}`,
+        });
+      }
+      return results;
+    }
+  }
+
+  /**
+   * Lightweight classification that ONLY detects activity type (not names)
+   * Use this when the user's realName is already known to save on API costs
+   * @param messages Array of messages with their IDs and text
+   * @returns Map of message IDs to classification results (containsName will always be false)
+   */
+  async classifyActivityTypeOnly(messages: Array<{ id: number; text: string }>): Promise<Map<number, ClassificationResult>> {
+    if (messages.length === 0) {
+      return new Map();
+    }
+
+    try {
+      // Build batch prompt
+      const messagesList = messages
+        .map((msg) => `${msg.id}: "${msg.text}"`)
+        .join(",");
+
+      const { object } = await generateObject({
+        model: groq("openai/gpt-oss-20b"),
+        schema: activityTypeOnlySchema,
+        prompt: `Analyze the following Arabic messages and for each message, determine the activity type:
+- "تسميع" (recitation from memory)
+- "تلاوة" (reading from Quran)
+- null if not mentioned
+
+Return the message_id and activity_type for each message.
+
+Messages: ${messagesList}`
+      });
+
+      const results = new Map<number, ClassificationResult>();
+
+      // Map results back to message IDs
+      for (const result of object.results) {
+        results.set(result.message_id, {
+          containsName: false, // Not detecting names in this lightweight version
+          detectedNames: [],
+          activityType: result.activity_type,
+          rawResponse: JSON.stringify(object),
+        });
+      }
+
+      // Ensure all messages have a result (fallback to null for missing)
+      for (const msg of messages) {
+        if (!results.has(msg.id)) {
+          results.set(msg.id, {
+            containsName: false,
+            detectedNames: [],
+            activityType: null,
+            rawResponse: JSON.stringify(object),
+          });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error("Activity type classification error:", error);
       // Return false for all messages on error
       const results = new Map<number, ClassificationResult>();
       for (const msg of messages) {

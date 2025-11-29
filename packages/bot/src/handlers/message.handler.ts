@@ -77,10 +77,10 @@ export function registerMessageHandler(
     //   console.log("⚠️  Anonymous admin post detected - will retrieve real author via forwarding when needed");
     // }
 
-    // Automatically classify message to detect names
-    // Only classify if message has text and user is not already in users table with a realName
+    // Automatically classify message to detect activity type (and names if needed)
+    // Always classify to get activity type, but use lightweight method if we know the name
     if (messageText && messageText.trim().length > 0 && ctx.from) {
-      console.log(`\n🔍 Checking if auto-classification needed for user ${ctx.from.id}...`);
+      console.log(`\n🔍 Auto-classification check for user ${ctx.from.id}...`);
 
       // Check if user already has a realName
       const existingUser = await convex.query(api.queries.getUser, {
@@ -89,51 +89,60 @@ export function registerMessageHandler(
 
       console.log(`   User exists: ${!!existingUser}, Has realName: ${!!existingUser?.realName}`);
 
-      // Only classify if user doesn't have a realName yet
-      if (!existingUser?.realName) {
-        console.log(`🤖 Auto-classifying message ${ctx.message!.message_id} for user ${ctx.from.id}...`);
-        console.log(`   Message text: "${messageText}"`);
+      const hasRealName = !!existingUser?.realName;
 
-        try {
-          // Classify the single message
-          const classifications = await classificationService.classifyBatch([{
-            id: ctx.message!.message_id,
-            text: messageText,
-          }]);
+      // Always classify, but use lightweight method if we already know the name
+      if (hasRealName) {
+        console.log(`🤖 Activity-type-only classification (user already has realName: ${existingUser.realName})`);
+      } else {
+        console.log(`🤖 Full classification (detecting name + activity type)`);
+      }
+      console.log(`   Message text: "${messageText}"`);
 
-          const classification = classifications.get(ctx.message!.message_id);
+      try {
+        // Choose classification method based on whether we already know the name
+        const classifications = hasRealName
+          ? await classificationService.classifyActivityTypeOnly([{
+              id: ctx.message!.message_id,
+              text: messageText,
+            }])
+          : await classificationService.classifyBatch([{
+              id: ctx.message!.message_id,
+              text: messageText,
+            }]);
 
-          console.log(`   Classification result:`, {
-            containsName: classification?.containsName,
-            detectedNames: classification?.detectedNames,
-            activityType: classification?.activityType,
+        const classification = classifications.get(ctx.message!.message_id);
+
+        console.log(`   Classification result:`, {
+          containsName: classification?.containsName,
+          detectedNames: classification?.detectedNames,
+          activityType: classification?.activityType,
+        });
+
+        if (classification) {
+          // Store the classification
+          await convex.mutation(api.mutations.storeClassification, {
+            chatId: ctx.chat!.id,
+            postId: postId,
+            messageId: ctx.message!.message_id,
+            messageText: messageText,
+            containsName: classification.containsName,
+            detectedNames: classification.detectedNames || [],
+            activityType: classification.activityType ?? undefined,
+            channelId: channelId,
           });
 
-          if (classification) {
-            // Store the classification
-            await convex.mutation(api.mutations.storeClassification, {
-              chatId: ctx.chat!.id,
-              postId: postId,
-              messageId: ctx.message!.message_id,
-              messageText: messageText,
-              containsName: classification.containsName,
-              detectedNames: classification.detectedNames || [],
-              activityType: classification.activityType ?? undefined,
-              channelId: channelId,
-            });
-
-            if (classification.containsName && classification.detectedNames && classification.detectedNames.length > 0) {
-              console.log(`✅ Detected name in message: ${classification.detectedNames.join(' ')}`);
-              console.log(`   Stored classification and updated user realName via storeClassification mutation`);
-            } else {
-              console.log(`   ℹ️  No names detected in message`);
-            }
+          if (classification.containsName && classification.detectedNames && classification.detectedNames.length > 0) {
+            console.log(`✅ Detected name in message: ${classification.detectedNames.join(' ')}`);
+            console.log(`   Stored classification and updated user realName via storeClassification mutation`);
+          } else if (classification.activityType) {
+            console.log(`✅ Detected activity type: ${classification.activityType}`);
+          } else {
+            console.log(`   ℹ️  No names or activity type detected in message`);
           }
-        } catch (error) {
-          console.error("❌ Error during automatic classification:", error);
         }
-      } else {
-        console.log(`⏭️  Skipping classification - user ${ctx.from.id} already has realName: ${existingUser.realName}`);
+      } catch (error) {
+        console.error("❌ Error during automatic classification:", error);
       }
     } else {
       if (!messageText || messageText.trim().length === 0) {
