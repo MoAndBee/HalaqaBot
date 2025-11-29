@@ -128,6 +128,7 @@ export const addUserToList = mutation({
     userId: v.number(),
     channelId: v.optional(v.number()),
     sessionNumber: v.optional(v.number()), // if not provided, use latest session
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", or "اختبار"
   },
   handler: async (ctx, args) => {
     // Determine the session number to use
@@ -180,6 +181,7 @@ export const addUserToList = mutation({
       createdAt: Date.now(),
       carriedOver: false, // This is a new addition, not carried over
       sessionNumber,
+      sessionType: args.sessionType,
     });
 
     return true;
@@ -195,6 +197,7 @@ export const addUserAtPosition = mutation({
     turnsToWait: v.number(), // How many turns to wait (e.g., 3 means skip 3 users)
     channelId: v.optional(v.number()),
     sessionNumber: v.optional(v.number()),
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", or "اختبار"
   },
   handler: async (ctx, args) => {
     // Determine the session number
@@ -275,6 +278,7 @@ export const addUserAtPosition = mutation({
       createdAt: Date.now(),
       carriedOver: false,
       sessionNumber,
+      sessionType: args.sessionType,
     });
 
     // Get the newly inserted entry
