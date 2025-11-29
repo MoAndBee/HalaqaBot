@@ -370,6 +370,7 @@ export function UserList({
                     index={index}
                     onDelete={handleDelete}
                     onUpdateDisplayName={handleUpdateDisplayName}
+                    onUpdateSessionType={handleUpdateSessionType}
                     onAddTurnAfter3={onAddTurnAfter3}
                     onMoveToEnd={handleMoveToEnd}
                     onMoveToPosition={handleMoveToPosition}

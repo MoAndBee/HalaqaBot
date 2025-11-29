@@ -659,11 +659,7 @@ export const updateSessionType = mutation({
       throw new Error(`Entry not found`);
     }
 
-    if (!entry.completedAt) {
-      throw new Error(`Cannot update session type - turn not completed yet`);
-    }
-
-    // Update session type
+    // Update session type (works for both active and completed users)
     await ctx.db.patch(args.entryId, {
       sessionType: args.sessionType,
     });

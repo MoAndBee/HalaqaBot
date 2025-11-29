@@ -2,12 +2,14 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useState, useRef, useEffect } from 'react'
 import type { User } from '@halakabot/db'
+import type { SessionType } from './SplitButton'
 
 interface DraggableUserProps {
   user: User
   index: number
   onDelete: (entryId: string) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
+  onUpdateSessionType?: (entryId: string, sessionType: SessionType) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
   onMoveToEnd?: (entryId: string) => void
   onMoveToPosition?: (entryId: string, position: number) => void
@@ -15,9 +17,11 @@ interface DraggableUserProps {
   totalUsers?: number
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, totalUsers }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, totalUsers }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
+  const [isEditingType, setIsEditingType] = useState(false)
+  const [selectedType, setSelectedType] = useState<SessionType | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -130,6 +134,24 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
     setIsDropdownOpen(false)
   }
 
+  const handleEditTypeClick = () => {
+    setSelectedType((user.sessionType as SessionType) || null)
+    setIsEditingType(true)
+    setIsDropdownOpen(false)
+  }
+
+  const handleConfirmType = () => {
+    if (selectedType && user.entryId && onUpdateSessionType) {
+      onUpdateSessionType(user.entryId, selectedType)
+      setIsEditingType(false)
+    }
+  }
+
+  const handleCancelType = () => {
+    setIsEditingType(false)
+    setSelectedType(null)
+  }
+
   // Show realName if available, otherwise show telegramName
   const primaryName = user.realName || user.telegramName
   // Show both realName and telegramName when realName is set
@@ -151,7 +173,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
     >
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Actions dropdown - positioned on the left in RTL */}
-        {!isEditing && (
+        {!isEditing && !isEditingType && (
           <div className="relative order-first" ref={dropdownRef}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -188,6 +210,22 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
                     className={`w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end ${!onUpdateDisplayName ? 'rounded-t-lg' : ''}`}
                   >
                     <span>إضافة ملاحظات</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </button>
+                )}
+                {onUpdateSessionType && (
+                  <button
+                    onClick={handleEditTypeClick}
+                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
+                  >
+                    <span>تعديل النوع</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
@@ -340,6 +378,46 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onAd
             </>
           )}
         </div>
+
+        {/* Session type badge */}
+        {!isEditing && (
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {isEditingType ? (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <select
+                  value={selectedType || ''}
+                  onChange={(e) => setSelectedType(e.target.value as SessionType)}
+                  className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white text-xs sm:text-sm px-1.5 sm:px-2 py-1 rounded border border-gray-300 dark:border-slate-600"
+                >
+                  <option value="">اختر</option>
+                  <option value="تلاوة">تلاوة</option>
+                  <option value="تسميع">تسميع</option>
+                  <option value="تطبيق">تطبيق</option>
+                </select>
+                <button
+                  onClick={handleConfirmType}
+                  className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
+                >
+                  تأكيد
+                </button>
+                <button
+                  onClick={handleCancelType}
+                  className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
+                >
+                  إلغاء
+                </button>
+              </div>
+            ) : (
+              <span className={`text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded whitespace-nowrap ${
+                user.sessionType
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700/50'
+                  : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+              }`}>
+                {user.sessionType || 'غير محدد'}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
