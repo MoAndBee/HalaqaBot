@@ -131,12 +131,14 @@ export function registerReactionHandler(
                 messageText: messageText,
                 containsName: result.containsName,
                 detectedNames: result.detectedNames || [],
+                activityType: result.activityType ?? undefined,
                 channelId,
               });
 
               classification = {
                 containsName: result.containsName,
                 detectedNames: result.detectedNames || [],
+                activityType: result.activityType,
               };
             }
           }
@@ -148,9 +150,26 @@ export function registerReactionHandler(
           realName = classification.detectedNames.join(' ');
         }
 
+        // Extract activity type from this message
+        let activityType = classification?.activityType;
+
+        // If no activity type in this message, look for latest from ANY message by this user
+        if (!activityType) {
+          activityType = await convex.query(api.queries.getLatestActivityTypeForUser, {
+            chatId,
+            postId,
+            userId: messageAuthor.id,
+          });
+        }
+
         // Create userIdToRealName map if we have a real name
         const userIdToRealName = realName
           ? new Map([[messageAuthor.id, realName]])
+          : undefined;
+
+        // Create userIdToActivityType map if we have an activity type
+        const userIdToActivityType = activityType
+          ? new Map([[messageAuthor.id, activityType]])
           : undefined;
 
         // Update the user list in chat
@@ -160,7 +179,8 @@ export function registerReactionHandler(
           [messageAuthor],
           ctx.api,
           userIdToRealName,
-          channelId
+          channelId,
+          userIdToActivityType
         );
       }
     }

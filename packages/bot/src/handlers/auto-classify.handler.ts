@@ -105,6 +105,7 @@ export function registerAutoClassifyHandler(
         messageText: messageTextMap.get(messageId),
         containsName: classification.containsName,
         detectedNames: classification.detectedNames || [],
+        activityType: classification.activityType ?? undefined,
         channelId: channelId ?? undefined,
       });
 

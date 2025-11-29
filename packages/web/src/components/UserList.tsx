@@ -331,6 +331,7 @@ export function UserList({
           onSkip={handleSkip}
           canSkip={items.length >= 2}
           disabled={isProcessing}
+          defaultSessionType={(items[0]?.sessionType as SessionType) || null}
         />
       )}
 
@@ -370,6 +371,7 @@ export function UserList({
                     index={index}
                     onDelete={handleDelete}
                     onUpdateDisplayName={handleUpdateDisplayName}
+                    onUpdateSessionType={handleUpdateSessionType}
                     onAddTurnAfter3={onAddTurnAfter3}
                     onMoveToEnd={handleMoveToEnd}
                     onMoveToPosition={handleMoveToPosition}

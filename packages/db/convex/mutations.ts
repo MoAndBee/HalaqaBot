@@ -128,6 +128,7 @@ export const addUserToList = mutation({
     userId: v.number(),
     channelId: v.optional(v.number()),
     sessionNumber: v.optional(v.number()), // if not provided, use latest session
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", or "اختبار"
   },
   handler: async (ctx, args) => {
     // Determine the session number to use
@@ -180,6 +181,7 @@ export const addUserToList = mutation({
       createdAt: Date.now(),
       carriedOver: false, // This is a new addition, not carried over
       sessionNumber,
+      sessionType: args.sessionType,
     });
 
     return true;
@@ -195,6 +197,7 @@ export const addUserAtPosition = mutation({
     turnsToWait: v.number(), // How many turns to wait (e.g., 3 means skip 3 users)
     channelId: v.optional(v.number()),
     sessionNumber: v.optional(v.number()),
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", or "اختبار"
   },
   handler: async (ctx, args) => {
     // Determine the session number
@@ -275,6 +278,7 @@ export const addUserAtPosition = mutation({
       createdAt: Date.now(),
       carriedOver: false,
       sessionNumber,
+      sessionType: args.sessionType,
     });
 
     // Get the newly inserted entry
@@ -374,6 +378,7 @@ export const storeClassification = mutation({
     messageText: v.optional(v.string()),
     containsName: v.boolean(),
     detectedNames: v.array(v.string()),
+    activityType: v.optional(v.string()),
     channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -392,6 +397,7 @@ export const storeClassification = mutation({
         messageText: args.messageText,
         containsName: args.containsName,
         detectedNames: args.detectedNames,
+        activityType: args.activityType,
         channelId: args.channelId,
         classifiedAt: Date.now(),
       });
@@ -403,6 +409,7 @@ export const storeClassification = mutation({
         messageText: args.messageText,
         containsName: args.containsName,
         detectedNames: args.detectedNames,
+        activityType: args.activityType,
         channelId: args.channelId,
         classifiedAt: Date.now(),
       });
@@ -652,11 +659,7 @@ export const updateSessionType = mutation({
       throw new Error(`Entry not found`);
     }
 
-    if (!entry.completedAt) {
-      throw new Error(`Cannot update session type - turn not completed yet`);
-    }
-
-    // Update session type
+    // Update session type (works for both active and completed users)
     await ctx.db.patch(args.entryId, {
       sessionType: args.sessionType,
     });

@@ -141,7 +141,7 @@ function CompletedUserCard({
 
   return (
     <div
-      className="bg-green-50/50 dark:bg-slate-800/40 border border-green-300 dark:border-green-900/30 rounded-lg p-2 sm:p-3 opacity-75"
+      className="bg-green-50/50 dark:bg-slate-800/40 border border-green-300 dark:border-green-900/30 rounded-lg p-2 sm:p-3"
       dir="rtl"
     >
       <div className="flex items-center gap-2 sm:gap-3">
@@ -181,7 +181,7 @@ function CompletedUserCard({
                   onClick={handleEditTypeClick}
                   className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
                 >
-                  <span>تعديل النوع</span>
+                  <span>تعديل المشاركة</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"

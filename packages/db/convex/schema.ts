@@ -55,6 +55,7 @@ export default defineSchema({
     messageText: v.optional(v.string()),
     containsName: v.boolean(),
     detectedNames: v.array(v.string()),
+    activityType: v.optional(v.string()), // "تسميع" or "تلاوة"
     channelId: v.optional(v.number()),
     classifiedAt: v.number(), // timestamp in ms
   })

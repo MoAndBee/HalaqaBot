@@ -13,12 +13,13 @@ export interface MessageAuthor {
 export class UserListService {
   constructor(private convex: ConvexHttpClient) {}
 
-  async addUserIfNew(chatId: number, postId: number, userId: number, channelId?: number): Promise<boolean> {
+  async addUserIfNew(chatId: number, postId: number, userId: number, channelId?: number, sessionType?: string): Promise<boolean> {
     return await this.convex.mutation(api.mutations.addUserToList, {
       chatId,
       postId,
       userId,
       channelId,
+      sessionType,
     });
   }
 
@@ -68,7 +69,8 @@ export class UserListService {
     users: MessageAuthor[],
     grammyApi: Api,
     userIdToRealName?: Map<number, string>,
-    channelId?: number
+    channelId?: number,
+    userIdToActivityType?: Map<number, string>
   ): Promise<boolean> {
     // Normalize to array
     const userArray = Array.isArray(users) ? users : [users];
@@ -94,7 +96,8 @@ export class UserListService {
     // Add users and track if list changed
     let listChanged = false;
     for (const user of userArray) {
-      const changed = await this.addUserIfNew(chatId, postId, user.id, channelId);
+      const activityType = userIdToActivityType?.get(user.id);
+      const changed = await this.addUserIfNew(chatId, postId, user.id, channelId, activityType);
       if (changed) {
         listChanged = true;
       }

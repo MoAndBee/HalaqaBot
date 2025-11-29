@@ -243,7 +243,56 @@ export const getClassification = query({
     return {
       containsName: classification.containsName,
       detectedNames: classification.detectedNames,
+      activityType: classification.activityType,
     };
+  },
+});
+
+export const getLatestActivityTypeForUser = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Get all messageAuthors entries for this user in this post
+    const userMessages = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+
+    if (userMessages.length === 0) {
+      return null;
+    }
+
+    // Get all classifications for these messages that have an activityType
+    const allClassifications = [];
+    for (const msg of userMessages) {
+      const classification = await ctx.db
+        .query("messageClassifications")
+        .withIndex("by_chat_post_message", (q) =>
+          q.eq("chatId", args.chatId)
+           .eq("postId", args.postId)
+           .eq("messageId", msg.messageId)
+        )
+        .first();
+
+      if (classification?.activityType) {
+        allClassifications.push(classification);
+      }
+    }
+
+    if (allClassifications.length === 0) {
+      return null;
+    }
+
+    // Sort by classifiedAt (most recent first)
+    allClassifications.sort((a, b) => b.classifiedAt - a.classifiedAt);
+
+    return allClassifications[0].activityType;
   },
 });
 
