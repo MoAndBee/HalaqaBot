@@ -193,7 +193,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                     onClick={handleEdit}
                     className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
                   >
-                    <span>تعديل</span>
+                    <span>تعديل الاسم</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
@@ -225,7 +225,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                     onClick={handleEditTypeClick}
                     className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
                   >
-                    <span>تعديل النوع</span>
+                    <span>تعديل المشاركة</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
