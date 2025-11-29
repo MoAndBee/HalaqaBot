@@ -160,7 +160,7 @@ function CompletedUserCard({
 
             {/* Dropdown menu */}
             {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 max-w-[10rem] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
+              <div className="absolute right-0 top-full mt-1 w-40 max-w-[10rem] bg-white dark:bg-slate-800 opacity-100 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                 {onUpdateDisplayName && (
                   <button
                     onClick={handleEditNameClick}
@@ -181,7 +181,7 @@ function CompletedUserCard({
                   onClick={handleEditTypeClick}
                   className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
                 >
-                  <span>تعديل النوع</span>
+                  <span>تعديل المشاركة</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
