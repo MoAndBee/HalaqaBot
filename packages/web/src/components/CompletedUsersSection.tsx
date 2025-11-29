@@ -141,7 +141,7 @@ function CompletedUserCard({
 
   return (
     <div
-      className="bg-green-50/50 dark:bg-slate-800/40 border border-green-300 dark:border-green-900/30 rounded-lg p-2 sm:p-3 opacity-75"
+      className="bg-green-50/50 dark:bg-slate-800/40 border border-green-300 dark:border-green-900/30 rounded-lg p-2 sm:p-3"
       dir="rtl"
     >
       <div className="flex items-center gap-2 sm:gap-3">
@@ -160,7 +160,7 @@ function CompletedUserCard({
 
             {/* Dropdown menu */}
             {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 max-w-[10rem] bg-white dark:bg-slate-800 opacity-100 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
+              <div className="absolute right-0 top-full mt-1 w-40 max-w-[10rem] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                 {onUpdateDisplayName && (
                   <button
                     onClick={handleEditNameClick}
