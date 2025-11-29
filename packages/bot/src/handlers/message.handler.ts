@@ -106,6 +106,7 @@ export function registerMessageHandler(
           console.log(`   Classification result:`, {
             containsName: classification?.containsName,
             detectedNames: classification?.detectedNames,
+            activityType: classification?.activityType,
           });
 
           if (classification) {
@@ -117,6 +118,7 @@ export function registerMessageHandler(
               messageText: messageText,
               containsName: classification.containsName,
               detectedNames: classification.detectedNames || [],
+              activityType: classification.activityType ?? undefined,
               channelId: channelId,
             });
 

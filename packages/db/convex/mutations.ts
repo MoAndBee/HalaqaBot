@@ -374,6 +374,7 @@ export const storeClassification = mutation({
     messageText: v.optional(v.string()),
     containsName: v.boolean(),
     detectedNames: v.array(v.string()),
+    activityType: v.optional(v.string()),
     channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -392,6 +393,7 @@ export const storeClassification = mutation({
         messageText: args.messageText,
         containsName: args.containsName,
         detectedNames: args.detectedNames,
+        activityType: args.activityType,
         channelId: args.channelId,
         classifiedAt: Date.now(),
       });
@@ -403,6 +405,7 @@ export const storeClassification = mutation({
         messageText: args.messageText,
         containsName: args.containsName,
         detectedNames: args.detectedNames,
+        activityType: args.activityType,
         channelId: args.channelId,
         classifiedAt: Date.now(),
       });

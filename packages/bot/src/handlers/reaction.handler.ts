@@ -131,6 +131,7 @@ export function registerReactionHandler(
                 messageText: messageText,
                 containsName: result.containsName,
                 detectedNames: result.detectedNames || [],
+                activityType: result.activityType ?? undefined,
                 channelId,
               });
 
