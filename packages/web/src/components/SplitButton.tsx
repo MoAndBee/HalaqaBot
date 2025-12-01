@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
-export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار'
+export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار' | 'دعم'
 
 interface SplitButtonProps {
   onComplete: (sessionType: SessionType) => void
@@ -121,9 +121,15 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
           </button>
           <button
             onClick={() => handleSelectType('اختبار')}
-            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-b-lg"
+            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
           >
             اختبار
+          </button>
+          <button
+            onClick={() => handleSelectType('دعم')}
+            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-b-lg"
+          >
+            دعم
           </button>
         </div>
       )}
