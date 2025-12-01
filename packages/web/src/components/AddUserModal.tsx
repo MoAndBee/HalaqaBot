@@ -1,7 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
-import { Loader } from './Loader'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog'
+import { Input } from './ui/input'
+import { Spinner } from './ui/spinner'
+import { Button } from './ui/button'
 
 interface AddUserModalProps {
   isOpen: boolean
@@ -12,7 +20,6 @@ interface AddUserModalProps {
 export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
-  const modalRef = useRef<HTMLDivElement>(null)
 
   // Debounce search query
   useEffect(() => {
@@ -25,15 +32,6 @@ export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
   // Search users
   const searchResults = useQuery(api.queries.searchUsers, { query: debouncedQuery })
 
-  // Close on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    if (isOpen) document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
-
   // Focus input on open
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -42,75 +40,61 @@ export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
     }
   }, [isOpen])
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div
-        ref={modalRef}
-        className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col h-[50vh]"
-        dir="rtl"
-      >
-        <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">إضافة مستخدم</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md h-[50vh] flex flex-col" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-bold">إضافة مستخدم</DialogTitle>
+        </DialogHeader>
 
-        <div className="p-4">
-          <input
+        <div className="py-4">
+          <Input
             ref={inputRef}
             type="text"
             placeholder="ابحث بالاسم أو المعرف..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-white px-4 py-3 rounded-lg border border-gray-300 dark:border-slate-700 focus:border-blue-500 focus:outline-none transition-colors"
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-[200px]">
+        <div className="flex-1 overflow-y-auto space-y-1 min-h-[200px]">
           {debouncedQuery.trim() === '' ? (
-            <div className="text-center text-gray-500 dark:text-slate-500 py-8">
+            <div className="text-center text-muted-foreground py-8">
               ابدأ الكتابة للبحث عن مستخدمين
             </div>
           ) : !searchResults ? (
             <div className="flex justify-center py-8">
-              <Loader />
+              <Spinner />
             </div>
           ) : searchResults.length === 0 ? (
-            <div className="text-center text-gray-500 dark:text-slate-500 py-8">
+            <div className="text-center text-muted-foreground py-8">
               لا يوجد نتائج
             </div>
           ) : (
-            searchResults.map((user) => (
-              <button
+            searchResults.map((user: any) => (
+              <Button
                 key={user.userId}
                 onClick={() => onAdd(user.userId)}
-                className="w-full text-right p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-between group"
+                variant="ghost"
+                className="w-full justify-between h-auto py-3 px-3"
               >
-                <div>
-                  <div className="text-gray-900 dark:text-white font-medium">
+                <div className="text-right">
+                  <div className="font-medium">
                     {user.realName || user.telegramName}
                   </div>
-                  <div className="text-gray-600 dark:text-slate-400 text-sm">
+                  <div className="text-muted-foreground text-sm">
                     {user.telegramName}
                     {user.username && ` • @${user.username}`}
                   </div>
                 </div>
-                <div className="text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
+                <div className="text-primary text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
                   إضافة
                 </div>
-              </button>
+              </Button>
             ))
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

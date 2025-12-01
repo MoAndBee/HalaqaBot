@@ -1,16 +1,17 @@
 import { forwardRef } from 'react'
+import { Button } from './ui/button'
 
 export const CancelButton = forwardRef<
   HTMLButtonElement,
   React.ButtonHTMLAttributes<HTMLButtonElement>
 >((props, ref) => {
   return (
-    <button
+    <Button
       ref={ref}
       type="button"
       tabIndex={0}
+      variant="ghost"
       {...props}
-      className="text-sm rounded-lg text-left p-2 font-medium hover:bg-slate-200 focus:bg-slate-200"
     />
   )
 })

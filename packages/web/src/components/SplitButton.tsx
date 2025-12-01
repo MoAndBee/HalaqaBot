@@ -1,4 +1,13 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { Button } from './ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
+import { ChevronDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار' | 'دعم'
 
@@ -10,25 +19,11 @@ interface SplitButtonProps {
 
 export function SplitButton({ onComplete, disabled = false, defaultSessionType = null }: SplitButtonProps) {
   const [selectedType, setSelectedType] = useState<SessionType | null>(defaultSessionType)
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Update selectedType when defaultSessionType changes (e.g., when user changes)
   useEffect(() => {
     setSelectedType(defaultSessionType)
   }, [defaultSessionType])
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   const handleComplete = () => {
     if (!selectedType) {
@@ -42,97 +37,56 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
 
   const handleSelectType = (type: SessionType) => {
     setSelectedType(type)
-    setIsDropdownOpen(false)
   }
 
   const buttonText = selectedType ? `إتمام (${selectedType})` : 'إتمام (اختر)'
   const isCompleteDisabled = disabled || !selectedType
 
   return (
-    <div className="relative inline-flex" ref={dropdownRef} dir="rtl">
+    <div className="inline-flex" dir="rtl">
       {/* Main button */}
-      <button
+      <Button
         onClick={handleComplete}
         disabled={isCompleteDisabled}
-        className={`
-          px-3 py-2 sm:px-4 sm:py-2 rounded-r-lg font-medium text-white text-sm sm:text-base
-          transition-colors duration-200
-          ${
-            isCompleteDisabled
-              ? 'bg-slate-600 cursor-not-allowed opacity-50'
-              : 'bg-green-600 hover:bg-green-700 active:bg-green-800'
-          }
-        `}
+        className={cn(
+          'rounded-r-lg rounded-l-none bg-green-600 hover:bg-green-700 text-white',
+          isCompleteDisabled && 'bg-slate-600 cursor-not-allowed opacity-50'
+        )}
       >
         {buttonText}
-      </button>
+      </Button>
 
       {/* Dropdown button */}
-      <button
-        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        disabled={disabled}
-        className={`
-          px-1.5 sm:px-2 border-r border-green-700 rounded-l-lg
-          transition-colors duration-200
-          ${
-            disabled
-              ? 'bg-slate-600 cursor-not-allowed opacity-50'
-              : 'bg-green-600 hover:bg-green-700 active:bg-green-800'
-          }
-        `}
-      >
-        <svg
-          className={`w-4 h-4 text-white transition-transform duration-200 ${
-            isDropdownOpen ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
-
-      {/* Dropdown menu */}
-      {isDropdownOpen && (
-        <div className="fixed sm:absolute left-auto right-2 sm:left-0 sm:right-auto top-auto sm:top-full mt-1 w-32 sm:w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
-          <button
-            onClick={() => handleSelectType('تلاوة')}
-            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-t-lg"
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            disabled={disabled}
+            className={cn(
+              'rounded-l-lg rounded-r-none border-r border-green-700 bg-green-600 hover:bg-green-700 px-2',
+              disabled && 'bg-slate-600 cursor-not-allowed opacity-50'
+            )}
           >
+            <ChevronDown className="h-4 w-4 text-white" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => handleSelectType('تلاوة')}>
             تلاوة
-          </button>
-          <button
-            onClick={() => handleSelectType('تسميع')}
-            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-          >
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleSelectType('تسميع')}>
             تسميع
-          </button>
-          <button
-            onClick={() => handleSelectType('تطبيق')}
-            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-          >
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleSelectType('تطبيق')}>
             تطبيق
-          </button>
-          <button
-            onClick={() => handleSelectType('اختبار')}
-            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-          >
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleSelectType('اختبار')}>
             اختبار
-          </button>
-          <button
-            onClick={() => handleSelectType('دعم')}
-            className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-b-lg"
-          >
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleSelectType('دعم')}>
             دعم
-          </button>
-        </div>
-      )}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

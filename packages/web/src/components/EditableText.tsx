@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { Input } from './ui/input'
+import { Button } from './ui/button'
 
 export function EditableText({
   fieldName,
@@ -13,9 +15,9 @@ export function EditableText({
 }: {
   fieldName: string
   value: string
-  inputClassName: string
+  inputClassName?: string
   inputLabel: string
-  buttonClassName: string
+  buttonClassName?: string
   buttonLabel: string
   onChange: (value: string) => void
   editState?: [boolean, (value: boolean) => void]
@@ -39,7 +41,7 @@ export function EditableText({
         buttonRef.current?.focus()
       }}
     >
-      <input
+      <Input
         required
         ref={inputRef}
         type="text"
@@ -67,10 +69,11 @@ export function EditableText({
       />
     </form>
   ) : (
-    <button
+    <Button
       aria-label={buttonLabel}
       type="button"
       ref={buttonRef}
+      variant="ghost"
       onClick={() => {
         flushSync(() => {
           setEdit(true)
@@ -79,7 +82,7 @@ export function EditableText({
       }}
       className={buttonClassName}
     >
-      {value || <span className="text-slate-400 italic">تعديل</span>}
-    </button>
+      {value || <span className="text-muted-foreground italic">تعديل</span>}
+    </Button>
   )
 }
