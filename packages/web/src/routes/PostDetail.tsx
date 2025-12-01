@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useParams } from 'wouter'
-import { useQuery, useMutation } from 'convex/react'
+import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { Loader } from '~/components/Loader'
@@ -84,6 +84,7 @@ export default function PostDetail() {
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
   const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
+  const sendParticipantList = useAction(api.actions.sendParticipantList)
 
   const handleReorder = async (entryId: string, newPosition: number) => {
     await updatePosition({
@@ -254,6 +255,23 @@ export default function PostDetail() {
     } catch (error) {
       toast.error('فشل النسخ')
       console.error('Copy failed:', error)
+    }
+  }
+
+  const handleSendParticipantList = async () => {
+    if (!data) return
+
+    try {
+      const currentSession = selectedSession ?? data.currentSession
+      await sendParticipantList({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+      })
+      toast.success('تم إرسال قائمة الأسماء!')
+    } catch (error) {
+      toast.error('فشل إرسال قائمة الأسماء')
+      console.error('Send participant list failed:', error)
     }
   }
 
@@ -477,12 +495,24 @@ export default function PostDetail() {
                       handleCopyTelegramNames()
                       setIsActionsDropdownOpen(false)
                     }}
-                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-2"
+                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
                   >
                     <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                     </svg>
                     نسخ الأسماء الحقيقية
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleSendParticipantList()
+                      setIsActionsDropdownOpen(false)
+                    }}
+                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    إرسال قائمة الأسماء
                   </button>
                 </div>
               )}
