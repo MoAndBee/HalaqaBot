@@ -14,30 +14,53 @@ export function registerMessageHandler(
     const message = ctx.message;
     if(!message) return
 
-    const isAutomaticForward = message.is_automatic_forward || message.reply_to_message?.is_automatic_forward
-    console.log({isAutomaticForward})
-    if(!isAutomaticForward) return "It is nor a post or comment on a post"
+    // Walk up the reply chain to find the original channel post
+    let postId: number | null = null;
+    let channelId: number | undefined = undefined;
+    let messageType = "unknown";
 
-    const isComment = message.reply_to_message?.is_automatic_forward
+    // Case 1: This message itself is an automatic forward (it's the channel post)
+    if (message.is_automatic_forward) {
+      postId = message.message_id;
+      channelId = message.sender_chat?.id;
+      messageType = "channel post";
+    }
+    // Case 2: This is a direct reply to an automatic forward (comment on post)
+    else if (message.reply_to_message?.is_automatic_forward) {
+      postId = message.reply_to_message.message_id;
+      channelId = message.reply_to_message.sender_chat?.id;
+      messageType = "comment on post";
+    }
+    // Case 3: This might be a nested reply (comment on comment)
+    else if (message.reply_to_message) {
+      // Query the database to find which thread the parent message belongs to
+      const parentPostInfo = await convex.query(api.queries.getPostIdForMessage, {
+        chatId: ctx.chat!.id,
+        messageId: message.reply_to_message.message_id,
+      });
 
-    // Get the post ID (for comments: original post ID, for posts: own message ID)
-    const postId = isComment ? message.reply_to_message!.message_id : message.message_id;
+      if (parentPostInfo) {
+        postId = parentPostInfo.postId;
+        channelId = parentPostInfo.channelId ?? undefined;
+        messageType = "nested comment";
+      }
+    }
 
-    // Extract channel ID from sender_chat (available for automatic forwards)
-    const channelId = isComment
-      ? message.reply_to_message!.sender_chat?.id
-      : message.sender_chat?.id;
+    // If we couldn't find a post in the chain, skip this message
+    if (postId === null) {
+      console.log("⏭️  Message is not part of a channel post thread - skipping");
+      return "Message is not part of a channel post thread";
+    }
 
-    // Determine message type
-    let messageType = isComment?  "comment on post" :"channel post";
+    console.log({isAutomaticForward: message.is_automatic_forward, postId, messageType});
 
     console.log(`New message received: [${messageType.toUpperCase()}]`);
     console.log("=>", {
       message_id: ctx.message!.message_id,
       post_id: postId,
       message_type: messageType,
-      is_comment: isComment,
-      is_automatic_forward: isAutomaticForward,
+      is_automatic_forward: message.is_automatic_forward,
+      is_reply: !!message.reply_to_message,
       chat: {
         id: ctx.chat!.id,
         type: ctx.chat!.type,
