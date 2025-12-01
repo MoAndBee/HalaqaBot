@@ -18,6 +18,7 @@ import type { User } from '@halakabot/db'
 import { DraggableUser } from './DraggableUser'
 import { TurnControls } from './TurnControls'
 import { CompletedUsersSection } from './CompletedUsersSection'
+import { Alert } from './ui/alert'
 import type { SessionType } from './SplitButton'
 
 interface CompletedUser extends User {
@@ -316,7 +317,7 @@ export function UserList({
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-xl text-gray-600 dark:text-slate-400">لا يوجد مستخدمون في هذه القائمة</p>
+          <p className="text-xl text-muted-foreground">لا يوجد مستخدمون في هذه القائمة</p>
         </div>
       </div>
     )
@@ -337,9 +338,9 @@ export function UserList({
 
       {/* Error message */}
       {error && (
-        <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-400 text-sm">
+        <Alert variant="destructive" className="mb-4 mx-4">
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Completed Users Section */}
@@ -383,14 +384,14 @@ export function UserList({
             </SortableContext>
           </DndContext>
         ) : (
-          <div className="text-center text-gray-600 dark:text-slate-400 text-sm py-8">
+          <div className="text-center text-muted-foreground text-sm py-8">
             جميع المستخدمين أنهوا أدوارهم
           </div>
         )}
 
         {/* Loading states */}
         {(isReordering || isDeleting || isProcessing) && (
-          <div className="mt-4 text-center text-gray-600 dark:text-slate-400 text-sm">
+          <div className="mt-4 text-center text-muted-foreground text-sm">
             {isReordering && 'جاري تحديث الترتيب...'}
             {isDeleting && 'جاري حذف المستخدم...'}
             {isProcessing && !isReordering && !isDeleting && 'جاري المعالجة...'}

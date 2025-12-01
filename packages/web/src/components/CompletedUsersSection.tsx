@@ -1,5 +1,25 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
+import { CheckCircle2, ChevronDown, Edit, Plus, Trash2, MoreVertical } from 'lucide-react'
 import type { SessionType } from './SplitButton'
+import { Card } from './ui/card'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Badge } from './ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 interface CompletedUser {
   entryId?: string
@@ -22,14 +42,12 @@ interface CompletedUsersSectionProps {
 
 function CompletedUserCard({
   user,
-  index: _index,
   onUpdateSessionType,
   onUpdateDisplayName,
   onDelete,
   onAddTurnAfter3,
 }: {
   user: CompletedUser
-  index: number
   onUpdateSessionType: (entryId: string, sessionType: SessionType) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onDelete?: (entryId: string) => void
@@ -39,25 +57,10 @@ function CompletedUserCard({
   const [isEditingName, setIsEditingName] = useState(false)
   const [selectedType, setSelectedType] = useState<SessionType | null>(null)
   const [editedName, setEditedName] = useState(user.realName || '')
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   const handleEditTypeClick = () => {
     setSelectedType((user.sessionType as SessionType) || null)
     setIsEditingType(true)
-    setIsDropdownOpen(false)
   }
 
   const handleConfirmType = () => {
@@ -70,12 +73,6 @@ function CompletedUserCard({
   const handleCancelType = () => {
     setIsEditingType(false)
     setSelectedType(null)
-  }
-
-  const handleEditNameClick = () => {
-    setEditedName(user.realName || '')
-    setIsEditingName(true)
-    setIsDropdownOpen(false)
   }
 
   const handleSaveName = () => {
@@ -94,15 +91,12 @@ function CompletedUserCard({
     if (onDelete && user.entryId && window.confirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
       onDelete(user.entryId)
     }
-    setIsDropdownOpen(false)
   }
 
   const handleAddTurnAfter3 = () => {
     if (onAddTurnAfter3) {
-      // For completed users, pass undefined so they get added at position 4
       onAddTurnAfter3(user.id, undefined)
     }
-    setIsDropdownOpen(false)
   }
 
   const formatTimestamp = (timestamp?: number) => {
@@ -130,9 +124,7 @@ function CompletedUserCard({
     }
   }
 
-  // Show realName if available, otherwise show telegramName
   const primaryName = user.realName || user.telegramName
-  // Show both realName and telegramName when realName is set
   const secondaryText = user.realName
     ? `${user.telegramName}${user.username ? ' @' + user.username : ''}`
     : user.username
@@ -140,137 +132,75 @@ function CompletedUserCard({
     : null
 
   return (
-    <div
-      className="bg-green-50/50 dark:bg-slate-800/40 border border-green-300 dark:border-green-900/30 rounded-lg p-2 sm:p-3"
-      dir="rtl"
-    >
+    <Card className="p-2 sm:p-3 bg-green-50/50 dark:bg-slate-800/40 border-green-300 dark:border-green-900/30" dir="rtl">
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Actions dropdown - positioned on the left in RTL */}
+        {/* Actions dropdown */}
         {!isEditingName && !isEditingType && (
-          <div className="relative order-first" ref={dropdownRef}>
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="text-slate-400 hover:text-slate-300 transition-colors p-1"
-              aria-label="خيارات"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-              </svg>
-            </button>
-
-            {/* Dropdown menu */}
-            {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 max-w-[10rem] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
-                {onUpdateDisplayName && (
-                  <button
-                    onClick={handleEditNameClick}
-                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
-                  >
-                    <span>تعديل الاسم</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                      />
-                    </svg>
-                  </button>
-                )}
-                <button
-                  onClick={handleEditTypeClick}
-                  className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
-                >
-                  <span>تعديل المشاركة</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
-                </button>
-                {onAddTurnAfter3 && (
-                  <button
-                    onClick={handleAddTurnAfter3}
-                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
-                  >
-                    <span>إضافة دور بعد ٣</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    onClick={handleDelete}
-                    className="w-full px-4 py-2 text-right text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-b-lg flex items-center gap-2 justify-end"
-                  >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">خيارات</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {onUpdateDisplayName && (
+                <DropdownMenuItem onClick={() => setIsEditingName(true)}>
+                  <Edit className="h-4 w-4 ml-2" />
+                  <span>تعديل الاسم</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={handleEditTypeClick}>
+                <Edit className="h-4 w-4 ml-2" />
+                <span>تعديل المشاركة</span>
+              </DropdownMenuItem>
+              {onAddTurnAfter3 && (
+                <DropdownMenuItem onClick={handleAddTurnAfter3}>
+                  <Plus className="h-4 w-4 ml-2" />
+                  <span>إضافة دور بعد ٣</span>
+                </DropdownMenuItem>
+              )}
+              {onDelete && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                    <Trash2 className="h-4 w-4 ml-2" />
                     <span>حذف</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
 
         {/* Done icon */}
-        <div className="text-green-500 shrink-0">
-          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </div>
+        <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 shrink-0" />
 
         {/* User info */}
         <div className="flex-1 min-w-0">
           {isEditingName ? (
             <div className="flex flex-col gap-2">
-              <input
-                type="text"
+              <Input
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
-                className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1 rounded border border-gray-300 dark:border-slate-600 text-sm"
                 placeholder="أدخل الاسم"
                 autoFocus
+                className="text-sm"
               />
               <div className="flex gap-2">
-                <button
-                  onClick={handleSaveName}
-                  className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
-                >
+                <Button onClick={handleSaveName} size="sm" variant="default" className="bg-green-600 hover:bg-green-700">
                   حفظ
-                </button>
-                <button
-                  onClick={handleCancelName}
-                  className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
-                >
+                </Button>
+                <Button onClick={handleCancelName} size="sm" variant="ghost">
                   إلغاء
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
             <>
-              <div className="text-gray-700 dark:text-slate-300 text-xs sm:text-sm font-medium truncate">{primaryName}</div>
+              <div className="text-sm font-medium truncate">{primaryName}</div>
               {secondaryText && (
-                <div className="text-gray-500 dark:text-slate-500 text-xs truncate">{secondaryText}</div>
+                <div className="text-xs text-muted-foreground truncate">{secondaryText}</div>
               )}
             </>
           )}
@@ -280,42 +210,38 @@ function CompletedUserCard({
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {isEditingType ? (
             <div className="flex items-center gap-1.5 flex-wrap">
-              <select
-                value={selectedType || ''}
-                onChange={(e) => setSelectedType(e.target.value as SessionType)}
-                className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white text-xs sm:text-sm px-1.5 sm:px-2 py-1 rounded border border-gray-300 dark:border-slate-600"
-              >
-                <option value="">اختر</option>
-                <option value="تلاوة">تلاوة</option>
-                <option value="تسميع">تسميع</option>
-                <option value="تطبيق">تطبيق</option>
-                <option value="اختبار">اختبار</option>
-                <option value="دعم">دعم</option>
-              </select>
-              <button
-                onClick={handleConfirmType}
-                className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
-              >
+              <Select value={selectedType || ''} onValueChange={(value) => setSelectedType(value as SessionType)}>
+                <SelectTrigger className="w-24 h-8 text-xs">
+                  <SelectValue placeholder="اختر" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="تلاوة">تلاوة</SelectItem>
+                  <SelectItem value="تسميع">تسميع</SelectItem>
+                  <SelectItem value="تطبيق">تطبيق</SelectItem>
+                  <SelectItem value="اختبار">اختبار</SelectItem>
+                  <SelectItem value="دعم">دعم</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={handleConfirmType} size="sm" variant="default" className="bg-green-600 hover:bg-green-700 text-xs h-8 px-2">
                 تأكيد
-              </button>
-              <button
-                onClick={handleCancelType}
-                className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
-              >
+              </Button>
+              <Button onClick={handleCancelType} size="sm" variant="ghost" className="text-xs h-8 px-2">
                 إلغاء
-              </button>
+              </Button>
             </div>
           ) : (
-            <span className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300 text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded whitespace-nowrap">
+            <Badge variant="secondary" className="text-xs whitespace-nowrap">
               {user.sessionType || 'غير محدد'}
-            </span>
+            </Badge>
           )}
         </div>
 
         {/* Timestamp */}
-        <div className="text-gray-500 dark:text-slate-500 text-xs hidden sm:block shrink-0">{formatTimestamp(user.completedAt)}</div>
+        <div className="text-xs text-muted-foreground hidden sm:block shrink-0">
+          {formatTimestamp(user.completedAt)}
+        </div>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -334,35 +260,21 @@ export function CompletedUsersSection({
 
   return (
     <div className="mb-4" dir="rtl">
-      <button
+      <Button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-3 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-750 transition-colors rounded-lg border border-gray-200 dark:border-slate-700"
+        variant="outline"
+        className="w-full justify-between h-auto py-3"
       >
-        <span className="text-gray-900 dark:text-slate-300 font-medium">الأدوار الفائتة ({users.length})</span>
-        <svg
-          className={`w-5 h-5 text-gray-600 dark:text-slate-400 transition-transform duration-200 ${
-            isExpanded ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
+        <span className="font-medium">الأدوار الفائتة ({users.length})</span>
+        <ChevronDown className={cn("h-5 w-5 transition-transform duration-200", isExpanded && "rotate-180")} />
+      </Button>
 
       {isExpanded && (
         <div className="mt-2 space-y-2">
-          {users.map((user, index) => (
+          {users.map((user) => (
             <CompletedUserCard
               key={user.entryId || user.id}
               user={user}
-              index={index}
               onUpdateSessionType={onUpdateSessionType}
               onUpdateDisplayName={onUpdateDisplayName}
               onDelete={onDelete}

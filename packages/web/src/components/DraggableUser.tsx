@@ -1,8 +1,28 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
+import { Edit, FileText, Trash2, Plus, ArrowDown, MoveVertical, GripVertical, MoreVertical } from 'lucide-react'
 import type { User } from '@halakabot/db'
 import type { SessionType } from './SplitButton'
+import { Card } from './ui/card'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Badge } from './ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 interface DraggableUserProps {
   user: User
@@ -17,13 +37,22 @@ interface DraggableUserProps {
   totalUsers?: number
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, totalUsers }: DraggableUserProps) {
+export function DraggableUser({
+  user,
+  index,
+  onDelete,
+  onUpdateDisplayName,
+  onUpdateSessionType,
+  onAddTurnAfter3,
+  onMoveToEnd,
+  onMoveToPosition,
+  onEditNotes,
+  totalUsers
+}: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
   const [selectedType, setSelectedType] = useState<SessionType | null>(null)
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const {
     attributes,
@@ -51,30 +80,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     setIsEditing(false)
   }
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const handleEdit = () => {
-    setIsEditing(true)
-    setIsDropdownOpen(false)
-  }
-
   const handleDeleteClick = () => {
     if (window.confirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
       if (user.entryId) {
         onDelete(user.entryId)
       }
     }
-    setIsDropdownOpen(false)
   }
 
   const handleAddTurnAfter3 = () => {
@@ -82,14 +93,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
       const currentPosition = user.position ?? (index + 1)
       onAddTurnAfter3(user.id, currentPosition)
     }
-    setIsDropdownOpen(false)
   }
 
   const handleMoveToEnd = () => {
     if (onMoveToEnd && user.entryId) {
       onMoveToEnd(user.entryId)
     }
-    setIsDropdownOpen(false)
   }
 
   const handleMoveToPosition = () => {
@@ -103,41 +112,29 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
       currentPosition.toString()
     )
 
-    if (positionInput === null) {
-      // User cancelled
-      setIsDropdownOpen(false)
-      return
-    }
+    if (positionInput === null) return
 
     const newPosition = parseInt(positionInput.trim(), 10)
 
     if (isNaN(newPosition) || newPosition < 1 || newPosition > totalUsers) {
       alert(`الرجاء إدخال رقم صحيح بين 1 و ${totalUsers}`)
-      setIsDropdownOpen(false)
       return
     }
 
-    if (newPosition === currentPosition) {
-      // No change needed
-      setIsDropdownOpen(false)
-      return
-    }
+    if (newPosition === currentPosition) return
 
     onMoveToPosition(user.entryId, newPosition)
-    setIsDropdownOpen(false)
   }
 
   const handleEditNotes = () => {
     if (onEditNotes && user.entryId) {
       onEditNotes(user.entryId, user.notes)
     }
-    setIsDropdownOpen(false)
   }
 
   const handleEditTypeClick = () => {
     setSelectedType((user.sessionType as SessionType) || null)
     setIsEditingType(true)
-    setIsDropdownOpen(false)
   }
 
   const handleConfirmType = () => {
@@ -152,181 +149,97 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     setSelectedType(null)
   }
 
-  // Show realName if available, otherwise show telegramName
   const primaryName = user.realName || user.telegramName
-  // Show both realName and telegramName when realName is set
   const secondaryText = user.realName
     ? `${user.telegramName}${user.username ? ' @' + user.username : ''} (${user.id})`
     : `${user.username ? '@' + user.username + ' ' : ''}(${user.id})`
 
   return (
-    <div
+    <Card
       ref={setNodeRef}
       style={style}
-      className={`
-        ${user.carriedOver ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-white dark:bg-slate-800'} border rounded-lg p-2 sm:p-3
-        ${isDragging ? 'opacity-50 border-blue-500 shadow-lg z-50' : user.carriedOver ? 'border-amber-300 dark:border-amber-700/50' : 'border-gray-200 dark:border-slate-700'}
-        ${!isDragging ? user.carriedOver ? 'hover:border-amber-400 dark:hover:border-amber-600/70 hover:bg-amber-100 dark:hover:bg-amber-950/30' : 'hover:border-gray-300 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-750' : ''}
-        transition-colors duration-200
-      `}
+      className={cn(
+        "p-2 sm:p-3 transition-colors",
+        isDragging && "opacity-50 shadow-lg z-50",
+        user.carriedOver && "bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700/50",
+        !isDragging && user.carriedOver && "hover:border-amber-400 dark:hover:border-amber-600/70 hover:bg-amber-100 dark:hover:bg-amber-950/30",
+        !isDragging && !user.carriedOver && "hover:border-gray-300 dark:hover:border-slate-600"
+      )}
       dir="rtl"
     >
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Actions dropdown - positioned on the left in RTL */}
+        {/* Actions dropdown */}
         {!isEditing && !isEditingType && (
-          <div className="relative order-first" ref={dropdownRef}>
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="text-slate-400 hover:text-slate-300 transition-colors p-1"
-              aria-label="خيارات"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-              </svg>
-            </button>
-
-            {/* Dropdown menu */}
-            {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 max-w-[10rem] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
-                {onUpdateDisplayName && (
-                  <button
-                    onClick={handleEdit}
-                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors rounded-t-lg flex items-center gap-2 justify-end"
-                  >
-                    <span>تعديل الاسم</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                      />
-                    </svg>
-                  </button>
-                )}
-                {onEditNotes && (
-                  <button
-                    onClick={handleEditNotes}
-                    className={`w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end ${!onUpdateDisplayName ? 'rounded-t-lg' : ''}`}
-                  >
-                    <span>إضافة ملاحظات</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                      />
-                    </svg>
-                  </button>
-                )}
-                {onUpdateSessionType && (
-                  <button
-                    onClick={handleEditTypeClick}
-                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
-                  >
-                    <span>تعديل المشاركة</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                      />
-                    </svg>
-                  </button>
-                )}
-                {onAddTurnAfter3 && (
-                  <button
-                    onClick={handleAddTurnAfter3}
-                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
-                  >
-                    <span>إضافة دور بعد ٣</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                  </button>
-                )}
-                {onMoveToEnd && (
-                  <button
-                    onClick={handleMoveToEnd}
-                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
-                  >
-                    <span>نقل إلى آخر القائمة</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                      />
-                    </svg>
-                  </button>
-                )}
-                {onMoveToPosition && (
-                  <button
-                    onClick={handleMoveToPosition}
-                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
-                  >
-                    <span>نقل إلى دور معين</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-                      />
-                    </svg>
-                  </button>
-                )}
-                <button
-                  onClick={handleDeleteClick}
-                  className="w-full px-4 py-2 text-right text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-red-700 dark:hover:text-red-300 transition-colors rounded-b-lg flex items-center gap-2 justify-end"
-                >
-                  <span>حذف</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">خيارات</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {onUpdateDisplayName && (
+                <DropdownMenuItem onClick={() => setIsEditing(true)}>
+                  <Edit className="h-4 w-4 ml-2" />
+                  <span>تعديل الاسم</span>
+                </DropdownMenuItem>
+              )}
+              {onEditNotes && (
+                <DropdownMenuItem onClick={handleEditNotes}>
+                  <FileText className="h-4 w-4 ml-2" />
+                  <span>إضافة ملاحظات</span>
+                </DropdownMenuItem>
+              )}
+              {onUpdateSessionType && (
+                <DropdownMenuItem onClick={handleEditTypeClick}>
+                  <Edit className="h-4 w-4 ml-2" />
+                  <span>تعديل المشاركة</span>
+                </DropdownMenuItem>
+              )}
+              {onAddTurnAfter3 && (
+                <DropdownMenuItem onClick={handleAddTurnAfter3}>
+                  <Plus className="h-4 w-4 ml-2" />
+                  <span>إضافة دور بعد ٣</span>
+                </DropdownMenuItem>
+              )}
+              {onMoveToEnd && (
+                <DropdownMenuItem onClick={handleMoveToEnd}>
+                  <ArrowDown className="h-4 w-4 ml-2" />
+                  <span>نقل إلى آخر القائمة</span>
+                </DropdownMenuItem>
+              )}
+              {onMoveToPosition && (
+                <DropdownMenuItem onClick={handleMoveToPosition}>
+                  <MoveVertical className="h-4 w-4 ml-2" />
+                  <span>نقل إلى دور معين</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleDeleteClick} className="text-destructive">
+                <Trash2 className="h-4 w-4 ml-2" />
+                <span>حذف</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
 
         {/* Drag handle */}
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 cursor-grab active:cursor-grabbing shrink-0 touch-manipulation"
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300 transition-colors p-2 -m-2 touch-manipulation"
-          aria-label="اسحب لإعادة الترتيب"
         >
-          <svg
-            className="w-6 h-6 sm:w-5 sm:h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 8h16M4 16h16"
-            />
-          </svg>
-        </button>
+          <GripVertical className="h-5 w-5" />
+          <span className="sr-only">اسحب لإعادة الترتيب</span>
+        </Button>
 
         {/* Position number */}
-        <div className={`${user.carriedOver ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-slate-400'} font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0`}>
+        <div className={cn(
+          "font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0",
+          user.carriedOver ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+        )}>
           {index + 1}.
         </div>
 
@@ -334,44 +247,37 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
         <div className="flex-1 min-w-0">
           {isEditing ? (
             <div className="flex flex-col gap-2">
-              <input
-                type="text"
+              <Input
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
-                className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1 rounded border border-gray-300 dark:border-slate-600 text-sm"
                 placeholder="أدخل الاسم"
                 autoFocus
+                className="text-sm"
               />
               <div className="flex gap-2">
-                <button
-                  onClick={handleSave}
-                  className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
-                >
+                <Button onClick={handleSave} size="sm" variant="default" className="bg-green-600 hover:bg-green-700">
                   حفظ
-                </button>
-                <button
-                  onClick={handleCancel}
-                  className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
-                >
+                </Button>
+                <Button onClick={handleCancel} size="sm" variant="ghost">
                   إلغاء
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
             <>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <div className="text-gray-900 dark:text-white font-medium text-sm sm:text-base">{primaryName}</div>
+                <div className="font-medium text-sm sm:text-base">{primaryName}</div>
                 {user.carriedOver && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-700/50">
+                  <Badge variant="warning" className="text-xs">
                     من الحلقة السابقة
-                  </span>
+                  </Badge>
                 )}
               </div>
               {secondaryText && (
-                <div className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm truncate">{secondaryText}</div>
+                <div className="text-muted-foreground text-xs sm:text-sm truncate">{secondaryText}</div>
               )}
               {user.notes && (
-                <div className="mt-1 text-gray-500 dark:text-slate-500 text-xs sm:text-sm italic">
+                <div className="mt-1 text-muted-foreground text-xs sm:text-sm italic">
                   {user.notes}
                 </div>
               )}
@@ -384,43 +290,33 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {isEditingType ? (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <select
-                  value={selectedType || ''}
-                  onChange={(e) => setSelectedType(e.target.value as SessionType)}
-                  className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white text-xs sm:text-sm px-1.5 sm:px-2 py-1 rounded border border-gray-300 dark:border-slate-600"
-                >
-                  <option value="">اختر</option>
-                  <option value="تلاوة">تلاوة</option>
-                  <option value="تسميع">تسميع</option>
-                  <option value="تطبيق">تطبيق</option>
-                  <option value="اختبار">اختبار</option>
-                  <option value="دعم">دعم</option>
-                </select>
-                <button
-                  onClick={handleConfirmType}
-                  className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
-                >
+                <Select value={selectedType || ''} onValueChange={(value) => setSelectedType(value as SessionType)}>
+                  <SelectTrigger className="w-24 h-8 text-xs">
+                    <SelectValue placeholder="اختر" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="تلاوة">تلاوة</SelectItem>
+                    <SelectItem value="تسميع">تسميع</SelectItem>
+                    <SelectItem value="تطبيق">تطبيق</SelectItem>
+                    <SelectItem value="اختبار">اختبار</SelectItem>
+                    <SelectItem value="دعم">دعم</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleConfirmType} size="sm" variant="default" className="bg-green-600 hover:bg-green-700 text-xs h-8 px-2">
                   تأكيد
-                </button>
-                <button
-                  onClick={handleCancelType}
-                  className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
-                >
+                </Button>
+                <Button onClick={handleCancelType} size="sm" variant="ghost" className="text-xs h-8 px-2">
                   إلغاء
-                </button>
+                </Button>
               </div>
             ) : (
-              <span className={`text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded whitespace-nowrap ${
-                user.sessionType
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700/50'
-                  : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
-              }`}>
+              <Badge variant={user.sessionType ? "info" : "secondary"} className="text-xs whitespace-nowrap">
                 {user.sessionType || 'غير محدد'}
-              </span>
+              </Badge>
             )}
           </div>
         )}
       </div>
-    </div>
+    </Card>
   )
 }
