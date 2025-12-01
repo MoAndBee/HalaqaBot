@@ -27,7 +27,7 @@ export default defineSchema({
     channelId: v.optional(v.number()),
     createdAt: v.number(), // timestamp in ms
     completedAt: v.optional(v.number()), // timestamp in ms when turn was completed
-    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", or "اختبار"
+    sessionType: v.optional(v.string()), // "تلاوة" (reading from Quran) or "تسميع" (recitation from memory)
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous post
     sessionNumber: v.optional(v.number()), // session number within this post (defaults to 1 for existing records)
     notes: v.optional(v.string()), // optional notes for this participant
@@ -55,7 +55,7 @@ export default defineSchema({
     messageText: v.optional(v.string()),
     containsName: v.boolean(),
     detectedNames: v.array(v.string()),
-    activityType: v.optional(v.string()), // "تسميع" or "تلاوة"
+    activityType: v.optional(v.string()), // "تسميع" (recitation from memory) or "تلاوة" (reading from Quran)
     channelId: v.optional(v.number()),
     classifiedAt: v.number(), // timestamp in ms
   })
