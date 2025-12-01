@@ -393,6 +393,8 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   <option value="تلاوة">تلاوة</option>
                   <option value="تسميع">تسميع</option>
                   <option value="تطبيق">تطبيق</option>
+                  <option value="اختبار">اختبار</option>
+                  <option value="دعم">دعم</option>
                 </select>
                 <button
                   onClick={handleConfirmType}
