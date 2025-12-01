@@ -122,11 +122,15 @@ export const getUserList = query({
         realName: userData?.realName || null,
         username: userData?.username || null,
         position: entry.position,
+        createdAt: entry.createdAt,
         carriedOver: entry.carriedOver,
         sessionType: entry.sessionType,
         notes: entry.notes || null,
       }))
-      .sort((a, b) => a.position - b.position); // Ensure active users are sorted by position
+      .sort((a, b) => {
+        if (a.position !== b.position) return a.position - b.position;
+        return a.createdAt - b.createdAt;
+      });
 
     const completedUsers = usersWithData
       .filter(({ entry }) => entry.completedAt)
@@ -137,11 +141,15 @@ export const getUserList = query({
         realName: userData?.realName || null,
         username: userData?.username || null,
         position: entry.position,
+        createdAt: entry.createdAt,
         completedAt: entry.completedAt,
         sessionType: entry.sessionType,
         notes: entry.notes || null,
       }))
-      .sort((a, b) => a.position - b.position);
+      .sort((a, b) => {
+        if (a.position !== b.position) return a.position - b.position;
+        return a.createdAt - b.createdAt;
+      });
 
     return {
       activeUsers,
