@@ -140,7 +140,8 @@ export const getUserList = query({
         completedAt: entry.completedAt,
         sessionType: entry.sessionType,
         notes: entry.notes || null,
-      }));
+      }))
+      .sort((a, b) => a.position - b.position);
 
     return {
       activeUsers,
