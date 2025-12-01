@@ -5,7 +5,7 @@ import { z } from "zod";
 export interface ClassificationResult {
   containsName: boolean;
   detectedNames?: string[];
-  activityType?: "تسميع" | "تلاوة" | "تطبيق" | "اختبار" | "دعم" | null;
+  activityType?: "تسميع" | "تلاوة" | null;
   rawResponse: string;
 }
 
@@ -13,7 +13,7 @@ export interface ClassificationResult {
 const singleClassificationSchema = z.object({
   contains_name: z.boolean(),
   names: z.array(z.string()),
-  activity_type: z.enum(["تسميع", "تلاوة", "تطبيق", "اختبار", "دعم"]).nullable(),
+  activity_type: z.enum(["تسميع", "تلاوة"]).nullable(),
 });
 
 // Zod schema for batch message classification
@@ -23,7 +23,7 @@ const batchClassificationSchema = z.object({
       message_id: z.number(),
       contains_name: z.boolean(),
       names: z.array(z.string()),
-      activity_type: z.enum(["تسميع", "تلاوة", "تطبيق", "اختبار", "دعم"]).nullable(),
+      activity_type: z.enum(["تسميع", "تلاوة"]).nullable(),
     })
   ),
 });
@@ -33,7 +33,7 @@ const activityTypeOnlySchema = z.object({
   results: z.array(
     z.object({
       message_id: z.number(),
-      activity_type: z.enum(["تسميع", "تلاوة", "تطبيق", "اختبار", "دعم"]).nullable(),
+      activity_type: z.enum(["تسميع", "تلاوة"]).nullable(),
     })
   ),
 });
@@ -65,13 +65,10 @@ export class ClassificationService {
         prompt: `Analyze the following Arabic messages and for each message:
 1. Determine if it contains a person's name
 2. Extract all person names found (first, middle, last names)
-3. Do NOT include words like "تلاوة", "تسميع", "تصحيح", "تطبيق", "اختبار", "دعم" as names
+3. Do NOT include words like "تلاوة", "تسميع", "تصحيح" as names
 4. Determine the activity type:
    - "تسميع" (recitation from memory)
    - "تلاوة" (reading from Quran)
-   - "تطبيق" (application/practice)
-   - "اختبار" (test/exam)
-   - "دعم" (support/backing)
    - null if not mentioned
 5. Return the message_id, contains_name (true/false), names array, and activity_type
 
@@ -142,9 +139,6 @@ Messages: ${messagesList}`
         prompt: `Analyze the following Arabic messages and for each message, determine the activity type:
 - "تسميع" (recitation from memory)
 - "تلاوة" (reading from Quran)
-- "تطبيق" (application/practice)
-- "اختبار" (test/exam)
-- "دعم" (support/backing)
 - null if not mentioned
 
 Return the message_id and activity_type for each message.
