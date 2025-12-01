@@ -218,7 +218,15 @@ export const getLastListMessage = query({
       )
       .first();
 
-    return record?.messageId ?? null;
+    if (!record) return null;
+
+    return {
+      messageId: record.messageId,
+      chatId: record.chatId,
+      postId: record.postId,
+      channelId: record.channelId,
+      updatedAt: record.updatedAt,
+    };
   },
 });
 
@@ -585,6 +593,52 @@ export const searchUsers = query({
         telegramName: user.telegramName,
         realName: user.realName,
       }));
+  },
+});
+
+export const getUsersByIds = query({
+  args: {
+    userIds: v.array(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const users = await Promise.all(
+      args.userIds.map(async (userId) => {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", userId))
+          .first();
+        return user;
+      })
+    );
+
+    return users
+      .filter((user) => user !== null)
+      .map((user) => ({
+        userId: user!.userId,
+        username: user!.username,
+        telegramName: user!.telegramName,
+        realName: user!.realName,
+      }));
+  },
+});
+
+export const getPendingBotTasks = query({
+  args: {},
+  handler: async (ctx) => {
+    const tasks = await ctx.db
+      .query("botTasks")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .collect();
+
+    return tasks.map((task) => ({
+      _id: task._id,
+      type: task.type,
+      chatId: task.chatId,
+      postId: task.postId,
+      sessionNumber: task.sessionNumber,
+      status: task.status,
+      createdAt: task.createdAt,
+    }));
   },
 });
 

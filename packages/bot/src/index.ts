@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "@halakabot/db";
 import { MessageService } from "./services/message.service";
 import { UserListService } from "./services/user-list.service";
 import { ClassificationService } from "./services/classification.service";
+import { BotTaskService } from "./services/bot-task.service";
 import { registerMessageHandler } from "./handlers/message.handler";
 import { registerReactionHandler } from "./handlers/reaction.handler";
 import { registerAutoClassifyHandler } from "./handlers/auto-classify.handler";
@@ -27,6 +28,10 @@ const bot = new Bot(config.botToken);
 registerReactionHandler(bot, messageService, userListService, classificationService, convex, config);
 registerAutoClassifyHandler(bot, classificationService, messageService, userListService, convex, config);
 registerMessageHandler(bot, messageService, classificationService, convex);
+
+// Start bot task service
+const botTaskService = new BotTaskService(bot, convex);
+botTaskService.start();
 
 // Handle errors
 bot.catch((err) => {

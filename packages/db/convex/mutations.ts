@@ -886,3 +886,41 @@ export const updateSessionTeacher = mutation({
     return { created: false };
   },
 });
+
+export const createBotTask = mutation({
+  args: {
+    type: v.string(),
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const taskId = await ctx.db.insert("botTasks", {
+      type: args.type,
+      chatId: args.chatId,
+      postId: args.postId,
+      sessionNumber: args.sessionNumber,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+
+    return { taskId };
+  },
+});
+
+export const updateBotTask = mutation({
+  args: {
+    taskId: v.id("botTasks"),
+    status: v.string(),
+    resultMessageId: v.optional(v.number()),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.taskId, {
+      status: args.status,
+      resultMessageId: args.resultMessageId,
+      error: args.error,
+      processedAt: Date.now(),
+    });
+  },
+});

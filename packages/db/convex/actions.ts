@@ -1,0 +1,25 @@
+import { action } from "./_generated/server";
+import { v } from "convex/values";
+import { api } from "./_generated/api";
+
+/**
+ * Creates a bot task to send the participant list as a message to the post
+ */
+export const sendParticipantList = action({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Create a task for the bot to process
+    const result = await ctx.runMutation(api.mutations.createBotTask, {
+      type: "send_participant_list",
+      chatId: args.chatId,
+      postId: args.postId,
+      sessionNumber: args.sessionNumber,
+    });
+
+    return { success: true, taskId: result.taskId };
+  },
+});
