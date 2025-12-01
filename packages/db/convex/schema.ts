@@ -83,4 +83,18 @@ export default defineSchema({
   })
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
+
+  botTasks: defineTable({
+    type: v.string(), // "send_participant_list"
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.optional(v.number()),
+    status: v.string(), // "pending", "processing", "completed", "failed"
+    resultMessageId: v.optional(v.number()), // message ID after sending
+    error: v.optional(v.string()), // error message if failed
+    createdAt: v.number(), // timestamp in ms
+    processedAt: v.optional(v.number()), // timestamp when processed
+  })
+    .index("by_status", ["status"])
+    .index("by_chat_post", ["chatId", "postId"]),
 });

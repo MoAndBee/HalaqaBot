@@ -622,6 +622,26 @@ export const getUsersByIds = query({
   },
 });
 
+export const getPendingBotTasks = query({
+  args: {},
+  handler: async (ctx) => {
+    const tasks = await ctx.db
+      .query("botTasks")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .collect();
+
+    return tasks.map((task) => ({
+      _id: task._id,
+      type: task.type,
+      chatId: task.chatId,
+      postId: task.postId,
+      sessionNumber: task.sessionNumber,
+      status: task.status,
+      createdAt: task.createdAt,
+    }));
+  },
+});
+
 export const getParticipationSummary = query({
   args: {
     chatId: v.number(),
