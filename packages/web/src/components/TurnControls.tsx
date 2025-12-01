@@ -1,6 +1,5 @@
 import { SplitButton, SessionType } from './SplitButton'
 import { Button } from './ui/button'
-import { cn } from '@/lib/utils'
 
 interface TurnControlsProps {
   onComplete: (sessionType: SessionType) => void
@@ -28,10 +27,7 @@ export function TurnControls({
         <Button
           onClick={onSkip}
           disabled={disabled || !canSkip}
-          className={cn(
-            'bg-amber-600 hover:bg-amber-700 text-white',
-            (disabled || !canSkip) && 'opacity-50'
-          )}
+          variant="outline"
         >
           تخطي
         </Button>

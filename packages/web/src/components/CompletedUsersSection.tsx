@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { CheckCircle2, ChevronDown, Edit, Plus, Trash2, MoreVertical } from 'lucide-react'
+import { CheckCircle2, ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { SessionType } from './SplitButton'
-import { Card } from './ui/card'
+import { Card, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Badge } from './ui/badge'
@@ -126,121 +126,123 @@ function CompletedUserCard({
 
   const primaryName = user.realName || user.telegramName
   const secondaryText = user.realName
-    ? `${user.telegramName}${user.username ? ' @' + user.username : ''}`
+    ? `${user.telegramName}${user.username ? ' • @' + user.username : ''}`
     : user.username
     ? `@${user.username}`
     : null
 
   return (
-    <Card className="p-2 sm:p-3 bg-green-50/50 dark:bg-slate-800/40 border-green-300 dark:border-green-900/30" dir="rtl">
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Actions dropdown */}
-        {!isEditingName && !isEditingType && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                <MoreVertical className="h-4 w-4" />
-                <span className="sr-only">خيارات</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {onUpdateDisplayName && (
-                <DropdownMenuItem onClick={() => setIsEditingName(true)}>
-                  <Edit className="h-4 w-4 ml-2" />
-                  <span>تعديل الاسم</span>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={handleEditTypeClick}>
-                <Edit className="h-4 w-4 ml-2" />
-                <span>تعديل المشاركة</span>
-              </DropdownMenuItem>
-              {onAddTurnAfter3 && (
-                <DropdownMenuItem onClick={handleAddTurnAfter3}>
-                  <Plus className="h-4 w-4 ml-2" />
-                  <span>إضافة دور بعد ٣</span>
-                </DropdownMenuItem>
-              )}
-              {onDelete && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                    <Trash2 className="h-4 w-4 ml-2" />
-                    <span>حذف</span>
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+    <Card className="border-l-4 border-l-success" dir="rtl">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          {/* Done Icon */}
+          <CheckCircle2 className="h-5 w-5 text-success shrink-0 mt-0.5" />
 
-        {/* Done icon */}
-        <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 shrink-0" />
+          {/* User Info */}
+          <div className="flex-1 min-w-0 space-y-1">
+            {isEditingName ? (
+              <div className="space-y-2">
+                <Input
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  placeholder="أدخل الاسم"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveName} size="sm">
+                    حفظ
+                  </Button>
+                  <Button onClick={handleCancelName} size="sm" variant="outline">
+                    إلغاء
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="font-medium">{primaryName}</p>
+                {secondaryText && (
+                  <p className="text-sm text-muted-foreground">{secondaryText}</p>
+                )}
+              </>
+            )}
+          </div>
 
-        {/* User info */}
-        <div className="flex-1 min-w-0">
-          {isEditingName ? (
-            <div className="flex flex-col gap-2">
-              <Input
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                placeholder="أدخل الاسم"
-                autoFocus
-                className="text-sm"
-              />
-              <div className="flex gap-2">
-                <Button onClick={handleSaveName} size="sm" variant="default" className="bg-green-600 hover:bg-green-700">
-                  حفظ
+          {/* Session Type */}
+          <div className="shrink-0">
+            {isEditingType ? (
+              <div className="flex items-center gap-2">
+                <Select value={selectedType || ''} onValueChange={(value) => setSelectedType(value as SessionType)}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="اختر النوع" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="تلاوة">تلاوة</SelectItem>
+                    <SelectItem value="تسميع">تسميع</SelectItem>
+                    <SelectItem value="تطبيق">تطبيق</SelectItem>
+                    <SelectItem value="اختبار">اختبار</SelectItem>
+                    <SelectItem value="دعم">دعم</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleConfirmType} size="sm">
+                  ✓
                 </Button>
-                <Button onClick={handleCancelName} size="sm" variant="ghost">
-                  إلغاء
+                <Button onClick={handleCancelType} size="sm" variant="ghost">
+                  ✕
                 </Button>
               </div>
-            </div>
-          ) : (
-            <>
-              <div className="text-sm font-medium truncate">{primaryName}</div>
-              {secondaryText && (
-                <div className="text-xs text-muted-foreground truncate">{secondaryText}</div>
-              )}
-            </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">
+                  {user.sessionType || 'غير محدد'}
+                </Badge>
+                {user.completedAt && (
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {formatTimestamp(user.completedAt)}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Actions Menu */}
+          {!isEditingName && !isEditingType && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {onUpdateDisplayName && (
+                  <DropdownMenuItem onClick={() => setIsEditingName(true)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    تعديل الاسم
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={handleEditTypeClick}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  تعديل نوع المشاركة
+                </DropdownMenuItem>
+                {onAddTurnAfter3 && (
+                  <DropdownMenuItem onClick={handleAddTurnAfter3}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    إضافة دور بعد ٣
+                  </DropdownMenuItem>
+                )}
+                {onDelete && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      حذف
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
-
-        {/* Session type badge */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {isEditingType ? (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <Select value={selectedType || ''} onValueChange={(value) => setSelectedType(value as SessionType)}>
-                <SelectTrigger className="w-24 h-8 text-xs">
-                  <SelectValue placeholder="اختر" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="تلاوة">تلاوة</SelectItem>
-                  <SelectItem value="تسميع">تسميع</SelectItem>
-                  <SelectItem value="تطبيق">تطبيق</SelectItem>
-                  <SelectItem value="اختبار">اختبار</SelectItem>
-                  <SelectItem value="دعم">دعم</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={handleConfirmType} size="sm" variant="default" className="bg-green-600 hover:bg-green-700 text-xs h-8 px-2">
-                تأكيد
-              </Button>
-              <Button onClick={handleCancelType} size="sm" variant="ghost" className="text-xs h-8 px-2">
-                إلغاء
-              </Button>
-            </div>
-          ) : (
-            <Badge variant="secondary" className="text-xs whitespace-nowrap">
-              {user.sessionType || 'غير محدد'}
-            </Badge>
-          )}
-        </div>
-
-        {/* Timestamp */}
-        <div className="text-xs text-muted-foreground hidden sm:block shrink-0">
-          {formatTimestamp(user.completedAt)}
-        </div>
-      </div>
+      </CardContent>
     </Card>
   )
 }
@@ -259,18 +261,18 @@ export function CompletedUsersSection({
   }
 
   return (
-    <div className="mb-4" dir="rtl">
+    <div className="space-y-2" dir="rtl">
       <Button
         onClick={() => setIsExpanded(!isExpanded)}
         variant="outline"
-        className="w-full justify-between h-auto py-3"
+        className="w-full justify-between"
       >
-        <span className="font-medium">الأدوار الفائتة ({users.length})</span>
-        <ChevronDown className={cn("h-5 w-5 transition-transform duration-200", isExpanded && "rotate-180")} />
+        <span>الأدوار المكتملة ({users.length})</span>
+        <ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
       </Button>
 
       {isExpanded && (
-        <div className="mt-2 space-y-2">
+        <div className="space-y-2">
           {users.map((user) => (
             <CompletedUserCard
               key={user.entryId || user.id}

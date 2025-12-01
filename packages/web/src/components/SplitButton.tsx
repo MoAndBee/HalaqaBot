@@ -7,7 +7,6 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { ChevronDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار' | 'دعم'
 
@@ -43,15 +42,13 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
   const isCompleteDisabled = disabled || !selectedType
 
   return (
-    <div className="inline-flex" dir="rtl">
+    <div className="inline-flex rounded-md shadow-sm" dir="rtl">
       {/* Main button */}
       <Button
         onClick={handleComplete}
         disabled={isCompleteDisabled}
-        className={cn(
-          'rounded-r-lg rounded-l-none bg-green-600 hover:bg-green-700 text-white',
-          isCompleteDisabled && 'bg-slate-600 cursor-not-allowed opacity-50'
-        )}
+        variant="default"
+        className="rounded-r-md rounded-l-none"
       >
         {buttonText}
       </Button>
@@ -61,12 +58,10 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
         <DropdownMenuTrigger asChild>
           <Button
             disabled={disabled}
-            className={cn(
-              'rounded-l-lg rounded-r-none border-r border-green-700 bg-green-600 hover:bg-green-700 px-2',
-              disabled && 'bg-slate-600 cursor-not-allowed opacity-50'
-            )}
+            variant="default"
+            className="rounded-l-md rounded-r-none border-l px-2"
           >
-            <ChevronDown className="h-4 w-4 text-white" />
+            <ChevronDown className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
