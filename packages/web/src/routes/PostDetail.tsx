@@ -409,7 +409,7 @@ export default function PostDetail() {
             <p className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            {availableSessions && availableSessions.length > 1 && (
+            {availableSessions && availableSessions.length >= 1 && (
               <select
                 value={selectedSession ?? data.currentSession}
                 onChange={(e) => setSelectedSession(Number(e.target.value))}

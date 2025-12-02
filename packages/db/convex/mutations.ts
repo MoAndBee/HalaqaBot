@@ -184,6 +184,24 @@ export const addUserToList = mutation({
       sessionType: args.sessionType,
     });
 
+    // Ensure the session exists in the sessions table
+    const existingSession = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+      )
+      .first();
+
+    if (!existingSession) {
+      await ctx.db.insert("sessions", {
+        chatId: args.chatId,
+        postId: args.postId,
+        sessionNumber,
+        teacherName: "",
+        createdAt: Date.now(),
+      });
+    }
+
     return true;
   },
 });
