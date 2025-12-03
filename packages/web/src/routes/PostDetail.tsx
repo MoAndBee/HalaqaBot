@@ -33,8 +33,11 @@ function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
       const name = user.realName || user.telegramName
       const isDone = completedUsers.some(cu => cu.id === user.id)
+      const activityLabel = (user.sessionType === 'تلاوة' || user.sessionType === 'تسميع')
+        ? ` (${user.sessionType})`
+        : ''
       const doneIcon = isDone ? ' ✅' : ''
-      return `${arabicNumber}. ${name}${doneIcon}`
+      return `${arabicNumber}. ${name}${activityLabel}${doneIcon}`
     })
     .join('\n')
 }
