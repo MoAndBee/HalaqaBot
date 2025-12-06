@@ -1,6 +1,9 @@
-import { Link, useParams, useLocation } from 'wouter'
+import { useParams, useLocation } from 'wouter'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
+import { ArrowRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader } from '~/components/Loader'
 
 export default function ParticipationSummary() {
@@ -41,34 +44,24 @@ export default function ParticipationSummary() {
   return (
     <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
       <div className="mb-3 sm:mb-4 md:mb-6">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => navigate(`/posts/${chatId}/${postId}`)}
-          className="inline-flex items-center gap-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-2 sm:mb-3 md:mb-4 bg-transparent border-none cursor-pointer"
+          className="mb-2 sm:mb-3 md:mb-4 gap-2"
         >
-          <svg
-            className="w-4 h-4 sm:w-5 sm:h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            />
-          </svg>
-          <span className="text-sm sm:text-base">رجوع</span>
-        </button>
+          <ArrowRight className="h-4 w-4" />
+          <span>رجوع</span>
+        </Button>
 
         <div className="flex flex-col gap-2">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground">
             ملخص المشاركة
           </h1>
-          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 dark:text-slate-200">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground/80">
             {formattedDay}، {formattedDate}
           </h2>
-          <div className="flex gap-3 text-xs sm:text-sm text-gray-600 dark:text-slate-400">
+          <div className="flex gap-3 text-xs sm:text-sm text-muted-foreground">
             <p>معرف المنشور: {postId}</p>
             <p>معرف المحادثة: {chatId}</p>
           </div>
@@ -76,46 +69,56 @@ export default function ParticipationSummary() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
-        {/* Overall Stats Section */}
         <div className="mb-6">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <h3 className="text-lg sm:text-xl font-bold text-foreground mb-4 flex items-center gap-2">
             <span>📊</span>
             <span>إحصائيات عامة</span>
           </h3>
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6">
-              <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 mb-2">
-                عدد الحلقات
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 dark:text-white">
-                {summary.sessionsCount.toLocaleString('ar-EG')}
-              </div>
-            </div>
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6">
-              <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 mb-2">
-                إجمالي الحضور
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 dark:text-white">
-                {summary.totalAttendance.toLocaleString('ar-EG')}
-              </div>
-            </div>
-            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6">
-              <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 mb-2">
-                نسبة المشاركة
-              </div>
-              <div className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 dark:text-white">
-                {summary.totalParticipations.toLocaleString('ar-EG')}
-                <span className="text-base sm:text-lg md:text-xl text-gray-600 dark:text-slate-400 mr-2">
-                  ({summary.participationRate.toLocaleString('ar-EG')}%)
-                </span>
-              </div>
-            </div>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs sm:text-sm font-normal text-muted-foreground">
+                  عدد الحلقات
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-black">
+                  {summary.sessionsCount.toLocaleString('ar-EG')}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs sm:text-sm font-normal text-muted-foreground">
+                  إجمالي الحضور
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-black">
+                  {summary.totalAttendance.toLocaleString('ar-EG')}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs sm:text-sm font-normal text-muted-foreground">
+                  نسبة المشاركة
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-black">
+                  {summary.totalParticipations.toLocaleString('ar-EG')}
+                  <span className="text-base sm:text-lg md:text-xl text-muted-foreground mr-2">
+                    ({summary.participationRate.toLocaleString('ar-EG')}%)
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
-        {/* By Participation Type Section */}
         <div className="mb-6">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+          <h3 className="text-lg sm:text-xl font-bold text-foreground mb-4 flex items-center gap-2">
             <span>📚</span>
             <span>حسب نوع المشاركة</span>
           </h3>
@@ -126,11 +129,13 @@ export default function ParticipationSummary() {
 
             if (!hasAnyData) {
               return (
-                <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-8 text-center">
-                  <p className="text-gray-600 dark:text-slate-400">
-                    لا توجد مشاركات مكتملة حتى الآن
-                  </p>
-                </div>
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <p className="text-muted-foreground">
+                      لا توجد مشاركات مكتملة حتى الآن
+                    </p>
+                  </CardContent>
+                </Card>
               )
             }
 
@@ -139,31 +144,29 @@ export default function ParticipationSummary() {
                 {sessionTypes.map(({ key }) => {
                   const typeData = summary.byType[key]
 
-                  // Hide types with 0 participations
                   if (!typeData || typeData.count === 0) {
                     return null
                   }
 
                   return (
-                    <div
-                      key={key}
-                      className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 sm:p-6"
-                    >
-                      <h4 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white mb-3">
-                        {typeData.label}
-                      </h4>
-                      <div className="space-y-2">
+                    <Card key={key}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base sm:text-lg">
+                          {typeData.label}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground flex items-center gap-2">
                             <span>✅</span>
                             <span>شاركن</span>
                           </span>
-                          <span className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                          <span className="text-lg sm:text-xl font-bold">
                             {typeData.count.toLocaleString('ar-EG')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-slate-400 flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground flex items-center gap-2">
                             <button
                               className="flex items-center gap-2 bg-transparent border-none cursor-not-allowed opacity-50"
                               title="سيتم إضافة تقرير مفصل قريباً"
@@ -173,12 +176,12 @@ export default function ParticipationSummary() {
                               <span>لم يشاركن</span>
                             </button>
                           </span>
-                          <span className="text-lg sm:text-xl font-bold text-gray-600 dark:text-slate-400">
+                          <span className="text-lg sm:text-xl font-bold text-muted-foreground">
                             {typeData.nonParticipantCount.toLocaleString('ar-EG')}
                           </span>
                         </div>
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   )
                 })}
               </div>

@@ -3,17 +3,32 @@ import { Link, useParams } from 'wouter'
 import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
+import { toast } from 'sonner'
+import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Loader } from '~/components/Loader'
 import { UserList } from '~/components/UserList'
 import { AddUserModal } from '~/components/AddUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
 import type { SessionType } from '~/components/SplitButton'
-import toast from 'react-hot-toast'
 
 function formatUserList(users: User[], isDone: boolean = false): string {
   return users
     .map((user, index) => {
-      // Display realName if available, otherwise use telegramName
       const displayName = user.realName || user.telegramName
       const username = user.username ? `@${user.username}` : ''
       const userId = `(${user.id})`
@@ -49,25 +64,12 @@ export default function PostDetail() {
 
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
-  const [isActionsDropdownOpen, setIsActionsDropdownOpen] = React.useState(false)
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
     currentNotes?: string | null
     userName: string
   } | null>(null)
-  const actionsDropdownRef = React.useRef<HTMLDivElement>(null)
-
-  // Close dropdown when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (actionsDropdownRef.current && !actionsDropdownRef.current.contains(event.target as Node)) {
-        setIsActionsDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   const data = useQuery(api.queries.getUserList, { chatId, postId, sessionNumber: selectedSession })
   const availableSessions = useQuery(api.queries.getAvailableSessions, { chatId, postId })
@@ -90,47 +92,30 @@ export default function PostDetail() {
   const sendParticipantList = useAction(api.actions.sendParticipantList)
 
   const handleReorder = async (entryId: string, newPosition: number) => {
-    await updatePosition({
-      entryId,
-      newPosition,
-    })
+    await updatePosition({ entryId, newPosition })
   }
 
   const handleDelete = async (entryId: string) => {
-    await removeUser({
-      entryId,
-    })
+    await removeUser({ entryId })
   }
 
   const handleComplete = async (entryId: string, sessionType: SessionType) => {
-    await completeUserTurn({
-      entryId,
-      sessionType,
-    })
+    await completeUserTurn({ entryId, sessionType })
   }
 
   const handleSkip = async (entryId: string) => {
-    await skipUserTurn({
-      entryId,
-    })
+    await skipUserTurn({ entryId })
   }
 
   const handleUpdateSessionType = async (entryId: string, sessionType: SessionType) => {
-    await updateSessionType({
-      entryId,
-      sessionType,
-    })
+    await updateSessionType({ entryId, sessionType })
   }
 
   const handleUpdateDisplayName = async (userId: number, realName: string) => {
-    await updateUserRealName({
-      userId,
-      realName,
-    })
+    await updateUserRealName({ userId, realName })
   }
 
   const handleOpenEditNotes = (entryId: string, currentNotes?: string | null) => {
-    // Find the user to get their name
     const user = [...data.activeUsers, ...data.completedUsers].find(u => u.entryId === entryId)
     if (!user) return
 
@@ -160,12 +145,11 @@ export default function PostDetail() {
 
   const handleAddTurnAfter3 = async (userId: number, currentPosition: number | undefined) => {
     try {
-      console.log('Adding turn after 3:', { userId, currentPosition, turnsToWait: 3, sessionNumber: data?.currentSession })
       await addUserAtPosition({
         chatId,
         postId,
         userId,
-        currentPosition, // undefined for completed users, position number for active users
+        currentPosition,
         turnsToWait: 3,
         sessionNumber: data?.currentSession,
       })
@@ -198,7 +182,6 @@ export default function PostDetail() {
     const activeList = formatUserList(data.activeUsers, false)
     const completedList = formatUserList(data.completedUsers, true)
 
-    // Format the date
     const date = new Date(postDetails.createdAt)
     const formattedDate = date.toLocaleDateString('ar-EG', {
       weekday: 'long',
@@ -207,7 +190,6 @@ export default function PostDetail() {
       day: 'numeric',
     })
 
-    // Build the header
     let fullMessage = `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
@@ -233,7 +215,6 @@ export default function PostDetail() {
   const handleCopyTelegramNames = async () => {
     if (!data || !postDetails) return
 
-    // Format the date
     const date = new Date(postDetails.createdAt)
     const formattedDate = date.toLocaleDateString('ar-EG', {
       weekday: 'long',
@@ -242,14 +223,11 @@ export default function PostDetail() {
       day: 'numeric',
     })
 
-    // Build the header
     let fullMessage = `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
     fullMessage += '\n'
-
-    // Add the names list
     fullMessage += formatRealNames(data.activeUsers, data.completedUsers)
 
     try {
@@ -281,7 +259,6 @@ export default function PostDetail() {
   const handleStartNewSession = async () => {
     if (!data) return
 
-    // Prompt for teacher name
     const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:')
     if (!teacherName || teacherName.trim() === '') {
       toast.error('يجب إدخال اسم المعلمة')
@@ -290,7 +267,6 @@ export default function PostDetail() {
 
     const incompleteCount = data.activeUsers.length
 
-    // Ask user if they want to carry over incomplete users
     if (incompleteCount > 0) {
       const confirmed = window.confirm(
         `يوجد ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الحلقة الحالية.\n\nهل تريد نقلهم إلى الحلقة الجديدة؟`
@@ -315,7 +291,6 @@ export default function PostDetail() {
         console.error('Start new session failed:', error)
       }
     } else {
-      // No incomplete users, just start new session
       try {
         const result = await startNewSession({
           chatId,
@@ -338,13 +313,10 @@ export default function PostDetail() {
     const currentSession = selectedSession ?? data.currentSession
     const currentTeacherName = sessionInfo?.teacherName || ''
 
-    // Prompt for teacher name with current value as default
     const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:', currentTeacherName)
 
-    // User cancelled
     if (teacherName === null) return
 
-    // Empty name validation
     if (teacherName.trim() === '') {
       toast.error('يجب إدخال اسم المعلمة')
       return
@@ -378,28 +350,16 @@ export default function PostDetail() {
     <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
       <div className="mb-3 sm:mb-4 md:mb-6">
         <Link href="/">
-          <a className="inline-flex items-center gap-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-2 sm:mb-3 md:mb-4">
-            <svg
-              className="w-4 h-4 sm:w-5 sm:h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            <span className="text-sm sm:text-base">العودة للمنشورات</span>
-          </a>
+          <Button variant="ghost" size="sm" className="mb-2 sm:mb-3 md:mb-4 gap-2">
+            <ArrowRight className="h-4 w-4" />
+            <span>العودة للمنشورات</span>
+          </Button>
         </Link>
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             {postDetails?.createdAt && (
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground">
                 {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
                   weekday: 'long',
                   year: 'numeric',
@@ -408,151 +368,75 @@ export default function PostDetail() {
                 })}
               </h1>
             )}
-            <p className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
-            <p className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
+            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
+            <p className="text-muted-foreground text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {availableSessions && availableSessions.length >= 1 && (
-              <select
-                value={selectedSession ?? data.currentSession}
-                onChange={(e) => setSelectedSession(Number(e.target.value))}
-                className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-gray-300 dark:border-slate-600 focus:border-blue-500 focus:outline-none text-sm h-[34px] sm:h-[42px]"
+              <Select
+                value={(selectedSession ?? data.currentSession).toString()}
+                onValueChange={(val) => setSelectedSession(Number(val))}
               >
-                {availableSessions.map((session) => (
-                  <option key={session.sessionNumber} value={session.sessionNumber}>
-                    الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
-                    {session.teacherName && ` (${session.teacherName})`}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-auto min-w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null }) => (
+                    <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
+                      الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
+                      {session.teacherName && ` (${session.teacherName})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-            <div className="relative" ref={actionsDropdownRef}>
-              <button
-                onClick={() => setIsActionsDropdownOpen(!isActionsDropdownOpen)}
-                className="bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-white border border-gray-300 dark:border-slate-600 p-1.5 sm:p-2 rounded-lg transition-colors flex items-center gap-1.5"
-                title="إجراءات إضافية"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <circle cx="12" cy="5" r="2" />
-                  <circle cx="12" cy="12" r="2" />
-                  <circle cx="12" cy="19" r="2" />
-                </svg>
-              </button>
 
-              {isActionsDropdownOpen && (
-                <div className="fixed sm:absolute left-auto right-2 sm:left-0 sm:right-auto top-auto sm:top-full mt-1 w-56 sm:w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      handleStartNewSession()
-                      setIsActionsDropdownOpen(false)
-                    }}
-                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    بدء حلقة جديدة
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsAddUserModalOpen(true)
-                      setIsActionsDropdownOpen(false)
-                    }}
-                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                    إضافة مستخدم يدوياً
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleEditTeacherName()
-                      setIsActionsDropdownOpen(false)
-                    }}
-                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                    تعديل اسم المعلمة
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleCopyList()
-                      setIsActionsDropdownOpen(false)
-                    }}
-                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    نسخ القائمة
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleCopyTelegramNames()
-                      setIsActionsDropdownOpen(false)
-                    }}
-                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm border-b border-gray-200 dark:border-slate-700 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                    </svg>
-                    نسخ الأسماء الحقيقية
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleSendParticipantList()
-                      setIsActionsDropdownOpen(false)
-                    }}
-                    className="w-full px-4 py-3 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-sm flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4 text-gray-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                    </svg>
-                    إرسال قائمة الأسماء
-                  </button>
-                </div>
-              )}
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem onClick={handleStartNewSession}>
+                  <Plus className="h-4 w-4 ml-2" />
+                  بدء حلقة جديدة
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsAddUserModalOpen(true)}>
+                  <UserPlus className="h-4 w-4 ml-2" />
+                  إضافة مستخدم يدوياً
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleEditTeacherName}>
+                  <Pencil className="h-4 w-4 ml-2" />
+                  تعديل اسم المعلمة
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleCopyList}>
+                  <Copy className="h-4 w-4 ml-2" />
+                  نسخ القائمة
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopyTelegramNames}>
+                  <AtSign className="h-4 w-4 ml-2" />
+                  نسخ الأسماء الحقيقية
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSendParticipantList}>
+                  <Send className="h-4 w-4 ml-2" />
+                  إرسال قائمة الأسماء
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <div className="text-right flex items-center gap-2">
               <div>
-                <div className="text-xs sm:text-sm text-gray-600 dark:text-slate-400">حضور</div>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{totalUsers}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground">حضور</div>
+                <div className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">{totalUsers}</div>
               </div>
               <Link href={`/posts/${chatId}/${postId}/summary`}>
-                <a
-                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                  title="عرض ملخص المشاركة"
-                >
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                    />
-                  </svg>
-                </a>
+                <Button variant="ghost" size="icon" title="عرض ملخص المشاركة">
+                  <Eye className="h-5 w-5" />
+                </Button>
               </Link>
             </div>
-
           </div>
         </div>
       </div>

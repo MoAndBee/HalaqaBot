@@ -1,4 +1,6 @@
 import { Link } from 'wouter'
+import { Users, Eye } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Post } from '~/api/posts'
 
 interface PostsListProps {
@@ -10,8 +12,8 @@ export function PostsList({ posts }: PostsListProps) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-xl text-gray-600 dark:text-slate-400">لا توجد منشورات</p>
-          <p className="text-sm text-gray-500 dark:text-slate-500 mt-2">
+          <p className="text-xl text-muted-foreground">لا توجد منشورات</p>
+          <p className="text-sm text-muted-foreground mt-2">
             ستظهر المنشورات هنا بمجرد تفاعل المستخدمين مع الرسائل في البوت
           </p>
         </div>
@@ -35,62 +37,32 @@ export function PostsList({ posts }: PostsListProps) {
             key={`${post.chatId}-${post.postId}`}
             href={`/posts/${post.chatId}/${post.postId}`}
           >
-            <a className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-6 hover:bg-gray-50 dark:hover:bg-slate-750 hover:border-gray-300 dark:hover:border-slate-600 transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer block">
-            <div className="flex flex-col gap-2">
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{formattedDate}</div>
-              <div className="text-sm text-gray-600 dark:text-slate-400">معرف المنشور: {post.postId}</div>
-              <div className="text-sm text-gray-600 dark:text-slate-400">
-                المحادثة: {post.chatId}
-              </div>
-              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-200 dark:border-slate-700">
-                <svg
-                  className="w-5 h-5 text-gray-600 dark:text-slate-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                  />
-                </svg>
-                <span className="text-gray-700 dark:text-slate-300 font-medium">
-                  {post.userCount} مستخدم
-                </span>
-                <Link
-                  href={`/posts/${post.chatId}/${post.postId}/summary`}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                >
-                  <a
-                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                    title="عرض ملخص المشاركة"
+            <Card className="cursor-pointer hover:bg-accent/50 transition-all duration-200 hover:shadow-lg hover:scale-[1.02]">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">{formattedDate}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm text-muted-foreground">معرف المنشور: {post.postId}</p>
+                <p className="text-sm text-muted-foreground">المحادثة: {post.chatId}</p>
+                <div className="flex items-center gap-4 pt-2 border-t">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Users className="h-4 w-4" />
+                    <span className="font-medium">{post.userCount} مستخدم</span>
+                  </div>
+                  <Link
+                    href={`/posts/${post.chatId}/${post.postId}/summary`}
+                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
                   >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                    <span
+                      className="text-primary hover:text-primary/80 transition-colors inline-flex"
+                      title="عرض ملخص المشاركة"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
-                    </svg>
-                  </a>
-                </Link>
-              </div>
-            </div>
-            </a>
+                      <Eye className="h-5 w-5" />
+                    </span>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
           </Link>
         )
       })}
