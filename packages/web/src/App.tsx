@@ -1,5 +1,5 @@
 import { Route, Switch } from 'wouter'
-import { Toaster } from 'react-hot-toast'
+import { Toaster } from '@/components/ui/sonner'
 import Layout from './components/Layout'
 import Home from './routes/Home'
 import PostDetail from './routes/PostDetail'
@@ -15,13 +15,13 @@ export default function App() {
         <Route>
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <h1 className="text-4xl font-black text-white mb-2">404</h1>
-              <p className="text-slate-400">الصفحة غير موجودة</p>
+              <h1 className="text-4xl font-black text-foreground mb-2">404</h1>
+              <p className="text-muted-foreground">الصفحة غير موجودة</p>
             </div>
           </div>
         </Route>
       </Switch>
-      <Toaster />
+      <Toaster position="top-center" dir="rtl" />
     </Layout>
   )
 }

@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 
 export function EditableText({
   fieldName,
@@ -13,9 +15,9 @@ export function EditableText({
 }: {
   fieldName: string
   value: string
-  inputClassName: string
+  inputClassName?: string
   inputLabel: string
-  buttonClassName: string
+  buttonClassName?: string
   buttonLabel: string
   onChange: (value: string) => void
   editState?: [boolean, (value: boolean) => void]
@@ -39,14 +41,14 @@ export function EditableText({
         buttonRef.current?.focus()
       }}
     >
-      <input
+      <Input
         required
         ref={inputRef}
         type="text"
         aria-label={inputLabel}
         name={fieldName}
         defaultValue={value}
-        className={inputClassName}
+        className={cn("h-8", inputClassName)}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             flushSync(() => {
@@ -77,9 +79,9 @@ export function EditableText({
         })
         inputRef.current?.select()
       }}
-      className={buttonClassName}
+      className={cn("text-start hover:text-primary transition-colors", buttonClassName)}
     >
-      {value || <span className="text-slate-400 italic">تعديل</span>}
+      {value || <span className="text-muted-foreground italic">تعديل</span>}
     </button>
   )
 }

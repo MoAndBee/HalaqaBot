@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import { SplitButton, SessionType } from './SplitButton'
 
 interface TurnControlsProps {
@@ -17,27 +18,21 @@ export function TurnControls({
 }: TurnControlsProps) {
   return (
     <div
-      className="sticky top-0 z-20 bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 p-2 sm:p-3"
+      className="sticky top-0 z-20 bg-background border-b p-2 sm:p-3"
       dir="rtl"
     >
       <div className="flex gap-2 sm:gap-3 justify-start">
         <SplitButton onComplete={onComplete} disabled={disabled} defaultSessionType={defaultSessionType} />
 
-        <button
+        <Button
           onClick={onSkip}
           disabled={disabled || !canSkip}
-          className={`
-            px-4 py-2 sm:px-6 sm:py-2 rounded-lg font-medium text-white text-sm sm:text-base
-            transition-colors duration-200
-            ${
-              disabled || !canSkip
-                ? 'bg-gray-400 dark:bg-slate-600 cursor-not-allowed opacity-50'
-                : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800'
-            }
-          `}
+          variant="secondary"
+          size="sm"
+          className="bg-amber-600 hover:bg-amber-700 text-white disabled:bg-muted disabled:text-muted-foreground"
         >
           تخطي
-        </button>
+        </Button>
       </div>
     </div>
   )
