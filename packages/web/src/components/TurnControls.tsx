@@ -18,18 +18,17 @@ export function TurnControls({
 }: TurnControlsProps) {
   return (
     <div
-      className="sticky top-0 z-20 bg-background border-b p-2 sm:p-3"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t p-3 sm:p-4"
       dir="rtl"
     >
-      <div className="flex gap-2 sm:gap-3 justify-start">
+      <div className="flex gap-2 sm:gap-3 w-full max-w-2xl mx-auto">
         <SplitButton onComplete={onComplete} disabled={disabled} defaultSessionType={defaultSessionType} />
 
         <Button
           onClick={onSkip}
           disabled={disabled || !canSkip}
           variant="secondary"
-          size="sm"
-          className="bg-amber-600 hover:bg-amber-700 text-white disabled:bg-muted disabled:text-muted-foreground"
+          className="h-12 px-4 text-base shrink-0 bg-amber-600 hover:bg-amber-700 text-white disabled:bg-muted disabled:text-muted-foreground"
         >
           تخطي
         </Button>

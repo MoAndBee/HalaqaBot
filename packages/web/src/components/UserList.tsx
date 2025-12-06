@@ -267,19 +267,9 @@ export function UserList({
   }
 
   return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
-      {items.length > 0 && (
-        <TurnControls
-          onComplete={handleComplete}
-          onSkip={handleSkip}
-          canSkip={items.length >= 2}
-          disabled={isProcessing}
-          defaultSessionType={(items[0]?.sessionType as SessionType) || null}
-        />
-      )}
-
+    <div className="max-w-2xl mx-auto pb-20" dir="rtl">
       {error && (
-        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
+        <div className="m-4 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
           {error}
         </div>
       )}
@@ -336,6 +326,16 @@ export function UserList({
           </div>
         )}
       </div>
+
+      {items.length > 0 && (
+        <TurnControls
+          onComplete={handleComplete}
+          onSkip={handleSkip}
+          canSkip={items.length >= 2}
+          disabled={isProcessing}
+          defaultSessionType={(items[0]?.sessionType as SessionType) || null}
+        />
+      )}
     </div>
   )
 }
