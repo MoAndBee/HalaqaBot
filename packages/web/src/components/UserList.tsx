@@ -62,14 +62,12 @@ export function UserList({
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Update items when activeUsers prop changes
   useEffect(() => {
     if (!isReordering) {
       setItems(activeUsers)
     }
   }, [activeUsers, isReordering])
 
-  // Configure sensors for mouse and touch interactions
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -95,29 +93,20 @@ export function UserList({
       return
     }
 
-    // Store original items for potential rollback
     const originalItems = [...items]
-
-    // Optimistically update local state for immediate feedback
     const newItems = arrayMove(items, oldIndex, newIndex)
     setItems(newItems)
     setIsReordering(true)
     setError(null)
 
-    // Find the actual final position of the moved item after arrayMove
     const finalIndex = newItems.findIndex((user) => user.entryId === active.id)
 
     try {
-      // Call the server function to persist the change
-      // Position is 1-indexed in the database
       await onReorder(active.id as string, finalIndex + 1)
     } catch (error) {
       console.error('Failed to reorder user:', error)
-      // Revert to original order on error
       setItems(originalItems)
       setError('فشل تحديث الترتيب. الرجاء المحاولة مرة أخرى.')
-      
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsReordering(false)
@@ -125,10 +114,7 @@ export function UserList({
   }
 
   const handleDelete = async (entryId: string) => {
-    // Store original items for potential rollback
     const originalItems = [...items]
-
-    // Optimistically remove from local state
     setItems(items.filter((user) => user.entryId !== entryId))
     setIsDeleting(true)
     setError(null)
@@ -137,11 +123,8 @@ export function UserList({
       await onDelete(entryId)
     } catch (error) {
       console.error('Failed to delete user:', error)
-      // Revert on error
       setItems(originalItems)
       setError('فشل حذف المستخدم. الرجاء المحاولة مرة أخرى.')
-
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsDeleting(false)
@@ -151,7 +134,7 @@ export function UserList({
   const handleComplete = async (sessionType: SessionType) => {
     if (items.length === 0) return
 
-    const currentUser = items[0] // First user in active list
+    const currentUser = items[0]
     if (!currentUser.entryId) return
 
     setIsProcessing(true)
@@ -162,8 +145,6 @@ export function UserList({
     } catch (error) {
       console.error('Failed to complete turn:', error)
       setError('فشل إتمام الدور. الرجاء المحاولة مرة أخرى.')
-
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsProcessing(false)
@@ -173,7 +154,7 @@ export function UserList({
   const handleSkip = async () => {
     if (items.length < 2) return
 
-    const currentUser = items[0] // First user in active list
+    const currentUser = items[0]
     if (!currentUser.entryId) return
 
     setIsProcessing(true)
@@ -184,8 +165,6 @@ export function UserList({
     } catch (error) {
       console.error('Failed to skip turn:', error)
       setError('فشل تخطي الدور. الرجاء المحاولة مرة أخرى.')
-
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsProcessing(false)
@@ -201,8 +180,6 @@ export function UserList({
     } catch (error) {
       console.error('Failed to update session type:', error)
       setError('فشل تحديث نوع الجلسة. الرجاء المحاولة مرة أخرى.')
-
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsProcessing(false)
@@ -218,8 +195,6 @@ export function UserList({
     } catch (error) {
       console.error('Failed to update display name:', error)
       setError('فشل تحديث اسم العرض. الرجاء المحاولة مرة أخرى.')
-
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsProcessing(false)
@@ -228,20 +203,9 @@ export function UserList({
 
   const handleMoveToEnd = async (entryId: string) => {
     const userIndex = items.findIndex((user) => user.entryId === entryId)
+    if (userIndex === -1 || userIndex === items.length - 1) return
 
-    if (userIndex === -1) {
-      return
-    }
-
-    // If already at the end, do nothing
-    if (userIndex === items.length - 1) {
-      return
-    }
-
-    // Store original items for potential rollback
     const originalItems = [...items]
-
-    // Optimistically move user to end in local state
     const newItems = [...items]
     const [movedUser] = newItems.splice(userIndex, 1)
     newItems.push(movedUser)
@@ -251,16 +215,11 @@ export function UserList({
     setError(null)
 
     try {
-      // Call the server function to persist the change
-      // Position is 1-indexed, and we want to move to the last position
       await onReorder(entryId, items.length)
     } catch (error) {
       console.error('Failed to move user to end:', error)
-      // Revert to original order on error
       setItems(originalItems)
       setError('فشل نقل المستخدم إلى آخر القائمة. الرجاء المحاولة مرة أخرى.')
-
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsReordering(false)
@@ -269,22 +228,12 @@ export function UserList({
 
   const handleMoveToPosition = async (entryId: string, newPosition: number) => {
     const userIndex = items.findIndex((user) => user.entryId === entryId)
-
-    if (userIndex === -1) {
-      return
-    }
+    if (userIndex === -1) return
 
     const currentPosition = userIndex + 1
+    if (currentPosition === newPosition) return
 
-    // If already at the target position, do nothing
-    if (currentPosition === newPosition) {
-      return
-    }
-
-    // Store original items for potential rollback
     const originalItems = [...items]
-
-    // Optimistically move user to new position in local state
     const newItems = [...items]
     const [movedUser] = newItems.splice(userIndex, 1)
     newItems.splice(newPosition - 1, 0, movedUser)
@@ -294,16 +243,11 @@ export function UserList({
     setError(null)
 
     try {
-      // Call the server function to persist the change
-      // Position is 1-indexed
       await onReorder(entryId, newPosition)
     } catch (error) {
       console.error('Failed to move user to position:', error)
-      // Revert to original order on error
       setItems(originalItems)
       setError('فشل نقل المستخدم إلى الدور المحدد. الرجاء المحاولة مرة أخرى.')
-
-      // Clear error after 3 seconds
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsReordering(false)
@@ -316,33 +260,20 @@ export function UserList({
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-xl text-gray-600 dark:text-slate-400">لا يوجد مستخدمون في هذه القائمة</p>
+          <p className="text-xl text-muted-foreground">لا يوجد مستخدمون في هذه القائمة</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
-      {/* Turn Controls - Sticky at top */}
-      {items.length > 0 && (
-        <TurnControls
-          onComplete={handleComplete}
-          onSkip={handleSkip}
-          canSkip={items.length >= 2}
-          disabled={isProcessing}
-          defaultSessionType={(items[0]?.sessionType as SessionType) || null}
-        />
-      )}
-
-      {/* Error message */}
+    <div className="max-w-2xl mx-auto pb-20" dir="rtl">
       {error && (
-        <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-400 text-sm">
+        <div className="m-4 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
           {error}
         </div>
       )}
 
-      {/* Completed Users Section */}
       <div className="p-4">
         <CompletedUsersSection
           users={completedUsers}
@@ -352,7 +283,6 @@ export function UserList({
           onAddTurnAfter3={onAddTurnAfter3}
         />
 
-        {/* Active Users List */}
         {items.length > 0 ? (
           <DndContext
             sensors={sensors}
@@ -383,20 +313,29 @@ export function UserList({
             </SortableContext>
           </DndContext>
         ) : (
-          <div className="text-center text-gray-600 dark:text-slate-400 text-sm py-8">
+          <div className="text-center text-muted-foreground text-sm py-8">
             جميع المستخدمين أنهوا أدوارهم
           </div>
         )}
 
-        {/* Loading states */}
         {(isReordering || isDeleting || isProcessing) && (
-          <div className="mt-4 text-center text-gray-600 dark:text-slate-400 text-sm">
+          <div className="mt-4 text-center text-muted-foreground text-sm">
             {isReordering && 'جاري تحديث الترتيب...'}
             {isDeleting && 'جاري حذف المستخدم...'}
             {isProcessing && !isReordering && !isDeleting && 'جاري المعالجة...'}
           </div>
         )}
       </div>
+
+      {items.length > 0 && (
+        <TurnControls
+          onComplete={handleComplete}
+          onSkip={handleSkip}
+          canSkip={items.length >= 2}
+          disabled={isProcessing}
+          defaultSessionType={(items[0]?.sessionType as SessionType) || null}
+        />
+      )}
     </div>
   )
 }
