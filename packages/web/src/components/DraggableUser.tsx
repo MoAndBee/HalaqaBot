@@ -1,7 +1,26 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
+import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUpDown, Trash2, Check, X } from 'lucide-react'
 import type { User } from '@halakabot/db'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import type { SessionType } from './SplitButton'
 
 interface DraggableUserProps {
@@ -19,12 +38,13 @@ interface DraggableUserProps {
 }
 
 export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers }: DraggableUserProps) {
+const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم']
+
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, totalUsers }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
   const [selectedType, setSelectedType] = useState<SessionType | null>(null)
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const {
     attributes,
@@ -52,21 +72,8 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     setIsEditing(false)
   }
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
   const handleEdit = () => {
     setIsEditing(true)
-    setIsDropdownOpen(false)
   }
 
   const handleDeleteClick = () => {
@@ -75,7 +82,6 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
         onDelete(user.entryId)
       }
     }
-    setIsDropdownOpen(false)
   }
 
   const handleAddTurnAfter3 = () => {
@@ -83,14 +89,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
       const currentPosition = user.position ?? (index + 1)
       onAddTurnAfter3(user.id, currentPosition)
     }
-    setIsDropdownOpen(false)
   }
 
   const handleMoveToEnd = () => {
     if (onMoveToEnd && user.entryId) {
       onMoveToEnd(user.entryId)
     }
-    setIsDropdownOpen(false)
   }
 
   const handleMoveToPosition = () => {
@@ -104,35 +108,24 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
       currentPosition.toString()
     )
 
-    if (positionInput === null) {
-      // User cancelled
-      setIsDropdownOpen(false)
-      return
-    }
+    if (positionInput === null) return
 
     const newPosition = parseInt(positionInput.trim(), 10)
 
     if (isNaN(newPosition) || newPosition < 1 || newPosition > totalUsers) {
       alert(`الرجاء إدخال رقم صحيح بين 1 و ${totalUsers}`)
-      setIsDropdownOpen(false)
       return
     }
 
-    if (newPosition === currentPosition) {
-      // No change needed
-      setIsDropdownOpen(false)
-      return
+    if (newPosition !== currentPosition) {
+      onMoveToPosition(user.entryId, newPosition)
     }
-
-    onMoveToPosition(user.entryId, newPosition)
-    setIsDropdownOpen(false)
   }
 
   const handleEditNotes = () => {
     if (onEditNotes && user.entryId) {
       onEditNotes(user.entryId, user.notes)
     }
-    setIsDropdownOpen(false)
   }
 
   const handleSetCompensation = () => {
@@ -145,7 +138,6 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
   const handleEditTypeClick = () => {
     setSelectedType((user.sessionType as SessionType) || null)
     setIsEditingType(true)
-    setIsDropdownOpen(false)
   }
 
   const handleConfirmType = () => {
@@ -160,9 +152,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     setSelectedType(null)
   }
 
-  // Show realName if available, otherwise show telegramName
   const primaryName = user.realName || user.telegramName
-  // Show both realName and telegramName when realName is set
   const secondaryText = user.realName
     ? `${user.telegramName}${user.username ? ' @' + user.username : ''} (${user.id})`
     : `${user.username ? '@' + user.username + ' ' : ''}(${user.id})`
@@ -171,16 +161,15 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     <div
       ref={setNodeRef}
       style={style}
-      className={`
-        ${user.carriedOver ? 'bg-amber-50 dark:bg-amber-950/20' : 'bg-white dark:bg-slate-800'} border rounded-lg p-2 sm:p-3
-        ${isDragging ? 'opacity-50 border-blue-500 shadow-lg z-50' : user.carriedOver ? 'border-amber-300 dark:border-amber-700/50' : 'border-gray-200 dark:border-slate-700'}
-        ${!isDragging ? user.carriedOver ? 'hover:border-amber-400 dark:hover:border-amber-600/70 hover:bg-amber-100 dark:hover:bg-amber-950/30' : 'hover:border-gray-300 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-750' : ''}
-        transition-colors duration-200
-      `}
+      className={cn(
+        "border rounded-lg p-2 sm:p-3 transition-colors duration-200",
+        user.carriedOver ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700/50" : "bg-card border-border",
+        isDragging && "opacity-50 border-primary shadow-lg z-50",
+        !isDragging && "hover:border-muted-foreground/50 hover:bg-accent/50"
+      )}
       dir="rtl"
     >
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Actions dropdown - positioned on the left in RTL */}
         {!isEditing && !isEditingType && (
           <div className="relative order-first" ref={dropdownRef}>
             <button
@@ -325,77 +314,111 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               </div>
             )}
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 order-first">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {onUpdateDisplayName && (
+                <DropdownMenuItem onClick={handleEdit}>
+                  <Pencil className="h-4 w-4 ml-2" />
+                  تعديل الاسم
+                </DropdownMenuItem>
+              )}
+              {onEditNotes && (
+                <DropdownMenuItem onClick={handleEditNotes}>
+                  <StickyNote className="h-4 w-4 ml-2" />
+                  إضافة ملاحظات
+                </DropdownMenuItem>
+              )}
+              {onUpdateSessionType && (
+                <DropdownMenuItem onClick={handleEditTypeClick}>
+                  <Tag className="h-4 w-4 ml-2" />
+                  تعديل المشاركة
+                </DropdownMenuItem>
+              )}
+              {onAddTurnAfter3 && (
+                <DropdownMenuItem onClick={handleAddTurnAfter3}>
+                  <Plus className="h-4 w-4 ml-2" />
+                  إضافة دور بعد ٣
+                </DropdownMenuItem>
+              )}
+              {onMoveToEnd && (
+                <DropdownMenuItem onClick={handleMoveToEnd}>
+                  <ArrowDown className="h-4 w-4 ml-2" />
+                  نقل إلى آخر القائمة
+                </DropdownMenuItem>
+              )}
+              {onMoveToPosition && (
+                <DropdownMenuItem onClick={handleMoveToPosition}>
+                  <ArrowUpDown className="h-4 w-4 ml-2" />
+                  نقل إلى دور معين
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleDeleteClick} className="text-destructive focus:text-destructive">
+                <Trash2 className="h-4 w-4 ml-2" />
+                حذف
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
 
-        {/* Drag handle */}
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300 transition-colors p-2 -m-2 touch-manipulation"
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors p-2 -m-2 touch-manipulation"
           aria-label="اسحب لإعادة الترتيب"
         >
-          <svg
-            className="w-6 h-6 sm:w-5 sm:h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 8h16M4 16h16"
-            />
-          </svg>
+          <GripVertical className="h-5 w-5" />
         </button>
 
-        {/* Position number */}
-        <div className={`${user.carriedOver ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-slate-400'} font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0`}>
+        <div className={cn(
+          "font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0",
+          user.carriedOver ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+        )}>
           {index + 1}.
         </div>
 
-        {/* User info */}
         <div className="flex-1 min-w-0">
           {isEditing ? (
             <div className="flex flex-col gap-2">
-              <input
+              <Input
                 type="text"
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value)}
-                className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1 rounded border border-gray-300 dark:border-slate-600 text-sm"
                 placeholder="أدخل الاسم"
+                className="h-8"
                 autoFocus
               />
               <div className="flex gap-2">
-                <button
-                  onClick={handleSave}
-                  className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
-                >
+                <Button variant="ghost" size="sm" onClick={handleSave} className="h-6 px-2 text-xs text-green-600">
+                  <Check className="h-3 w-3 ml-1" />
                   حفظ
-                </button>
-                <button
-                  onClick={handleCancel}
-                  className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
-                >
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleCancel} className="h-6 px-2 text-xs">
+                  <X className="h-3 w-3 ml-1" />
                   إلغاء
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
             <>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <div className="text-gray-900 dark:text-white font-medium text-sm sm:text-base">{primaryName}</div>
+                <span className="font-medium text-sm sm:text-base">{primaryName}</span>
                 {user.carriedOver && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-700/50">
+                  <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-700/50 text-xs">
                     من الحلقة السابقة
-                  </span>
+                  </Badge>
                 )}
               </div>
               {secondaryText && (
-                <div className="text-gray-600 dark:text-slate-400 text-xs sm:text-sm truncate">{secondaryText}</div>
+                <div className="text-muted-foreground text-xs sm:text-sm truncate">{secondaryText}</div>
               )}
               {user.notes && (
-                <div className="mt-1 text-gray-500 dark:text-slate-500 text-xs sm:text-sm italic">
+                <div className="mt-1 text-muted-foreground text-xs sm:text-sm italic">
                   {user.notes}
                 </div>
               )}
@@ -415,44 +438,31 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
           )}
         </div>
 
-        {/* Session type badge */}
         {!isEditing && (
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {isEditingType ? (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <select
-                  value={selectedType || ''}
-                  onChange={(e) => setSelectedType(e.target.value as SessionType)}
-                  className="bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white text-xs sm:text-sm px-1.5 sm:px-2 py-1 rounded border border-gray-300 dark:border-slate-600"
-                >
-                  <option value="">اختر</option>
-                  <option value="تلاوة">تلاوة</option>
-                  <option value="تسميع">تسميع</option>
-                  <option value="تطبيق">تطبيق</option>
-                  <option value="اختبار">اختبار</option>
-                  <option value="دعم">دعم</option>
-                </select>
-                <button
-                  onClick={handleConfirmType}
-                  className="text-green-600 dark:text-green-500 hover:text-green-700 dark:hover:text-green-400 text-xs"
-                >
+                <Select value={selectedType || ''} onValueChange={(val) => setSelectedType(val as SessionType)}>
+                  <SelectTrigger className="h-7 w-24 text-xs">
+                    <SelectValue placeholder="اختر" />
+                  </SelectTrigger>
+                  <SelectContent dir="rtl">
+                    {SESSION_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="sm" onClick={handleConfirmType} className="h-6 px-2 text-xs text-green-600">
                   تأكيد
-                </button>
-                <button
-                  onClick={handleCancelType}
-                  className="text-gray-600 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 text-xs"
-                >
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleCancelType} className="h-6 px-2 text-xs">
                   إلغاء
-                </button>
+                </Button>
               </div>
             ) : (
-              <span className={`text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded whitespace-nowrap ${
-                user.sessionType
-                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700/50'
-                  : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
-              }`}>
+              <Badge variant={user.sessionType ? "default" : "secondary"} className="text-xs">
                 {user.sessionType || 'غير محدد'}
-              </span>
+              </Badge>
             )}
           </div>
         )}

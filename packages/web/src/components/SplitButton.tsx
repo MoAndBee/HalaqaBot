@@ -1,6 +1,16 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار' | 'دعم' | 'تعويض'
+
+const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم']
 
 interface SplitButtonProps {
   onComplete: (sessionType: SessionType) => void
@@ -10,25 +20,10 @@ interface SplitButtonProps {
 
 export function SplitButton({ onComplete, disabled = false, defaultSessionType = null }: SplitButtonProps) {
   const [selectedType, setSelectedType] = useState<SessionType | null>(defaultSessionType)
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Update selectedType when defaultSessionType changes (e.g., when user changes)
   useEffect(() => {
     setSelectedType(defaultSessionType)
   }, [defaultSessionType])
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   const handleComplete = () => {
     if (!selectedType) {
@@ -36,33 +31,22 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
       return
     }
     onComplete(selectedType)
-    // Reset after completion
     setSelectedType(null)
   }
 
   const handleSelectType = (type: SessionType) => {
     setSelectedType(type)
-    setIsDropdownOpen(false)
   }
 
   const buttonText = selectedType ? `إتمام (${selectedType})` : 'إتمام (اختر)'
   const isCompleteDisabled = disabled || !selectedType
 
   return (
-    <div className="relative inline-flex" ref={dropdownRef} dir="rtl">
-      {/* Main button */}
-      <button
+    <div className="flex flex-1 min-w-0" dir="rtl">
+      <Button
         onClick={handleComplete}
         disabled={isCompleteDisabled}
-        className={`
-          px-3 py-2 sm:px-4 sm:py-2 rounded-r-lg font-medium text-white text-sm sm:text-base
-          transition-colors duration-200
-          ${
-            isCompleteDisabled
-              ? 'bg-slate-600 cursor-not-allowed opacity-50'
-              : 'bg-green-600 hover:bg-green-700 active:bg-green-800'
-          }
-        `}
+        className="flex-1 h-12 text-base font-semibold rounded-l-none bg-green-600 hover:bg-green-700 text-white"
       >
         {buttonText}
       </button>
@@ -139,6 +123,28 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
           </button>
         </div>
       )}
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            disabled={disabled}
+            className="h-12 rounded-r-none border-r border-green-700 bg-green-600 hover:bg-green-700 text-white px-3"
+          >
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {SESSION_TYPES.map((type) => (
+            <DropdownMenuItem
+              key={type}
+              onClick={() => handleSelectType(type)}
+              className="cursor-pointer text-base py-2"
+            >
+              {type}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
