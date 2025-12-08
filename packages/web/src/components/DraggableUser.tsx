@@ -422,18 +422,6 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   {user.notes}
                 </div>
               )}
-              {user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0 && (
-                <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400 border border-purple-300 dark:border-purple-700/50 font-medium">
-                    🔄 تعويض
-                  </span>
-                  <span className="text-gray-600 dark:text-slate-400">
-                    {user.compensatingForDates.map(timestamp =>
-                      new Date(timestamp).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })
-                    ).join('، ')}
-                  </span>
-                </div>
-              )}
             </>
           )}
         </div>
