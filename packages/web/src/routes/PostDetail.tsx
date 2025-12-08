@@ -78,18 +78,6 @@ export default function PostDetail() {
     sessionType: SessionType
     currentDates?: number[] | null
   } | null>(null)
-  const actionsDropdownRef = React.useRef<HTMLDivElement>(null)
-
-  // Close dropdown when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (actionsDropdownRef.current && !actionsDropdownRef.current.contains(event.target as Node)) {
-        setIsActionsDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   const data = useQuery(api.queries.getUserList, { chatId, postId, sessionNumber: selectedSession })
   const availableSessions = useQuery(api.queries.getAvailableSessions, { chatId, postId })
@@ -141,7 +129,6 @@ export default function PostDetail() {
       entryId,
       sessionType,
     })
-    await completeUserTurn({ entryId, sessionType })
   }
 
   const handleSkip = async (entryId: string) => {
@@ -462,13 +449,6 @@ export default function PostDetail() {
                 value={(selectedSession ?? data.currentSession).toString()}
                 onValueChange={(val) => setSelectedSession(Number(val))}
               >
-                {availableSessions.map((session: any) => (
-                  <option key={session.sessionNumber} value={session.sessionNumber}>
-                    الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
-                    {session.teacherName && ` (${session.teacherName})`}
-                  </option>
-                ))}
-              </select>
                 <SelectTrigger className="w-auto min-w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
