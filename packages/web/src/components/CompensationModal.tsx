@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { DayPicker } from 'react-day-picker'
+import { format } from 'date-fns'
+import { ar } from 'date-fns/locale'
+import 'react-day-picker/dist/style.css'
 
 interface CompensationModalProps {
   isOpen: boolean
@@ -9,15 +13,15 @@ interface CompensationModalProps {
 }
 
 export function CompensationModal({ isOpen, onClose, onSave, currentDates, userName }: CompensationModalProps) {
-  const [selectedDates, setSelectedDates] = useState<number[]>(currentDates || [])
-  const [newDateInput, setNewDateInput] = useState('')
+  const [selectedDates, setSelectedDates] = useState<Date[]>(
+    (currentDates || []).map(timestamp => new Date(timestamp))
+  )
   const [isSaving, setIsSaving] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   // Update dates when currentDates changes
   useEffect(() => {
-    setSelectedDates(currentDates || [])
+    setSelectedDates((currentDates || []).map(timestamp => new Date(timestamp)))
   }, [currentDates])
 
   // Close on escape key
@@ -29,34 +33,31 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
-  // Focus input on open
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus()
-      }, 100)
+  const handleDayClick = (day: Date) => {
+    // Normalize to start of day
+    const normalizedDay = new Date(day)
+    normalizedDay.setHours(0, 0, 0, 0)
+
+    const dateString = normalizedDay.toISOString()
+    const existingIndex = selectedDates.findIndex(
+      d => {
+        const existing = new Date(d)
+        existing.setHours(0, 0, 0, 0)
+        return existing.toISOString() === dateString
+      }
+    )
+
+    if (existingIndex >= 0) {
+      // Remove if already selected
+      setSelectedDates(selectedDates.filter((_, i) => i !== existingIndex))
+    } else {
+      // Add if not selected
+      setSelectedDates([...selectedDates, normalizedDay].sort((a, b) => a.getTime() - b.getTime()))
     }
-  }, [isOpen])
-
-  const handleAddDate = () => {
-    if (!newDateInput) return
-
-    // Convert YYYY-MM-DD to timestamp (start of day in UTC)
-    const date = new Date(newDateInput + 'T00:00:00Z')
-    const timestamp = date.getTime()
-
-    // Check if date already exists
-    if (!selectedDates.includes(timestamp)) {
-      setSelectedDates([...selectedDates, timestamp].sort((a, b) => a - b))
-    }
-
-    // Clear input
-    setNewDateInput('')
-    inputRef.current?.focus()
   }
 
-  const handleRemoveDate = (timestamp: number) => {
-    setSelectedDates(selectedDates.filter(d => d !== timestamp))
+  const handleRemoveDate = (date: Date) => {
+    setSelectedDates(selectedDates.filter(d => d.getTime() !== date.getTime()))
   }
 
   const handleSave = async () => {
@@ -67,7 +68,13 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
 
     setIsSaving(true)
     try {
-      await onSave(selectedDates)
+      // Convert dates to timestamps
+      const timestamps = selectedDates.map(date => {
+        const d = new Date(date)
+        d.setHours(0, 0, 0, 0)
+        return d.getTime()
+      })
+      await onSave(timestamps)
       onClose()
     } catch (error) {
       console.error('Error saving compensation dates:', error)
@@ -77,20 +84,8 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleAddDate()
-    }
-  }
-
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('ar-EG', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+  const formatDate = (date: Date) => {
+    return format(date, 'EEEE، d MMMM yyyy', { locale: ar })
   }
 
   if (!isOpen) return null
@@ -99,7 +94,7 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div
         ref={modalRef}
-        className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col"
+        className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         dir="rtl"
       >
         <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
@@ -115,64 +110,95 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
-          <div className="text-sm text-gray-600 dark:text-slate-400">
+        <div className="p-4 overflow-y-auto">
+          <div className="text-sm text-gray-600 dark:text-slate-400 mb-4">
             التعويض عن: <span className="font-medium text-gray-900 dark:text-white">{userName}</span>
           </div>
 
-          {/* Date input */}
-          <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="date"
-              value={newDateInput}
-              onChange={(e) => setNewDateInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isSaving}
-              className="flex-1 bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-white px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-700 focus:border-blue-500 focus:outline-none transition-colors"
-            />
-            <button
-              onClick={handleAddDate}
-              disabled={!newDateInput || isSaving}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              إضافة
-            </button>
-          </div>
-
-          {/* Selected dates list */}
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-gray-700 dark:text-slate-300">
-              التواريخ المحددة ({selectedDates.length}):
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Calendar */}
+            <div className="flex justify-center">
+              <div className="rdp-custom">
+                <style>{`
+                  .rdp-custom {
+                    --rdp-cell-size: 40px;
+                    --rdp-accent-color: #3b82f6;
+                    --rdp-background-color: #dbeafe;
+                  }
+                  .rdp-custom .rdp {
+                    margin: 0;
+                  }
+                  .rdp-custom .rdp-months {
+                    direction: ltr;
+                  }
+                  .rdp-custom .rdp-caption {
+                    direction: rtl;
+                  }
+                  .rdp-custom .rdp-day_selected {
+                    background-color: var(--rdp-accent-color);
+                    color: white;
+                  }
+                  .rdp-custom .rdp-day_selected:hover {
+                    background-color: #2563eb;
+                  }
+                  .dark .rdp-custom {
+                    --rdp-accent-color: #60a5fa;
+                    --rdp-background-color: #1e3a8a;
+                  }
+                  .dark .rdp-custom .rdp-month,
+                  .dark .rdp-custom .rdp-caption,
+                  .dark .rdp-custom .rdp-head_cell,
+                  .dark .rdp-custom .rdp-day {
+                    color: #e2e8f0;
+                  }
+                  .dark .rdp-custom .rdp-day:not(.rdp-day_selected):hover {
+                    background-color: #334155;
+                  }
+                `}</style>
+                <DayPicker
+                  mode="multiple"
+                  selected={selectedDates}
+                  onDayClick={handleDayClick}
+                  locale={ar}
+                  disabled={{ after: new Date() }}
+                />
+              </div>
             </div>
-            {selectedDates.length === 0 ? (
-              <div className="text-sm text-gray-500 dark:text-slate-500 text-center py-4 bg-gray-100 dark:bg-slate-900 rounded-lg">
-                لم يتم تحديد أي تواريخ بعد
+
+            {/* Selected dates list */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                التواريخ المحددة ({selectedDates.length}):
               </div>
-            ) : (
-              <div className="max-h-48 overflow-y-auto space-y-2">
-                {selectedDates.map((timestamp) => (
-                  <div
-                    key={timestamp}
-                    className="flex items-center justify-between bg-gray-100 dark:bg-slate-900 px-3 py-2 rounded-lg group"
-                  >
-                    <span className="text-sm text-gray-900 dark:text-white">
-                      {formatDate(timestamp)}
-                    </span>
-                    <button
-                      onClick={() => handleRemoveDate(timestamp)}
-                      disabled={isSaving}
-                      className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"
-                      title="حذف"
+              {selectedDates.length === 0 ? (
+                <div className="text-sm text-gray-500 dark:text-slate-500 text-center py-8 bg-gray-100 dark:bg-slate-900 rounded-lg">
+                  اضغط على التواريخ في التقويم لتحديدها
+                </div>
+              ) : (
+                <div className="max-h-64 overflow-y-auto space-y-2">
+                  {selectedDates.map((date) => (
+                    <div
+                      key={date.getTime()}
+                      className="flex items-center justify-between bg-gray-100 dark:bg-slate-900 px-3 py-2 rounded-lg group"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {formatDate(date)}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveDate(date)}
+                        disabled={isSaving}
+                        className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"
+                        title="حذف"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

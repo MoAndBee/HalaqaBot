@@ -7,6 +7,7 @@ import { Loader } from '~/components/Loader'
 import { UserList } from '~/components/UserList'
 import { AddUserModal } from '~/components/AddUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
+import { CompensationModal } from '~/components/CompensationModal'
 import type { SessionType } from '~/components/SplitButton'
 import toast from 'react-hot-toast'
 
@@ -56,6 +57,13 @@ export default function PostDetail() {
     currentNotes?: string | null
     userName: string
   } | null>(null)
+  const [isCompensationModalOpen, setIsCompensationModalOpen] = React.useState(false)
+  const [compensationModalState, setCompensationModalState] = React.useState<{
+    entryId: string
+    userName: string
+    sessionType: SessionType
+    currentDates?: number[] | null
+  } | null>(null)
   const actionsDropdownRef = React.useRef<HTMLDivElement>(null)
 
   // Close dropdown when clicking outside
@@ -87,6 +95,7 @@ export default function PostDetail() {
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
   const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
+  const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
 
   const handleReorder = async (entryId: string, newPosition: number) => {
@@ -103,6 +112,22 @@ export default function PostDetail() {
   }
 
   const handleComplete = async (entryId: string, sessionType: SessionType) => {
+    // If sessionType is compensation, require date selection first
+    if (sessionType === 'تعويض') {
+      const user = data?.activeUsers.find((u: User) => u.entryId === entryId)
+      if (!user) return
+
+      setCompensationModalState({
+        entryId,
+        userName: user.realName || user.telegramName,
+        sessionType,
+        currentDates: user.compensatingForDates || null,
+      })
+      setIsCompensationModalOpen(true)
+      return
+    }
+
+    // For non-compensation types, complete directly
     await completeUserTurn({
       entryId,
       sessionType,
@@ -156,6 +181,50 @@ export default function PostDetail() {
       toast.error('فشل حفظ الملاحظات')
       throw error
     }
+  }
+
+  const handleSaveCompensation = async (dates: number[]) => {
+    if (!compensationModalState) return
+
+    try {
+      // If sessionType is defined, this is a completion flow
+      if (compensationModalState.sessionType) {
+        // Complete the turn with compensation dates
+        await completeUserTurn({
+          entryId: compensationModalState.entryId,
+          sessionType: compensationModalState.sessionType,
+          compensatingForDates: dates,
+        })
+        toast.success('تم إتمام الدور بنجاح!')
+      } else {
+        // This is setting compensation before taking the turn
+        await setTurnQueueCompensation({
+          entryId: compensationModalState.entryId as any, // entryId is already a convex ID
+          isCompensation: true,
+          compensatingForDates: dates,
+        })
+        toast.success('تم تحديد تواريخ التعويض!')
+      }
+      setIsCompensationModalOpen(false)
+      setCompensationModalState(null)
+    } catch (error) {
+      console.error('Failed to save compensation:', error)
+      toast.error('فشل حفظ التعويض')
+      throw error
+    }
+  }
+
+  const handleSetCompensationDates = (entryId: string, currentDates?: number[] | null) => {
+    const user = data?.activeUsers.find((u: User) => u.entryId === entryId)
+    if (!user) return
+
+    setCompensationModalState({
+      entryId,
+      userName: user.realName || user.telegramName,
+      sessionType: null as any, // null indicates this is not a completion flow
+      currentDates,
+    })
+    setIsCompensationModalOpen(true)
   }
 
   const handleAddTurnAfter3 = async (userId: number, currentPosition: number | undefined) => {
@@ -418,7 +487,7 @@ export default function PostDetail() {
                 onChange={(e) => setSelectedSession(Number(e.target.value))}
                 className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-gray-300 dark:border-slate-600 focus:border-blue-500 focus:outline-none text-sm h-[34px] sm:h-[42px]"
               >
-                {availableSessions.map((session) => (
+                {availableSessions.map((session: any) => (
                   <option key={session.sessionNumber} value={session.sessionNumber}>
                     الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
                     {session.teacherName && ` (${session.teacherName})`}
@@ -571,6 +640,7 @@ export default function PostDetail() {
           onUpdateDisplayName={handleUpdateDisplayName}
           onAddTurnAfter3={handleAddTurnAfter3}
           onEditNotes={handleOpenEditNotes}
+          onSetCompensation={handleSetCompensationDates}
         />
       </div>
 
@@ -586,6 +656,17 @@ export default function PostDetail() {
         onSave={handleSaveNotes}
         currentNotes={notesModalState?.currentNotes}
         userName={notesModalState?.userName || ''}
+      />
+
+      <CompensationModal
+        isOpen={isCompensationModalOpen}
+        onClose={() => {
+          setIsCompensationModalOpen(false)
+          setCompensationModalState(null)
+        }}
+        onSave={handleSaveCompensation}
+        currentDates={compensationModalState?.currentDates}
+        userName={compensationModalState?.userName || ''}
       />
     </div>
   )

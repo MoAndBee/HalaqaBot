@@ -14,10 +14,11 @@ interface DraggableUserProps {
   onMoveToEnd?: (entryId: string) => void
   onMoveToPosition?: (entryId: string, position: number) => void
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
+  onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
   totalUsers?: number
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, totalUsers }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
@@ -134,6 +135,13 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     setIsDropdownOpen(false)
   }
 
+  const handleSetCompensation = () => {
+    if (onSetCompensation && user.entryId) {
+      onSetCompensation(user.entryId, user.compensatingForDates)
+    }
+    setIsDropdownOpen(false)
+  }
+
   const handleEditTypeClick = () => {
     setSelectedType((user.sessionType as SessionType) || null)
     setIsEditingType(true)
@@ -216,6 +224,22 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                         strokeLinejoin="round"
                         strokeWidth={2}
                         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                  </button>
+                )}
+                {onSetCompensation && (
+                  <button
+                    onClick={handleSetCompensation}
+                    className="w-full px-4 py-2 text-right text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 justify-end"
+                  >
+                    <span>تحديد تعويض</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                       />
                     </svg>
                   </button>
@@ -373,6 +397,18 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               {user.notes && (
                 <div className="mt-1 text-gray-500 dark:text-slate-500 text-xs sm:text-sm italic">
                   {user.notes}
+                </div>
+              )}
+              {user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0 && (
+                <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400 border border-purple-300 dark:border-purple-700/50 font-medium">
+                    🔄 تعويض
+                  </span>
+                  <span className="text-gray-600 dark:text-slate-400">
+                    {user.compensatingForDates.map(timestamp =>
+                      new Date(timestamp).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })
+                    ).join('، ')}
+                  </span>
                 </div>
               )}
             </>
