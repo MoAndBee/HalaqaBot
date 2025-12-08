@@ -122,6 +122,8 @@ export const getUserList = query({
           carriedOver: entry.carriedOver,
           sessionType: undefined, // Not set until completion
           notes: null,
+          isCompensation: entry.isCompensation,
+          compensatingForDates: entry.compensatingForDates,
         };
       })
     );
@@ -151,6 +153,8 @@ export const getUserList = query({
           completedAt: entry.completedAt,
           sessionType: entry.sessionType,
           notes: entry.notes || null,
+          isCompensation: entry.isCompensation,
+          compensatingForDates: entry.compensatingForDates,
         };
       })
     );

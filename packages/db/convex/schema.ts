@@ -50,6 +50,8 @@ export default defineSchema({
     channelId: v.optional(v.number()),
     createdAt: v.number(), // timestamp in ms
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous session
+    isCompensation: v.optional(v.boolean()), // true if this turn is for compensation
+    compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
   })
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
     .index("by_chat_post_position", ["chatId", "postId", "position"])
@@ -69,6 +71,8 @@ export default defineSchema({
     completedAt: v.number(), // timestamp in ms when turn was completed
     originalPosition: v.optional(v.number()), // position in queue when they joined
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous session
+    isCompensation: v.optional(v.boolean()), // true if this participation is for compensation
+    compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
   })
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
     .index("by_chat_post", ["chatId", "postId"])

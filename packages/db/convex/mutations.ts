@@ -127,6 +127,8 @@ export const addUserToList = mutation({
     channelId: v.optional(v.number()),
     sessionNumber: v.optional(v.number()), // if not provided, use latest session
     sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
+    isCompensation: v.optional(v.boolean()), // true if this is a compensation turn
+    compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
   },
   handler: async (ctx, args) => {
     // Determine the session number to use
@@ -179,6 +181,8 @@ export const addUserToList = mutation({
       channelId: args.channelId,
       createdAt: Date.now(),
       carriedOver: false, // This is a new addition, not carried over
+      isCompensation: args.isCompensation,
+      compensatingForDates: args.compensatingForDates,
     });
 
     // Ensure the session exists in the sessions table
@@ -212,7 +216,9 @@ export const addUserAtPosition = mutation({
     turnsToWait: v.number(), // How many turns to wait (e.g., 3 means skip 3 users)
     channelId: v.optional(v.number()),
     sessionNumber: v.optional(v.number()),
-    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", or "اختبار"
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
+    isCompensation: v.optional(v.boolean()),
+    compensatingForDates: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     // Determine the session number
@@ -291,6 +297,8 @@ export const addUserAtPosition = mutation({
       channelId: args.channelId,
       createdAt: Date.now(),
       carriedOver: false,
+      isCompensation: args.isCompensation,
+      compensatingForDates: args.compensatingForDates,
     });
 
     // Get the newly inserted entry
@@ -587,6 +595,8 @@ export const completeUserTurn = mutation({
   args: {
     entryId: v.id("turnQueue"),
     sessionType: v.string(), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
+    isCompensation: v.optional(v.boolean()), // Override/set compensation at completion
+    compensatingForDates: v.optional(v.array(v.number())), // Override/set dates at completion
   },
   handler: async (ctx, args) => {
     // Get the entry from turnQueue
@@ -597,6 +607,20 @@ export const completeUserTurn = mutation({
     }
 
     const sessionNumber = entry.sessionNumber;
+
+    // Determine final compensation status and dates
+    // Priority: explicit args > entry values
+    const isCompensation = args.isCompensation !== undefined
+      ? args.isCompensation
+      : entry.isCompensation || false;
+    const compensatingForDates = args.compensatingForDates !== undefined
+      ? args.compensatingForDates
+      : entry.compensatingForDates;
+
+    // Validation: If marked as compensation (either sessionType or isCompensation), must have dates
+    if ((args.sessionType === "تعويض" || isCompensation) && (!compensatingForDates || compensatingForDates.length === 0)) {
+      throw new Error("Compensation participations must have at least one date selected");
+    }
 
     // Remove from turnQueue
     await ctx.db.delete(args.entryId);
@@ -614,6 +638,8 @@ export const completeUserTurn = mutation({
       completedAt: Date.now(),
       originalPosition: entry.position,
       carriedOver: entry.carriedOver,
+      isCompensation,
+      compensatingForDates,
     });
 
     // Resequence remaining active users to close the gap
@@ -765,6 +791,60 @@ export const updateUserNotes = mutation({
     // Update notes (trim and set to undefined if empty)
     await ctx.db.patch(args.entryId, {
       notes: args.notes.trim() || undefined,
+    });
+  },
+});
+
+export const setTurnQueueCompensation = mutation({
+  args: {
+    entryId: v.id("turnQueue"),
+    isCompensation: v.boolean(),
+    compensatingForDates: v.array(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Get the entry from turnQueue
+    const entry = await ctx.db.get(args.entryId);
+
+    if (!entry) {
+      throw new Error(`Entry not found in turn queue`);
+    }
+
+    // Validation: if setting compensation, must have dates
+    if (args.isCompensation && args.compensatingForDates.length === 0) {
+      throw new Error("Compensation must have at least one date selected");
+    }
+
+    // Update compensation fields
+    await ctx.db.patch(args.entryId, {
+      isCompensation: args.isCompensation,
+      compensatingForDates: args.isCompensation ? args.compensatingForDates : undefined,
+    });
+  },
+});
+
+export const updateParticipationCompensation = mutation({
+  args: {
+    entryId: v.id("participationHistory"),
+    isCompensation: v.boolean(),
+    compensatingForDates: v.array(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Get the entry from participationHistory
+    const entry = await ctx.db.get(args.entryId);
+
+    if (!entry) {
+      throw new Error(`Entry not found in participation history`);
+    }
+
+    // Validation: if setting compensation, must have dates
+    if (args.isCompensation && args.compensatingForDates.length === 0) {
+      throw new Error("Compensation must have at least one date selected");
+    }
+
+    // Update compensation fields
+    await ctx.db.patch(args.entryId, {
+      isCompensation: args.isCompensation,
+      compensatingForDates: args.isCompensation ? args.compensatingForDates : undefined,
     });
   },
 });
