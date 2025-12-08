@@ -87,69 +87,79 @@ export const getUserList = query({
       }
     }
 
-    const userListEntries = await ctx.db
-      .query("userLists")
+    // Query active users from turnQueue
+    const queueEntries = await ctx.db
+      .query("turnQueue")
       .withIndex("by_chat_post_session", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
-    // Sort by position only
-    userListEntries.sort((a, b) => a.position - b.position);
+    // Query completed users from participationHistory
+    const completedEntries = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+      )
+      .collect();
 
-    // Join with users table to get name information
-    const usersWithData = await Promise.all(
-      userListEntries.map(async (entry) => {
+    // Join active users with users table
+    const activeUsers = await Promise.all(
+      queueEntries.map(async (entry) => {
         const user = await ctx.db
           .query("users")
           .withIndex("by_user_id", (q) => q.eq("userId", entry.userId))
           .first();
 
         return {
-          entry,
-          userData: user || null,
+          entryId: entry._id,
+          id: entry.userId,
+          telegramName: user?.telegramName || "",
+          realName: user?.realName || null,
+          username: user?.username || null,
+          position: entry.position,
+          createdAt: entry.createdAt,
+          carriedOver: entry.carriedOver,
+          sessionType: undefined, // Not set until completion
+          notes: null,
         };
       })
     );
 
-    // Separate active and completed users
-    const activeUsers = usersWithData
-      .filter(({ entry }) => !entry.completedAt)
-      .map(({ entry, userData }) => ({
-        entryId: entry._id,
-        id: entry.userId,
-        telegramName: userData?.telegramName || "",
-        realName: userData?.realName || null,
-        username: userData?.username || null,
-        position: entry.position,
-        createdAt: entry.createdAt,
-        carriedOver: entry.carriedOver,
-        sessionType: entry.sessionType,
-        notes: entry.notes || null,
-      }))
-      .sort((a, b) => {
-        if (a.position !== b.position) return a.position - b.position;
-        return a.createdAt - b.createdAt;
-      });
+    // Sort active users by position
+    activeUsers.sort((a, b) => {
+      if (a.position !== b.position) return a.position - b.position;
+      return a.createdAt - b.createdAt;
+    });
 
-    const completedUsers = usersWithData
-      .filter(({ entry }) => entry.completedAt)
-      .map(({ entry, userData }) => ({
-        entryId: entry._id,
-        id: entry.userId,
-        telegramName: userData?.telegramName || "",
-        realName: userData?.realName || null,
-        username: userData?.username || null,
-        position: entry.position,
-        createdAt: entry.createdAt,
-        completedAt: entry.completedAt,
-        sessionType: entry.sessionType,
-        notes: entry.notes || null,
-      }))
-      .sort((a, b) => {
-        if (a.position !== b.position) return a.position - b.position;
-        return a.createdAt - b.createdAt;
-      });
+    // Join completed users with users table
+    const completedUsers = await Promise.all(
+      completedEntries.map(async (entry) => {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", entry.userId))
+          .first();
+
+        return {
+          entryId: entry._id,
+          id: entry.userId,
+          telegramName: user?.telegramName || "",
+          realName: user?.realName || null,
+          username: user?.username || null,
+          position: entry.originalPosition,
+          createdAt: entry.createdAt,
+          completedAt: entry.completedAt,
+          sessionType: entry.sessionType,
+          notes: entry.notes || null,
+        };
+      })
+    );
+
+    // Sort completed users by completion time
+    completedUsers.sort((a, b) => {
+      if (a.completedAt !== b.completedAt) return a.completedAt - b.completedAt;
+      return a.createdAt - b.createdAt;
+    });
 
     return {
       activeUsers,
@@ -340,15 +350,25 @@ export const getUnclassifiedMessages = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
-    // Get all users in the list
-    const userListUsers = await ctx.db
-      .query("userLists")
+    // Get all users in the list (from both turnQueue and participationHistory)
+    const queueUsers = await ctx.db
+      .query("turnQueue")
       .withIndex("by_chat_post", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId)
       )
       .collect();
 
-    const excludedUserIds = new Set(userListUsers.map((u) => u.userId));
+    const completedUsers = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    const excludedUserIds = new Set([
+      ...queueUsers.map((u) => u.userId),
+      ...completedUsers.map((u) => u.userId),
+    ]);
 
     // Get all classified messages
     const classifications = await ctx.db
@@ -400,7 +420,11 @@ export const getUnclassifiedMessages = query({
 export const getAllPosts = query({
   args: {},
   handler: async (ctx) => {
-    const allUsers = await ctx.db.query("userLists").collect();
+    // Get users from both turnQueue and participationHistory
+    const queueUsers = await ctx.db.query("turnQueue").collect();
+    const completedUsers = await ctx.db.query("participationHistory").collect();
+    const allUsers = [...queueUsers, ...completedUsers];
+
     const allMessages = await ctx.db.query("messageAuthors").collect();
 
     // Create a map of post keys to earliest message timestamp
@@ -444,8 +468,16 @@ export const getPostDetails = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
-    const users = await ctx.db
-      .query("userLists")
+    // Get users from both turnQueue and participationHistory
+    const queueUsers = await ctx.db
+      .query("turnQueue")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    const completedUsers = await ctx.db
+      .query("participationHistory")
       .withIndex("by_chat_post", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId)
       )
@@ -467,7 +499,7 @@ export const getPostDetails = query({
       .first();
 
     return {
-      userCount: users.length,
+      userCount: queueUsers.length + completedUsers.length,
       messageCount: messages.length,
       createdAt: firstMessage?.createdAt ?? Date.now(),
     };
@@ -666,20 +698,29 @@ export const getParticipationSummary = query({
 
     const sessionsCount = sessions.length;
 
-    // Get all user list entries for this post (all sessions)
-    const allEntries = await ctx.db
-      .query("userLists")
+    // Get all users from both tables
+    const queueUsers = await ctx.db
+      .query("turnQueue")
       .withIndex("by_chat_post", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId)
       )
       .collect();
 
-    // Calculate unique attendance (unique user IDs)
-    const uniqueUserIds = new Set(allEntries.map((entry) => entry.userId));
-    const totalAttendance = uniqueUserIds.size;
+    const completedEntries = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
 
-    // Get completed participations only
-    const completedEntries = allEntries.filter((entry) => entry.completedAt);
+    // Calculate unique attendance (unique user IDs from both tables)
+    const allUserIds = new Set([
+      ...queueUsers.map((entry) => entry.userId),
+      ...completedEntries.map((entry) => entry.userId),
+    ]);
+    const totalAttendance = allUserIds.size;
+
+    // Completed participations
     const totalParticipations = completedEntries.length;
 
     // Calculate participation rate

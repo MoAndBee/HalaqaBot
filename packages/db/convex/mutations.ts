@@ -13,18 +13,16 @@ async function resequenceActiveUsers(
   postId: number,
   sessionNumber: number
 ): Promise<void> {
-  // Get all users in this session
-  const allUsers = await ctx.db
-    .query("userLists")
+  // Get all users in the turn queue for this session
+  const activeUsers = await ctx.db
+    .query("turnQueue")
     .withIndex("by_chat_post_session", (q) =>
       q.eq("chatId", chatId).eq("postId", postId).eq("sessionNumber", sessionNumber)
     )
     .collect();
 
-  // Filter only active users and sort by position
-  const activeUsers = allUsers
-    .filter(u => !u.completedAt)
-    .sort((a, b) => a.position - b.position);
+  // Sort by position
+  activeUsers.sort((a, b) => a.position - b.position);
 
   // Resequence positions to be [1, 2, 3, 4...]
   for (let i = 0; i < activeUsers.length; i++) {
@@ -128,7 +126,7 @@ export const addUserToList = mutation({
     userId: v.number(),
     channelId: v.optional(v.number()),
     sessionNumber: v.optional(v.number()), // if not provided, use latest session
-    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", or "اختبار"
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
   },
   handler: async (ctx, args) => {
     // Determine the session number to use
@@ -158,9 +156,9 @@ export const addUserToList = mutation({
       }
     }
 
-    // Get current users in this post
-    const allUsers = await ctx.db
-      .query("userLists")
+    // Get current users in turnQueue for this post to calculate max position
+    const queueUsers = await ctx.db
+      .query("turnQueue")
       .withIndex("by_chat_post", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId)
       )
@@ -168,20 +166,19 @@ export const addUserToList = mutation({
 
     // Always insert the user (allow duplicates)
     const maxPosition =
-      allUsers.length > 0
-        ? Math.max(...allUsers.map((u) => u.position))
+      queueUsers.length > 0
+        ? Math.max(...queueUsers.map((u) => u.position))
         : 0;
 
-    await ctx.db.insert("userLists", {
+    await ctx.db.insert("turnQueue", {
       chatId: args.chatId,
       postId: args.postId,
+      sessionNumber,
       userId: args.userId,
       position: maxPosition + 1,
       channelId: args.channelId,
       createdAt: Date.now(),
       carriedOver: false, // This is a new addition, not carried over
-      sessionNumber,
-      sessionType: args.sessionType,
     });
 
     // Ensure the session exists in the sessions table
@@ -244,18 +241,16 @@ export const addUserAtPosition = mutation({
       }
     }
 
-    // Get all users in this session
-    const allUsers = await ctx.db
-      .query("userLists")
+    // Get all active users in the turn queue for this session
+    const activeUsers = await ctx.db
+      .query("turnQueue")
       .withIndex("by_chat_post_session", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
-    // Get only active users, sorted by position
-    const activeUsers = allUsers
-      .filter(u => !u.completedAt)
-      .sort((a, b) => a.position - b.position);
+    // Sort by position
+    activeUsers.sort((a, b) => a.position - b.position);
 
     if (activeUsers.length === 0) {
       throw new Error("No active users in session");
@@ -286,17 +281,16 @@ export const addUserAtPosition = mutation({
       ? Math.max(...activeUsers.map(u => u.position)) + 1
       : 1;
 
-    // Insert the new user with a temporary position
-    const newEntry = await ctx.db.insert("userLists", {
+    // Insert the new user with a temporary position into turnQueue
+    const newEntry = await ctx.db.insert("turnQueue", {
       chatId: args.chatId,
       postId: args.postId,
+      sessionNumber,
       userId: args.userId,
       position: tempPosition,
       channelId: args.channelId,
       createdAt: Date.now(),
       carriedOver: false,
-      sessionNumber,
-      sessionType: args.sessionType,
     });
 
     // Get the newly inserted entry
@@ -323,14 +317,27 @@ export const clearUserList = mutation({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
-    const users = await ctx.db
-      .query("userLists")
+    // Delete from turnQueue
+    const queueUsers = await ctx.db
+      .query("turnQueue")
       .withIndex("by_chat_post", (q) =>
         q.eq("chatId", args.chatId).eq("postId", args.postId)
       )
       .collect();
 
-    for (const user of users) {
+    for (const user of queueUsers) {
+      await ctx.db.delete(user._id);
+    }
+
+    // Delete from participationHistory
+    const completedUsers = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    for (const user of completedUsers) {
       await ctx.db.delete(user._id);
     }
   },
@@ -496,35 +503,29 @@ export const storeClassification = mutation({
 
 export const updateUserPosition = mutation({
   args: {
-    entryId: v.id("userLists"),
+    entryId: v.id("turnQueue"),
     newPosition: v.number(),
   },
   handler: async (ctx, args) => {
-    // Get the entry
+    // Get the entry from turnQueue
     const currentEntry = await ctx.db.get(args.entryId);
 
     if (!currentEntry) {
       throw new Error(`Entry not found`);
     }
 
-    if (currentEntry.completedAt) {
-      throw new Error("Cannot reorder completed users");
-    }
+    const sessionNumber = currentEntry.sessionNumber;
 
-    const sessionNumber = currentEntry.sessionNumber ?? 1;
-
-    // Get all users in this session
-    const allUsers = await ctx.db
-      .query("userLists")
+    // Get all active users in the turn queue for this session
+    const activeUsers = await ctx.db
+      .query("turnQueue")
       .withIndex("by_chat_post_session", (q) =>
         q.eq("chatId", currentEntry.chatId).eq("postId", currentEntry.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
-    // Get only active users, sorted by position
-    const activeUsers = allUsers
-      .filter(u => !u.completedAt)
-      .sort((a, b) => a.position - b.position);
+    // Sort by position
+    activeUsers.sort((a, b) => a.position - b.position);
 
     // Find the current index in the active users array (0-indexed)
     const oldIndex = activeUsers.findIndex(u => u._id === args.entryId);
@@ -557,17 +558,17 @@ export const updateUserPosition = mutation({
 
 export const removeUserFromList = mutation({
   args: {
-    entryId: v.id("userLists"),
+    entryId: v.id("turnQueue"),
   },
   handler: async (ctx, args) => {
-    // Get the entry to remove
+    // Get the entry to remove from turnQueue
     const entryToRemove = await ctx.db.get(args.entryId);
 
     if (!entryToRemove) {
       throw new Error(`Entry not found`);
     }
 
-    const sessionNumber = entryToRemove.sessionNumber ?? 1;
+    const sessionNumber = entryToRemove.sessionNumber;
 
     // Delete the entry
     await ctx.db.delete(args.entryId);
@@ -584,23 +585,35 @@ export const removeUserFromList = mutation({
 
 export const completeUserTurn = mutation({
   args: {
-    entryId: v.id("userLists"),
-    sessionType: v.string(), // "تلاوة" or "تسميع"
+    entryId: v.id("turnQueue"),
+    sessionType: v.string(), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
   },
   handler: async (ctx, args) => {
-    // Get the entry
+    // Get the entry from turnQueue
     const entry = await ctx.db.get(args.entryId);
 
     if (!entry) {
       throw new Error(`Entry not found`);
     }
 
-    const sessionNumber = entry.sessionNumber ?? 1;
+    const sessionNumber = entry.sessionNumber;
 
-    // Mark as completed
-    await ctx.db.patch(args.entryId, {
-      completedAt: Date.now(),
+    // Remove from turnQueue
+    await ctx.db.delete(args.entryId);
+
+    // Add to participationHistory
+    await ctx.db.insert("participationHistory", {
+      chatId: entry.chatId,
+      postId: entry.postId,
+      sessionNumber,
+      userId: entry.userId,
       sessionType: args.sessionType,
+      notes: undefined,
+      channelId: entry.channelId,
+      createdAt: entry.createdAt,
+      completedAt: Date.now(),
+      originalPosition: entry.position,
+      carriedOver: entry.carriedOver,
     });
 
     // Resequence remaining active users to close the gap
@@ -615,29 +628,28 @@ export const completeUserTurn = mutation({
 
 export const skipUserTurn = mutation({
   args: {
-    entryId: v.id("userLists"),
+    entryId: v.id("turnQueue"),
   },
   handler: async (ctx, args) => {
-    // Get the entry
+    // Get the entry from turnQueue
     const currentEntry = await ctx.db.get(args.entryId);
 
     if (!currentEntry) {
       throw new Error(`Entry not found`);
     }
 
-    const sessionNumber = currentEntry.sessionNumber ?? 1;
+    const sessionNumber = currentEntry.sessionNumber;
 
-    // Get all users in this session
-    const allUsers = await ctx.db
-      .query("userLists")
+    // Get all active users in the turn queue for this session
+    const activeUsers = await ctx.db
+      .query("turnQueue")
       .withIndex("by_chat_post_session", (q) =>
         q.eq("chatId", currentEntry.chatId).eq("postId", currentEntry.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
-    const activeUsers = allUsers
-      .filter((u) => !u.completedAt)
-      .sort((a, b) => a.position - b.position);
+    // Sort by position
+    activeUsers.sort((a, b) => a.position - b.position);
 
     if (activeUsers.length < 2) {
       throw new Error("Cannot skip turn - not enough active users");
@@ -666,18 +678,18 @@ export const skipUserTurn = mutation({
 
 export const updateSessionType = mutation({
   args: {
-    entryId: v.id("userLists"),
-    sessionType: v.string(), // "تلاوة" or "تسميع"
+    entryId: v.id("participationHistory"),
+    sessionType: v.string(), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
   },
   handler: async (ctx, args) => {
-    // Get the entry
+    // Get the entry from participationHistory
     const entry = await ctx.db.get(args.entryId);
 
     if (!entry) {
       throw new Error(`Entry not found`);
     }
 
-    // Update session type (works for both active and completed users)
+    // Update session type
     await ctx.db.patch(args.entryId, {
       sessionType: args.sessionType,
     });
@@ -739,11 +751,11 @@ export const updateUserTelegramName = mutation({
 
 export const updateUserNotes = mutation({
   args: {
-    entryId: v.id("userLists"),
+    entryId: v.id("participationHistory"),
     notes: v.string(),
   },
   handler: async (ctx, args) => {
-    // Get the entry
+    // Get the entry from participationHistory
     const entry = await ctx.db.get(args.entryId);
 
     if (!entry) {
@@ -820,14 +832,6 @@ export const startNewSession = mutation({
 
     const newSessionNumber = currentMaxSession + 1;
 
-    // Also get userLists entries for carryover functionality
-    const allEntries = await ctx.db
-      .query("userLists")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
-      )
-      .collect();
-
     // Store session metadata with teacher name
     await ctx.db.insert("sessions", {
       chatId: args.chatId,
@@ -837,27 +841,30 @@ export const startNewSession = mutation({
       createdAt: Date.now(),
     });
 
-    // If carryOverIncomplete is true, copy incomplete users from previous session
+    // If carryOverIncomplete is true, copy incomplete users from previous session turnQueue
     if (args.carryOverIncomplete) {
-      const previousSessionEntries = allEntries.filter(
-        e => (e.sessionNumber ?? 1) === currentMaxSession && !e.completedAt
-      );
+      const previousQueueEntries = await ctx.db
+        .query("turnQueue")
+        .withIndex("by_chat_post_session", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", currentMaxSession)
+        )
+        .collect();
 
       // Sort by position
-      previousSessionEntries.sort((a, b) => a.position - b.position);
+      previousQueueEntries.sort((a, b) => a.position - b.position);
 
-      // Copy to new session
-      for (let i = 0; i < previousSessionEntries.length; i++) {
-        const entry = previousSessionEntries[i];
-        await ctx.db.insert("userLists", {
+      // Copy to new session in turnQueue
+      for (let i = 0; i < previousQueueEntries.length; i++) {
+        const entry = previousQueueEntries[i];
+        await ctx.db.insert("turnQueue", {
           chatId: args.chatId,
           postId: args.postId,
+          sessionNumber: newSessionNumber,
           userId: entry.userId,
           position: i + 1,
           channelId: entry.channelId,
           createdAt: Date.now(),
           carriedOver: true,
-          sessionNumber: newSessionNumber,
         });
       }
     }
