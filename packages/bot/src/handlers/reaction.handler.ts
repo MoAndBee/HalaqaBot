@@ -150,6 +150,12 @@ export function registerReactionHandler(
           realName = classification.detectedNames.join(' ');
         }
 
+        // Only register the student if a name was detected
+        if (!classification?.containsName || !realName) {
+          console.log(`⚠️  Message does not contain a student name, ignoring reaction`);
+          return;
+        }
+
         // Extract activity type from this message
         let activityType = classification?.activityType;
 
