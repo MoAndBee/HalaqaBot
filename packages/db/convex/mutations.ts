@@ -858,6 +858,7 @@ export const startNewSession = mutation({
           createdAt: Date.now(),
           carriedOver: true,
           sessionNumber: newSessionNumber,
+          sessionType: entry.sessionType,
         });
       }
     }
