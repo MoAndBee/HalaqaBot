@@ -181,6 +181,7 @@ export default function PostDetail() {
         await completeUserTurn({
           entryId: compensationModalState.entryId,
           sessionType: compensationModalState.sessionType,
+          isCompensation: true,
           compensatingForDates: dates,
         })
         toast.success('تم إتمام الدور بنجاح!')
