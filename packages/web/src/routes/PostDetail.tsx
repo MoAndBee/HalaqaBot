@@ -109,15 +109,20 @@ export default function PostDetail() {
   }
 
   const handleComplete = async (entryId: string, sessionType: SessionType) => {
-    // If sessionType is compensation, require date selection first
-    if (sessionType === 'تعويض') {
-      const user = data?.activeUsers.find((u: User) => u.entryId === entryId)
-      if (!user) return
+    const user = data?.activeUsers.find((u: User) => u.entryId === entryId)
+    if (!user) return
 
+    // If user has compensation dates set, always use 'تعويض' as session type
+    const finalSessionType = (user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
+      ? 'تعويض'
+      : sessionType
+
+    // If sessionType is compensation, require date selection first (if not already set)
+    if (finalSessionType === 'تعويض') {
       setCompensationModalState({
         entryId,
         userName: user.realName || user.telegramName,
-        sessionType,
+        sessionType: finalSessionType,
         currentDates: user.compensatingForDates || null,
       })
       setIsCompensationModalOpen(true)
@@ -127,7 +132,7 @@ export default function PostDetail() {
     // For non-compensation types, complete directly
     await completeUserTurn({
       entryId,
-      sessionType,
+      sessionType: finalSessionType,
     })
   }
 
