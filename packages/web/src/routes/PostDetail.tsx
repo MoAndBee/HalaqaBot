@@ -156,7 +156,7 @@ export default function PostDetail() {
       setCompensationModalState({
         entryId,
         userName: user.realName || user.telegramName,
-        sessionType,
+        sessionType: null as any, // null indicates this is not a completion flow
         currentDates: user.compensatingForDates || null,
       })
       setIsCompensationModalOpen(true)
