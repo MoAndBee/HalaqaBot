@@ -112,7 +112,7 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
 
         <div className="p-4 overflow-y-auto">
           <div className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-            التعويض عن: <span className="font-medium text-gray-900 dark:text-white">{userName}</span>
+            الاسم: <span className="font-medium text-gray-900 dark:text-white">{userName}</span>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
