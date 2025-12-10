@@ -189,12 +189,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   تعديل الاسم
                 </DropdownMenuItem>
               )}
-              {onEditNotes && (
+              {/* {onEditNotes && (
                 <DropdownMenuItem onClick={handleEditNotes}>
                   <StickyNote className="h-4 w-4 ml-2" />
                   إضافة ملاحظات
                 </DropdownMenuItem>
-              )}
+              )} */}
               {onUpdateSessionType && (
                 <DropdownMenuItem onClick={handleEditTypeClick}>
                   <Tag className="h-4 w-4 ml-2" />
