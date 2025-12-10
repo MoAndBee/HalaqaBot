@@ -169,6 +169,7 @@ function CompletedUserCard({
                 <Tag className="h-4 w-4 ml-2" />
                 تعديل المشاركة
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {onAddTurnAfter3 && (
                 <DropdownMenuItem onClick={handleAddTurnAfter3}>
                   <Plus className="h-4 w-4 ml-2" />

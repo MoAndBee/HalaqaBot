@@ -201,6 +201,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   تعديل المشاركة
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSeparator />
               {onAddTurnAfter3 && (
                 <DropdownMenuItem onClick={handleAddTurnAfter3}>
                   <Plus className="h-4 w-4 ml-2" />
