@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
-import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUpDown, Trash2, Check, X } from 'lucide-react'
+import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUpDown, Trash2, Check, X, Calendar } from 'lucide-react'
 import type { User } from '@halakabot/db'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,12 +33,13 @@ interface DraggableUserProps {
   onMoveToEnd?: (entryId: string) => void
   onMoveToPosition?: (entryId: string, position: number) => void
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
+  onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
   totalUsers?: number
 }
 
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم']
+const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, totalUsers }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
@@ -126,15 +127,28 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     }
   }
 
+  const handleSetCompensation = () => {
+    if (onSetCompensation && user.entryId) {
+      onSetCompensation(user.entryId, user.compensatingForDates)
+    }
+  }
+
   const handleEditTypeClick = () => {
     setSelectedType((user.sessionType as SessionType) || null)
     setIsEditingType(true)
   }
 
   const handleConfirmType = () => {
-    if (selectedType && user.entryId && onUpdateSessionType) {
-      onUpdateSessionType(user.entryId, selectedType)
-      setIsEditingType(false)
+    if (selectedType && user.entryId) {
+      // If compensation is selected, open the compensation modal
+      if (selectedType === 'تعويض' && onSetCompensation) {
+        setIsEditingType(false)
+        onSetCompensation(user.entryId, user.compensatingForDates)
+      } else if (onUpdateSessionType) {
+        // For other session types, update normally
+        onUpdateSessionType(user.entryId, selectedType)
+        setIsEditingType(false)
+      }
     }
   }
 
@@ -175,28 +189,23 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   تعديل الاسم
                 </DropdownMenuItem>
               )}
-              {onEditNotes && (
-                <DropdownMenuItem onClick={handleEditNotes}>
-                  <StickyNote className="h-4 w-4 ml-2" />
-                  إضافة ملاحظات
-                </DropdownMenuItem>
-              )}
               {onUpdateSessionType && (
                 <DropdownMenuItem onClick={handleEditTypeClick}>
                   <Tag className="h-4 w-4 ml-2" />
                   تعديل المشاركة
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSeparator />
+              {/* {onEditNotes && (
+                <DropdownMenuItem onClick={handleEditNotes}>
+                  <StickyNote className="h-4 w-4 ml-2" />
+                  إضافة ملاحظات
+                </DropdownMenuItem>
+              )} */}
               {onAddTurnAfter3 && (
                 <DropdownMenuItem onClick={handleAddTurnAfter3}>
                   <Plus className="h-4 w-4 ml-2" />
                   إضافة دور بعد ٣
-                </DropdownMenuItem>
-              )}
-              {onMoveToEnd && (
-                <DropdownMenuItem onClick={handleMoveToEnd}>
-                  <ArrowDown className="h-4 w-4 ml-2" />
-                  نقل إلى آخر القائمة
                 </DropdownMenuItem>
               )}
               {onMoveToPosition && (
@@ -205,23 +214,29 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   نقل إلى دور معين
                 </DropdownMenuItem>
               )}
+              {onMoveToEnd && (
+                <DropdownMenuItem onClick={handleMoveToEnd}>
+                  <ArrowDown className="h-4 w-4 ml-2" />
+                  نقل إلى آخر القائمة
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleDeleteClick} className="text-destructive focus:text-destructive">
-                <Trash2 className="h-4 w-4 ml-2" />
+                <Trash2 className="h-4 w-4" />
                 حذف
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
 
-        <button
+        {/* <button
           {...attributes}
           {...listeners}
           className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors p-2 -m-2 touch-manipulation"
           aria-label="اسحب لإعادة الترتيب"
         >
           <GripVertical className="h-5 w-5" />
-        </button>
+        </button> */}
 
         <div className={cn(
           "font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0",
@@ -270,6 +285,13 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   {user.notes}
                 </div>
               )}
+              {user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0 && (
+                <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                  تعويض عن: {user.compensatingForDates.map(timestamp =>
+                    new Date(timestamp).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })
+                  ).join('، ')}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -296,8 +318,14 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 </Button>
               </div>
             ) : (
-              <Badge variant={user.sessionType ? "default" : "secondary"} className="text-xs">
-                {user.sessionType || 'غير محدد'}
+              <Badge variant={
+                (user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0) || user.sessionType
+                  ? "default"
+                  : "secondary"
+              } className="text-xs">
+                {(user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
+                  ? 'تعويض'
+                  : (user.sessionType || 'غير محدد')}
               </Badge>
             )}
           </div>
