@@ -37,7 +37,7 @@ interface DraggableUserProps {
   totalUsers?: number
 }
 
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم']
+const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
 
 export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
@@ -139,9 +139,16 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
   }
 
   const handleConfirmType = () => {
-    if (selectedType && user.entryId && onUpdateSessionType) {
-      onUpdateSessionType(user.entryId, selectedType)
-      setIsEditingType(false)
+    if (selectedType && user.entryId) {
+      // If compensation is selected, open the compensation modal
+      if (selectedType === 'تعويض' && onSetCompensation) {
+        setIsEditingType(false)
+        onSetCompensation(user.entryId, user.compensatingForDates)
+      } else if (onUpdateSessionType) {
+        // For other session types, update normally
+        onUpdateSessionType(user.entryId, selectedType)
+        setIsEditingType(false)
+      }
     }
   }
 
