@@ -14,14 +14,22 @@ interface CompensationModalProps {
 
 export function CompensationModal({ isOpen, onClose, onSave, currentDates, userName }: CompensationModalProps) {
   const [selectedDates, setSelectedDates] = useState<Date[]>(
-    (currentDates || []).map(timestamp => new Date(timestamp))
+    (currentDates || []).map(timestamp => {
+      const date = new Date(timestamp)
+      date.setHours(0, 0, 0, 0)
+      return date
+    })
   )
   const [isSaving, setIsSaving] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
 
   // Update dates when currentDates changes
   useEffect(() => {
-    setSelectedDates((currentDates || []).map(timestamp => new Date(timestamp)))
+    setSelectedDates((currentDates || []).map(timestamp => {
+      const date = new Date(timestamp)
+      date.setHours(0, 0, 0, 0)
+      return date
+    }))
   }, [currentDates])
 
   // Close on escape key
