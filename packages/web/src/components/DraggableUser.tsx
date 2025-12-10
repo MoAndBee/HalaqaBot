@@ -229,14 +229,14 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
           </DropdownMenu>
         )}
 
-        <button
+        {/* <button
           {...attributes}
           {...listeners}
           className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors p-2 -m-2 touch-manipulation"
           aria-label="اسحب لإعادة الترتيب"
         >
           <GripVertical className="h-5 w-5" />
-        </button>
+        </button> */}
 
         <div className={cn(
           "font-mono text-xs sm:text-sm w-6 sm:w-8 shrink-0",
