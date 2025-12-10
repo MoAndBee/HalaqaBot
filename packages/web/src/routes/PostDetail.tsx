@@ -91,6 +91,7 @@ export default function PostDetail() {
   const completeUserTurn = useMutation(api.mutations.completeUserTurn)
   const skipUserTurn = useMutation(api.mutations.skipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
+  const updateTurnQueueSessionType = useMutation(api.mutations.updateTurnQueueSessionType)
   const updateUserRealName = useMutation(api.mutations.updateUserRealName)
   const updateUserNotes = useMutation(api.mutations.updateUserNotes)
   const startNewSession = useMutation(api.mutations.startNewSession)
@@ -98,6 +99,7 @@ export default function PostDetail() {
   const addUserToList = useMutation(api.mutations.addUserToList)
   const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
+  const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
 
   const handleReorder = async (entryId: string, newPosition: number) => {
@@ -143,7 +145,37 @@ export default function PostDetail() {
   }
 
   const handleUpdateSessionType = async (entryId: string, sessionType: SessionType) => {
-    await updateSessionType({ entryId, sessionType })
+    // Find if this is an active user or completed user
+    const activeUser = data?.activeUsers.find((u: User) => u.entryId === entryId)
+    const completedUser = data?.completedUsers.find((u: User) => u.entryId === entryId)
+    const user = activeUser || completedUser
+    if (!user) return
+
+    // If changing TO تعويض, open compensation modal to select dates
+    if (sessionType === 'تعويض') {
+      setCompensationModalState({
+        entryId,
+        userName: user.realName || user.telegramName,
+        sessionType,
+        currentDates: user.compensatingForDates || null,
+      })
+      setIsCompensationModalOpen(true)
+      return
+    }
+
+    // For other session types, update directly
+    try {
+      if (activeUser) {
+        // Use turnQueue mutation for active users
+        await updateTurnQueueSessionType({ entryId, sessionType })
+      } else {
+        // Use participationHistory mutation for completed users
+        await updateSessionType({ entryId, sessionType })
+      }
+    } catch (error) {
+      console.error('Error updating session type:', error)
+      toast.error('فشل تحديث نوع الجلسة')
+    }
   }
 
   const handleUpdateDisplayName = async (userId: number, realName: string) => {
@@ -182,8 +214,12 @@ export default function PostDetail() {
     if (!compensationModalState) return
 
     try {
-      // If sessionType is defined, this is a completion flow
-      if (compensationModalState.sessionType) {
+      // Determine if this is an active user or completed user
+      const activeUser = data?.activeUsers.find((u: User) => u.entryId === compensationModalState.entryId)
+      const completedUser = data?.completedUsers.find((u: User) => u.entryId === compensationModalState.entryId)
+
+      // If sessionType is defined and it's from handleComplete, this is a completion flow
+      if (compensationModalState.sessionType && activeUser) {
         // Complete the turn with compensation dates
         await completeUserTurn({
           entryId: compensationModalState.entryId,
@@ -194,9 +230,23 @@ export default function PostDetail() {
         toast.success('تم إتمام الدور بنجاح!')
         setIsCompensationModalOpen(false)
         setCompensationModalState(null)
-      } else {
-        // This is setting compensation before taking the turn
+      } else if (activeUser) {
+        // This is setting compensation for an active user (from session type dropdown or setCompensation)
         await setTurnQueueCompensation({
+          entryId: compensationModalState.entryId as any, // entryId is already a convex ID
+          isCompensation: true,
+          compensatingForDates: dates,
+        })
+        toast.success('تم تحديد تواريخ التعويض!')
+
+        // Give Convex a moment to refetch the query before closing the modal
+        setTimeout(() => {
+          setIsCompensationModalOpen(false)
+          setCompensationModalState(null)
+        }, 100)
+      } else if (completedUser) {
+        // This is setting compensation for a completed user (from session type dropdown)
+        await updateParticipationCompensation({
           entryId: compensationModalState.entryId as any, // entryId is already a convex ID
           isCompensation: true,
           compensatingForDates: dates,

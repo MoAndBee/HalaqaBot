@@ -50,6 +50,7 @@ export default defineSchema({
     channelId: v.optional(v.number()),
     createdAt: v.number(), // timestamp in ms
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous session
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", "اختبار", "تعويض"
     isCompensation: v.optional(v.boolean()), // true if this turn is for compensation
     compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
   })

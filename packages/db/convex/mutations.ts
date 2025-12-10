@@ -715,9 +715,45 @@ export const updateSessionType = mutation({
       throw new Error(`Entry not found`);
     }
 
+    // If changing FROM تعويض to another type, clear compensation fields
+    // If changing TO تعويض, keep existing compensation fields (they should be set via compensation modal)
+    const isChangingFromCompensation = entry.isCompensation && args.sessionType !== 'تعويض';
+
     // Update session type
     await ctx.db.patch(args.entryId, {
       sessionType: args.sessionType,
+      ...(isChangingFromCompensation && {
+        isCompensation: false,
+        compensatingForDates: undefined,
+      }),
+    });
+  },
+});
+
+export const updateTurnQueueSessionType = mutation({
+  args: {
+    entryId: v.id("turnQueue"),
+    sessionType: v.string(), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
+  },
+  handler: async (ctx, args) => {
+    // Get the entry from turnQueue
+    const entry = await ctx.db.get(args.entryId);
+
+    if (!entry) {
+      throw new Error(`Entry not found in turn queue`);
+    }
+
+    // If changing FROM تعويض to another type, clear compensation fields
+    // If changing TO تعويض, keep existing compensation fields (they should be set via compensation modal)
+    const isChangingFromCompensation = entry.isCompensation && args.sessionType !== 'تعويض';
+
+    // Update session type
+    await ctx.db.patch(args.entryId, {
+      sessionType: args.sessionType,
+      ...(isChangingFromCompensation && {
+        isCompensation: false,
+        compensatingForDates: undefined,
+      }),
     });
   },
 });
@@ -814,10 +850,11 @@ export const setTurnQueueCompensation = mutation({
       throw new Error("Compensation must have at least one date selected");
     }
 
-    // Update compensation fields
+    // Update compensation fields and sessionType
     await ctx.db.patch(args.entryId, {
       isCompensation: args.isCompensation,
       compensatingForDates: args.isCompensation ? args.compensatingForDates : undefined,
+      sessionType: args.isCompensation ? 'تعويض' : entry.sessionType,
     });
   },
 });
@@ -841,10 +878,11 @@ export const updateParticipationCompensation = mutation({
       throw new Error("Compensation must have at least one date selected");
     }
 
-    // Update compensation fields
+    // Update compensation fields and sessionType
     await ctx.db.patch(args.entryId, {
       isCompensation: args.isCompensation,
       compensatingForDates: args.isCompensation ? args.compensatingForDates : undefined,
+      sessionType: args.isCompensation ? 'تعويض' : entry.sessionType,
     });
   },
 });

@@ -23,14 +23,14 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
   const [isSaving, setIsSaving] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
 
-  // Update dates when currentDates changes
+  // Update dates when currentDates or userName changes (to reset between users)
   useEffect(() => {
     setSelectedDates((currentDates || []).map(timestamp => {
       const date = new Date(timestamp)
       date.setHours(0, 0, 0, 0)
       return date
     }))
-  }, [currentDates])
+  }, [currentDates, userName])
 
   // Close on escape key
   useEffect(() => {

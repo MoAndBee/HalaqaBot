@@ -120,7 +120,7 @@ export const getUserList = query({
           position: entry.position,
           createdAt: entry.createdAt,
           carriedOver: entry.carriedOver,
-          sessionType: undefined, // Not set until completion
+          sessionType: entry.sessionType,
           notes: null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
