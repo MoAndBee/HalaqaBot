@@ -144,6 +144,13 @@ export function registerReactionHandler(
           }
         }
 
+        // Log classification result for debugging
+        console.log('Classification result:', {
+          containsName: classification?.containsName,
+          detectedNames: classification?.detectedNames,
+          activityType: classification?.activityType,
+        });
+
         // Extract real name if available (join all detected names)
         let realName: string | undefined;
         if (classification?.detectedNames && classification.detectedNames.length > 0) {
@@ -153,6 +160,9 @@ export function registerReactionHandler(
         // Only register the student if a name was detected
         if (!classification?.containsName || !realName) {
           console.log(`⚠️  Message does not contain a student name, ignoring reaction`);
+          console.log(`   - containsName: ${classification?.containsName}`);
+          console.log(`   - realName: ${realName}`);
+          console.log(`   - detectedNames: ${JSON.stringify(classification?.detectedNames)}`);
           return;
         }
 
