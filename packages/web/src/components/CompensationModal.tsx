@@ -41,27 +41,20 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
-  const handleDayClick = (day: Date) => {
-    // Normalize to start of day
-    const normalizedDay = new Date(day)
-    normalizedDay.setHours(0, 0, 0, 0)
-
-    const dateString = normalizedDay.toISOString()
-    const existingIndex = selectedDates.findIndex(
-      d => {
-        const existing = new Date(d)
-        existing.setHours(0, 0, 0, 0)
-        return existing.toISOString() === dateString
-      }
-    )
-
-    if (existingIndex >= 0) {
-      // Remove if already selected
-      setSelectedDates(selectedDates.filter((_, i) => i !== existingIndex))
-    } else {
-      // Add if not selected
-      setSelectedDates([...selectedDates, normalizedDay].sort((a, b) => a.getTime() - b.getTime()))
+  const handleDaySelect = (dates: Date[] | undefined) => {
+    if (!dates) {
+      setSelectedDates([])
+      return
     }
+
+    // Normalize all dates to start of day
+    const normalizedDates = dates.map(date => {
+      const d = new Date(date)
+      d.setHours(0, 0, 0, 0)
+      return d
+    }).sort((a, b) => a.getTime() - b.getTime())
+
+    setSelectedDates(normalizedDates)
   }
 
   const handleRemoveDate = (date: Date) => {
@@ -143,14 +136,15 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
                     direction: rtl;
                   }
                   .rdp-custom .rdp-day_selected {
-                    background-color: var(--rdp-accent-color);
-                    color: white;
+                    background-color: var(--rdp-accent-color) !important;
+                    color: white !important;
+                    font-weight: 600;
                   }
                   .rdp-custom .rdp-day_selected:hover {
-                    background-color: #2563eb;
+                    background-color: #2563eb !important;
                   }
                   .dark .rdp-custom {
-                    --rdp-accent-color: #60a5fa;
+                    --rdp-accent-color: #3b82f6;
                     --rdp-background-color: #1e3a8a;
                   }
                   .dark .rdp-custom .rdp-month,
@@ -159,6 +153,16 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
                   .dark .rdp-custom .rdp-day {
                     color: #e2e8f0;
                   }
+                  .dark .rdp-custom .rdp-day_selected {
+                    background-color: #3b82f6 !important;
+                    color: white !important;
+                    font-weight: 700;
+                    border: 2px solid #60a5fa;
+                  }
+                  .dark .rdp-custom .rdp-day_selected:hover {
+                    background-color: #2563eb !important;
+                    border-color: #3b82f6;
+                  }
                   .dark .rdp-custom .rdp-day:not(.rdp-day_selected):hover {
                     background-color: #334155;
                   }
@@ -166,7 +170,7 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
                 <DayPicker
                   mode="multiple"
                   selected={selectedDates}
-                  onDayClick={handleDayClick}
+                  onSelect={handleDaySelect}
                   locale={ar}
                   disabled={{ after: new Date() }}
                 />
