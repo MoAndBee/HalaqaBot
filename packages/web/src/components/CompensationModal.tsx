@@ -144,7 +144,7 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
                     background-color: #2563eb !important;
                   }
                   .dark .rdp-custom {
-                    --rdp-accent-color: #3b82f6;
+                    --rdp-accent-color: white;
                     --rdp-background-color: #1e3a8a;
                   }
                   .dark .rdp-custom .rdp-month,
@@ -154,14 +154,14 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
                     color: #e2e8f0;
                   }
                   .dark .rdp-custom .rdp-day_selected {
-                    background-color: #3b82f6 !important;
-                    color: white !important;
+                    background-color: white !important;
+                    color: #1e293b !important;
                     font-weight: 700;
-                    border: 2px solid #60a5fa;
+                    border: 2px solid #3b82f6;
                   }
                   .dark .rdp-custom .rdp-day_selected:hover {
-                    background-color: #2563eb !important;
-                    border-color: #3b82f6;
+                    background-color: #f1f5f9 !important;
+                    border-color: #60a5fa;
                   }
                   .dark .rdp-custom .rdp-day:not(.rdp-day_selected):hover {
                     background-color: #334155;
