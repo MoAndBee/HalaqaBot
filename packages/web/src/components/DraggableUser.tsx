@@ -283,6 +283,13 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   {user.notes}
                 </div>
               )}
+              {user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0 && (
+                <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                  تعويض عن: {user.compensatingForDates.map(timestamp =>
+                    new Date(timestamp).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })
+                  ).join('، ')}
+                </div>
+              )}
             </>
           )}
         </div>
