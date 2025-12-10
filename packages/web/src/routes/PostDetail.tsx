@@ -117,8 +117,8 @@ export default function PostDetail() {
       ? 'تعويض'
       : sessionType
 
-    // If sessionType is compensation, require date selection first (if not already set)
-    if (finalSessionType === 'تعويض') {
+    // If sessionType is compensation and dates are NOT set, open modal to select dates
+    if (finalSessionType === 'تعويض' && (!user.compensatingForDates || user.compensatingForDates.length === 0)) {
       setCompensationModalState({
         entryId,
         userName: user.realName || user.telegramName,
@@ -129,10 +129,12 @@ export default function PostDetail() {
       return
     }
 
-    // For non-compensation types, complete directly
+    // Complete the turn (with or without compensation)
     await completeUserTurn({
       entryId,
       sessionType: finalSessionType,
+      isCompensation: finalSessionType === 'تعويض',
+      compensatingForDates: finalSessionType === 'تعويض' ? user.compensatingForDates : undefined,
     })
   }
 

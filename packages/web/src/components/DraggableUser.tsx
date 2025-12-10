@@ -195,12 +195,6 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   إضافة ملاحظات
                 </DropdownMenuItem>
               )}
-              {onSetCompensation && (
-                <DropdownMenuItem onClick={handleSetCompensation}>
-                  <Calendar className="h-4 w-4 ml-2" />
-                  تحديد تعويض
-                </DropdownMenuItem>
-              )}
               {onUpdateSessionType && (
                 <DropdownMenuItem onClick={handleEditTypeClick}>
                   <Tag className="h-4 w-4 ml-2" />
