@@ -46,7 +46,7 @@ interface CompletedUsersSectionProps {
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
 }
 
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم']
+const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
 
 function CompletedUserCard({
   user,
