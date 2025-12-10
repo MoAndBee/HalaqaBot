@@ -189,12 +189,6 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   تعديل الاسم
                 </DropdownMenuItem>
               )}
-              {/* {onEditNotes && (
-                <DropdownMenuItem onClick={handleEditNotes}>
-                  <StickyNote className="h-4 w-4 ml-2" />
-                  إضافة ملاحظات
-                </DropdownMenuItem>
-              )} */}
               {onUpdateSessionType && (
                 <DropdownMenuItem onClick={handleEditTypeClick}>
                   <Tag className="h-4 w-4 ml-2" />
@@ -202,16 +196,16 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
+              {/* {onEditNotes && (
+                <DropdownMenuItem onClick={handleEditNotes}>
+                  <StickyNote className="h-4 w-4 ml-2" />
+                  إضافة ملاحظات
+                </DropdownMenuItem>
+              )} */}
               {onAddTurnAfter3 && (
                 <DropdownMenuItem onClick={handleAddTurnAfter3}>
                   <Plus className="h-4 w-4 ml-2" />
                   إضافة دور بعد ٣
-                </DropdownMenuItem>
-              )}
-              {onMoveToEnd && (
-                <DropdownMenuItem onClick={handleMoveToEnd}>
-                  <ArrowDown className="h-4 w-4 ml-2" />
-                  نقل إلى آخر القائمة
                 </DropdownMenuItem>
               )}
               {onMoveToPosition && (
@@ -220,9 +214,15 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   نقل إلى دور معين
                 </DropdownMenuItem>
               )}
+              {onMoveToEnd && (
+                <DropdownMenuItem onClick={handleMoveToEnd}>
+                  <ArrowDown className="h-4 w-4 ml-2" />
+                  نقل إلى آخر القائمة
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleDeleteClick} className="text-destructive focus:text-destructive">
-                <Trash2 className="h-4 w-4 ml-2" />
+                <Trash2 className="h-4 w-4" />
                 حذف
               </DropdownMenuItem>
             </DropdownMenuContent>
