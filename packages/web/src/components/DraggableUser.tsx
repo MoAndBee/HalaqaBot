@@ -316,8 +316,14 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 </Button>
               </div>
             ) : (
-              <Badge variant={user.sessionType ? "default" : "secondary"} className="text-xs">
-                {user.sessionType || 'غير محدد'}
+              <Badge variant={
+                (user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0) || user.sessionType
+                  ? "default"
+                  : "secondary"
+              } className="text-xs">
+                {(user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
+                  ? 'تعويض'
+                  : (user.sessionType || 'غير محدد')}
               </Badge>
             )}
           </div>

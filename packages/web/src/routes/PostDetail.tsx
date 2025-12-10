@@ -190,6 +190,8 @@ export default function PostDetail() {
           compensatingForDates: dates,
         })
         toast.success('تم إتمام الدور بنجاح!')
+        setIsCompensationModalOpen(false)
+        setCompensationModalState(null)
       } else {
         // This is setting compensation before taking the turn
         await setTurnQueueCompensation({
@@ -198,9 +200,13 @@ export default function PostDetail() {
           compensatingForDates: dates,
         })
         toast.success('تم تحديد تواريخ التعويض!')
+
+        // Give Convex a moment to refetch the query before closing the modal
+        setTimeout(() => {
+          setIsCompensationModalOpen(false)
+          setCompensationModalState(null)
+        }, 100)
       }
-      setIsCompensationModalOpen(false)
-      setCompensationModalState(null)
     } catch (error) {
       console.error('Failed to save compensation:', error)
       toast.error('فشل حفظ التعويض')
