@@ -37,11 +37,8 @@ export const getPostIdForMessage = query({
   handler: async (ctx, args) => {
     const message = await ctx.db
       .query("messageAuthors")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("chatId"), args.chatId),
-          q.eq(q.field("messageId"), args.messageId)
-        )
+      .withIndex("by_chat_message", (q) =>
+        q.eq("chatId", args.chatId).eq("messageId", args.messageId)
       )
       .first();
 
