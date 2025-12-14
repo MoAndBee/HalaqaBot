@@ -17,7 +17,8 @@ export default defineSchema({
     .index("by_chat_post_message", ["chatId", "postId", "messageId"])
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_post", ["postId"])
-    .index("by_channel_post", ["channelId", "postId"]),
+    .index("by_channel_post", ["channelId", "postId"])
+    .index("by_chat_message", ["chatId", "messageId"]),
 
   userLists: defineTable({
     chatId: v.number(),
