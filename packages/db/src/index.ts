@@ -5,4 +5,4 @@ export type { User, ChatStorage, ParticipationSummary, ParticipationTypeStats } 
 export { api } from '../convex/_generated/api'
 
 // Export utility for creating Convex client (for server-side use)
-export { ConvexHttpClient } from 'convex/browser'
+export { ConvexHttpClient, ConvexClient } from 'convex/browser'
