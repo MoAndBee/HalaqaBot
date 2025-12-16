@@ -1,44 +1,57 @@
 import type { Bot } from "grammy";
-import { ConvexHttpClient, api } from "@halakabot/db";
+import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
 
 export class BotTaskService {
   private bot: Bot;
   private convex: ConvexHttpClient;
+  private reactiveClient: ConvexClient;
   private isProcessing = false;
+  private unsubscribe: (() => void) | null = null;
 
-  constructor(bot: Bot, convex: ConvexHttpClient) {
+  constructor(bot: Bot, convex: ConvexHttpClient, reactiveClient: ConvexClient) {
     this.bot = bot;
     this.convex = convex;
+    this.reactiveClient = reactiveClient;
   }
 
   /**
-   * Start watching for pending bot tasks and process them
+   * Start watching for pending bot tasks and process them reactively
    */
-  async start() {
-    console.log("Bot task service started, watching for tasks...");
+  start() {
+    console.log("Bot task service started, subscribing to pending tasks...");
 
-    // Poll for pending tasks every 2 seconds
-    setInterval(async () => {
-      if (this.isProcessing) return;
-
-      try {
-        await this.processPendingTasks();
-      } catch (error) {
-        console.error("Error processing bot tasks:", error);
+    // Subscribe to pending tasks - Convex will push updates when data changes
+    this.unsubscribe = this.reactiveClient.onUpdate(
+      api.queries.getPendingBotTasks,
+      {},
+      (tasks) => {
+        if (tasks === undefined) return; // Initial loading state
+        this.handleTasksUpdate(tasks);
       }
-    }, 2000);
+    );
   }
 
-  private async processPendingTasks() {
+  /**
+   * Stop the task service and clean up subscription
+   */
+  stop() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+      console.log("Bot task service stopped");
+    }
+  }
+
+  private async handleTasksUpdate(tasks: any[]) {
+    if (this.isProcessing || tasks.length === 0) return;
+
     this.isProcessing = true;
-
     try {
-      // Get all pending tasks
-      const tasks = await this.convex.query(api.queries.getPendingBotTasks, {});
-
       for (const task of tasks) {
         await this.processTask(task);
       }
+    } catch (error) {
+      console.error("Error processing bot tasks:", error);
     } finally {
       this.isProcessing = false;
     }
