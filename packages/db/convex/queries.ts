@@ -517,6 +517,7 @@ export const getAllUsers = query({
       username: user.username,
       telegramName: user.telegramName,
       realName: user.realName,
+      realNameVerified: user.realNameVerified,
       sourceMessageText: user.sourceMessageText,
       updatedAt: user.updatedAt,
     }));
