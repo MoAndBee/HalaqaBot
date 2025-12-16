@@ -4,9 +4,22 @@ This directory contains utility scripts for the HalaqaBot project.
 
 ## Export Users to CSV
 
+There are two ways to export users to CSV:
+
+### Option 1: HTTP Endpoint (Recommended)
+
+Visit the Convex HTTP endpoint in your browser:
+```
+https://your-deployment.convex.site/exportUsersCSV
+```
+
+This will automatically download a CSV file with all users. No setup required!
+
+### Option 2: Local Script
+
 The `export-users-csv.ts` script exports all users from the database to a CSV file.
 
-### Usage
+#### Usage
 
 ```bash
 # From the bot package directory
