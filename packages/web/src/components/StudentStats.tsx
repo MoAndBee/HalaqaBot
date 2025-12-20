@@ -75,15 +75,47 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   // We want Sat=0, Sun=1, Mon=2, ..., Fri=6
   const adjustedStartingDay = (startingDayOfWeek + 1) % 7
 
+  // Define sort order for participation types (for visual consistency)
+  const typeOrder: Record<string, number> = {
+    'تسميع': 1,
+    'تطبيق': 2,
+    'دعم': 3,
+    'تلاوة': 4,
+    'اختبار': 5,
+    'تعويض': 6,
+  }
+
   // Group participations by date (day level)
   const participationsByDate: Record<string, Participation[]> = {}
   participations.forEach((p) => {
-    const date = new Date(p.completedAt)
-    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
-    if (!participationsByDate[dateKey]) {
-      participationsByDate[dateKey] = []
+    // For compensation participations, show on compensated dates instead of participation date
+    if (p.compensatingForDates && p.compensatingForDates.length > 0) {
+      p.compensatingForDates.forEach((compensationDate) => {
+        const date = new Date(compensationDate)
+        const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+        if (!participationsByDate[dateKey]) {
+          participationsByDate[dateKey] = []
+        }
+        participationsByDate[dateKey].push(p)
+      })
+    } else {
+      // Regular participations show on their completedAt date
+      const date = new Date(p.completedAt)
+      const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+      if (!participationsByDate[dateKey]) {
+        participationsByDate[dateKey] = []
+      }
+      participationsByDate[dateKey].push(p)
     }
-    participationsByDate[dateKey].push(p)
+  })
+
+  // Sort participations within each day by type for visual consistency
+  Object.keys(participationsByDate).forEach((dateKey) => {
+    participationsByDate[dateKey].sort((a, b) => {
+      const orderA = typeOrder[a.sessionType] || 999
+      const orderB = typeOrder[b.sessionType] || 999
+      return orderA - orderB
+    })
   })
 
   // Navigate months
@@ -214,7 +246,7 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                           {dayParticipations.map((p, idx) => (
                             <div
                               key={idx}
-                              className={`text-[10px] px-1.5 py-0.5 rounded text-white font-medium whitespace-nowrap ${
+                              className={`text-[10px] px-1.5 py-0.5 rounded text-white font-medium whitespace-nowrap w-16 text-center ${
                                 SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
                               }`}
                               title={p.sessionType}
