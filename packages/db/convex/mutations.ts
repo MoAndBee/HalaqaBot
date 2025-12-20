@@ -622,6 +622,17 @@ export const completeUserTurn = mutation({
       throw new Error("Compensation participations must have at least one date selected");
     }
 
+    // Get the post's creation date from the first message
+    const firstMessage = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", entry.chatId).eq("postId", entry.postId)
+      )
+      .first();
+
+    // Use post creation date as completedAt, fallback to current time if not found
+    const completedAt = firstMessage?.createdAt ?? Date.now();
+
     // Remove from turnQueue
     await ctx.db.delete(args.entryId);
 
@@ -635,7 +646,7 @@ export const completeUserTurn = mutation({
       notes: undefined,
       channelId: entry.channelId,
       createdAt: entry.createdAt,
-      completedAt: Date.now(),
+      completedAt,
       originalPosition: entry.position,
       carriedOver: entry.carriedOver,
       isCompensation,
