@@ -6,10 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader } from '~/components/Loader'
+import { StudentStats } from '~/components/StudentStats'
 
 export default function Students() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -22,9 +24,27 @@ export default function Students() {
   const searchResults = useQuery(api.queries.searchUsers, { query: debouncedQuery })
 
   useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+    if (!selectedUserId) {
+      inputRef.current?.focus()
+    }
+  }, [selectedUserId])
 
+  const handleSelectStudent = (userId: number) => {
+    setSelectedUserId(userId)
+    setSearchQuery('')
+    setDebouncedQuery('')
+  }
+
+  const handleBack = () => {
+    setSelectedUserId(null)
+  }
+
+  // If a student is selected, show their stats
+  if (selectedUserId) {
+    return <StudentStats userId={selectedUserId} onBack={handleBack} />
+  }
+
+  // Otherwise show search interface
   return (
     <div className="p-6 md:p-8 h-full flex flex-col">
       <h1 className="text-3xl font-black text-foreground mb-6">الطالبات</h1>
@@ -62,6 +82,7 @@ export default function Students() {
               <Card
                 key={user.userId}
                 className="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
+                onClick={() => handleSelectStudent(user.userId)}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start gap-3">

@@ -1,0 +1,253 @@
+import { useState } from 'react'
+import { useQuery } from 'convex/react'
+import { api } from '@halakabot/db'
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Loader } from '~/components/Loader'
+
+interface StudentStatsProps {
+  userId: number
+  onBack: () => void
+}
+
+interface Participation {
+  completedAt: number
+  sessionType: string
+  chatId: number
+  postId: number
+  sessionNumber: number
+  notes?: string | null
+  compensatingForDates?: number[] | null
+}
+
+// Color mapping for session types
+const SESSION_TYPE_COLORS: Record<string, string> = {
+  'تلاوة': 'bg-green-500',
+  'تسميع': 'bg-blue-500',
+  'تطبيق': 'bg-purple-500',
+  'اختبار': 'bg-orange-500',
+  'تعويض': 'bg-yellow-500',
+}
+
+export function StudentStats({ userId, onBack }: StudentStatsProps) {
+  const data = useQuery(api.queries.getUserParticipations, { userId })
+  const [currentDate, setCurrentDate] = useState(new Date())
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader />
+      </div>
+    )
+  }
+
+  const { user, participations } = data
+
+  // Get current month and year
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+
+  // Get first day of month and number of days
+  const firstDayOfMonth = new Date(year, month, 1)
+  const lastDayOfMonth = new Date(year, month + 1, 0)
+  const daysInMonth = lastDayOfMonth.getDate()
+  const startingDayOfWeek = firstDayOfMonth.getDay() // 0 = Sunday, 6 = Saturday
+
+  // Adjust for RTL: In Arabic, week starts on Saturday (6)
+  // We want Sat=0, Sun=1, Mon=2, ..., Fri=6
+  const adjustedStartingDay = (startingDayOfWeek + 1) % 7
+
+  // Group participations by date (day level)
+  const participationsByDate: Record<string, Participation[]> = {}
+  participations.forEach((p) => {
+    const date = new Date(p.completedAt)
+    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+    if (!participationsByDate[dateKey]) {
+      participationsByDate[dateKey] = []
+    }
+    participationsByDate[dateKey].push(p)
+  })
+
+  // Navigate months
+  const goToPreviousMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1))
+  }
+
+  const goToNextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1))
+  }
+
+  const goToCurrentMonth = () => {
+    setCurrentDate(new Date())
+  }
+
+  // Arabic month names
+  const monthName = currentDate.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })
+
+  // Arabic day names (starting from Saturday)
+  const dayNames = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+
+  // Build calendar grid
+  const calendarDays = []
+
+  // Add empty cells for days before the first of the month
+  for (let i = 0; i < adjustedStartingDay; i++) {
+    calendarDays.push(null)
+  }
+
+  // Add days of the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    calendarDays.push(day)
+  }
+
+  return (
+    <div className="p-6 md:p-8 h-full flex flex-col">
+      {/* Header */}
+      <div className="mb-6">
+        <Button variant="ghost" size="sm" onClick={onBack} className="mb-4 gap-2">
+          <ArrowRight className="h-4 w-4" />
+          <span>رجوع</span>
+        </Button>
+
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="text-3xl font-black text-foreground">
+            {user.realName || user.telegramName}
+          </h1>
+          {user.username && (
+            <Badge variant="secondary">@{user.username}</Badge>
+          )}
+        </div>
+        <p className="text-muted-foreground">{user.telegramName}</p>
+      </div>
+
+      {/* Calendar Section */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-foreground">📅 سجل المشاركات</h2>
+            </div>
+
+            {/* Month Navigation */}
+            <div className="flex items-center justify-between mb-6">
+              <Button variant="outline" size="sm" onClick={goToNextMonth}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold">{monthName}</h3>
+                <Button variant="ghost" size="sm" onClick={goToCurrentMonth}>
+                  اليوم
+                </Button>
+              </div>
+
+              <Button variant="outline" size="sm" onClick={goToPreviousMonth}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Calendar Grid */}
+            <div>
+              {/* Day names header */}
+              <div className="grid grid-cols-7 gap-2 mb-2">
+                {dayNames.map((day) => (
+                  <div
+                    key={day}
+                    className="text-center text-sm font-bold text-muted-foreground py-2"
+                  >
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Calendar days */}
+              <div className="grid grid-cols-7 gap-2">
+                {calendarDays.map((day, index) => {
+                  if (day === null) {
+                    return <div key={`empty-${index}`} className="aspect-square" />
+                  }
+
+                  const dateKey = `${year}-${month}-${day}`
+                  const dayParticipations = participationsByDate[dateKey] || []
+                  const hasParticipations = dayParticipations.length > 0
+
+                  // Determine color based on session type (use first participation if multiple)
+                  const primaryParticipation = dayParticipations[0]
+                  const colorClass = primaryParticipation
+                    ? SESSION_TYPE_COLORS[primaryParticipation.sessionType] || 'bg-gray-500'
+                    : ''
+
+                  // Check if today
+                  const today = new Date()
+                  const isToday =
+                    day === today.getDate() &&
+                    month === today.getMonth() &&
+                    year === today.getFullYear()
+
+                  return (
+                    <div
+                      key={day}
+                      className={`
+                        aspect-square rounded-lg border-2 flex flex-col items-center justify-center
+                        transition-all cursor-pointer
+                        ${isToday ? 'border-primary' : 'border-transparent'}
+                        ${hasParticipations ? 'hover:scale-105' : ''}
+                      `}
+                    >
+                      <div className="text-sm font-medium mb-1">
+                        {day.toLocaleString('ar-EG')}
+                      </div>
+                      {hasParticipations && (
+                        <div className="flex gap-1 flex-wrap justify-center">
+                          {dayParticipations.slice(0, 3).map((p, idx) => (
+                            <div
+                              key={idx}
+                              className={`w-2 h-2 rounded-full ${
+                                SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
+                              }`}
+                              title={p.sessionType}
+                            />
+                          ))}
+                          {dayParticipations.length > 3 && (
+                            <div className="text-xs text-muted-foreground">
+                              +{dayParticipations.length - 3}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Legend */}
+              <div className="mt-6 pt-6 border-t">
+                <h4 className="text-sm font-bold text-foreground mb-3">أنواع المشاركات:</h4>
+                <div className="flex flex-wrap gap-3">
+                  {Object.entries(SESSION_TYPE_COLORS).map(([type, color]) => (
+                    <div key={type} className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${color}`} />
+                      <span className="text-sm">{type}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stats Section - Placeholder */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-2xl font-bold text-foreground mb-4">📊 الإحصائيات</h2>
+            <div className="text-center py-8 text-muted-foreground">
+              <p>قريباً - سيتم إضافة إحصائيات إضافية</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}

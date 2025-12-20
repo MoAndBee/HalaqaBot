@@ -584,6 +584,48 @@ export const getUser = query({
   },
 });
 
+export const getUserParticipations = query({
+  args: {
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Get user info
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!user) return null;
+
+    // Get all participations for this user
+    const participations = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Sort by completedAt (newest first)
+    participations.sort((a, b) => b.completedAt - a.completedAt);
+
+    return {
+      user: {
+        userId: user.userId,
+        username: user.username,
+        telegramName: user.telegramName,
+        realName: user.realName,
+      },
+      participations: participations.map((p) => ({
+        completedAt: p.completedAt,
+        sessionType: p.sessionType,
+        chatId: p.chatId,
+        postId: p.postId,
+        sessionNumber: p.sessionNumber,
+        notes: p.notes,
+        compensatingForDates: p.compensatingForDates,
+      })),
+    };
+  },
+});
+
 export const getMessagesByUserId = query({
   args: {
     userId: v.number(),
