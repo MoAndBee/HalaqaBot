@@ -246,7 +246,7 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                           {dayParticipations.map((p, idx) => (
                             <div
                               key={idx}
-                              className={`text-[9px] rounded text-white font-medium whitespace-nowrap w-[125%] flex items-center justify-center ${
+                              className={`text-[9px] p-0 rounded text-white font-medium whitespace-nowrap w-[125%] flex items-center justify-center ${
                                 SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
                               }`}
                               title={p.sessionType}
