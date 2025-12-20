@@ -189,12 +189,6 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                   const dayParticipations = participationsByDate[dateKey] || []
                   const hasParticipations = dayParticipations.length > 0
 
-                  // Determine color based on session type (use first participation if multiple)
-                  const primaryParticipation = dayParticipations[0]
-                  const colorClass = primaryParticipation
-                    ? SESSION_TYPE_COLORS[primaryParticipation.sessionType] || 'bg-gray-500'
-                    : ''
-
                   // Check if today
                   const today = new Date()
                   const isToday =
@@ -206,29 +200,31 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                     <div
                       key={day}
                       className={`
-                        aspect-square rounded-lg border-2 flex flex-col items-center justify-center
-                        transition-all cursor-pointer
-                        ${isToday ? 'border-primary' : 'border-transparent'}
-                        ${hasParticipations ? 'hover:scale-105' : ''}
+                        rounded-lg border-2 p-1 flex flex-col items-center
+                        transition-all
+                        ${isToday ? 'border-primary' : 'border-border'}
+                        ${hasParticipations ? 'hover:scale-105 cursor-pointer bg-muted/30' : 'bg-background'}
                       `}
                     >
-                      <div className="text-sm font-medium mb-1">
+                      <div className="text-xs font-medium mb-1">
                         {day.toLocaleString('ar-EG')}
                       </div>
                       {hasParticipations && (
-                        <div className="flex gap-1 flex-wrap justify-center">
-                          {dayParticipations.slice(0, 3).map((p, idx) => (
+                        <div className="flex flex-col gap-0.5 w-full items-center">
+                          {dayParticipations.slice(0, 2).map((p, idx) => (
                             <div
                               key={idx}
-                              className={`w-2 h-2 rounded-full ${
+                              className={`text-[10px] px-1 py-0.5 rounded text-white font-medium ${
                                 SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
                               }`}
                               title={p.sessionType}
-                            />
+                            >
+                              {p.sessionType}
+                            </div>
                           ))}
-                          {dayParticipations.length > 3 && (
-                            <div className="text-xs text-muted-foreground">
-                              +{dayParticipations.length - 3}
+                          {dayParticipations.length > 2 && (
+                            <div className="text-[10px] text-muted-foreground font-medium">
+                              +{dayParticipations.length - 2}
                             </div>
                           )}
                         </div>
@@ -236,19 +232,6 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                     </div>
                   )
                 })}
-              </div>
-
-              {/* Legend */}
-              <div className="mt-6 pt-6 border-t">
-                <h4 className="text-sm font-bold text-foreground mb-3">أنواع المشاركات:</h4>
-                <div className="flex flex-wrap gap-3">
-                  {Object.entries(SESSION_TYPE_COLORS).map(([type, color]) => (
-                    <div key={type} className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${color}`} />
-                      <span className="text-sm">{type}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </CardContent>
