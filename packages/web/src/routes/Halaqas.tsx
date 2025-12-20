@@ -11,7 +11,7 @@ export default function Halaqas() {
 
   if (posts === undefined) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="p-8 h-full flex items-center justify-center">
         <Loader />
       </div>
     )

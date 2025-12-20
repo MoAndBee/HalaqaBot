@@ -148,8 +148,8 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
 
             {/* Month Navigation */}
             <div className="flex items-center justify-between mb-6">
-              <Button variant="outline" size="sm" onClick={goToNextMonth}>
-                <ChevronLeft className="h-4 w-4" />
+              <Button variant="outline" size="sm" onClick={goToPreviousMonth}>
+                <ChevronRight className="h-4 w-4" />
               </Button>
 
               <div className="flex items-center gap-2">
@@ -159,8 +159,8 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                 </Button>
               </div>
 
-              <Button variant="outline" size="sm" onClick={goToPreviousMonth}>
-                <ChevronRight className="h-4 w-4" />
+              <Button variant="outline" size="sm" onClick={goToNextMonth}>
+                <ChevronLeft className="h-4 w-4" />
               </Button>
             </div>
 
