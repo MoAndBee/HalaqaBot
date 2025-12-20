@@ -36,10 +36,27 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   const participations = useQuery(api.queries.getUserParticipations, { userId })
   const [currentDate, setCurrentDate] = useState(new Date())
 
-  if (!user || !participations) {
+  // Loading state - queries haven't returned yet
+  if (user === undefined || participations === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />
+      </div>
+    )
+  }
+
+  // User not found in database
+  if (!user) {
+    return (
+      <div className="p-6 md:p-8 h-full flex flex-col">
+        <Button variant="ghost" size="sm" onClick={onBack} className="mb-4 gap-2">
+          <ArrowRight className="h-4 w-4" />
+          <span>رجوع</span>
+        </Button>
+        <div className="flex flex-col items-center justify-center flex-1 text-center">
+          <h2 className="text-2xl font-bold text-foreground mb-2">الطالبة غير موجودة</h2>
+          <p className="text-muted-foreground">لم يتم العثور على بيانات هذه الطالبة</p>
+        </div>
       </div>
     )
   }
