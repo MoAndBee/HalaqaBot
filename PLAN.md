@@ -11,9 +11,16 @@ Create a new students view where admins can search for students and view their a
 - Uses `wouter` for client-side routing
 - Routes defined in `packages/web/src/App.tsx`
 - Existing routes:
-  - `/` - Home (posts list)
+  - `/` - Home (shows posts list directly)
   - `/posts/:chatId/:postId` - Post detail
   - `/posts/:chatId/:postId/summary` - Participation summary
+
+**New routing structure** (to be implemented):
+  - `/` - Landing page with two navigation cards
+  - `/halaqas` - Posts/sessions list (current Home content)
+  - `/students` - Students search and view
+  - `/posts/:chatId/:postId` - Post detail (unchanged)
+  - `/posts/:chatId/:postId/summary` - Participation summary (unchanged)
 
 ### Data Models
 - **users table**: `userId`, `username`, `telegramName`, `realName`, `realNameVerified`
@@ -43,6 +50,55 @@ Create a new students view where admins can search for students and view their a
 ---
 
 ## Implementation Plan
+
+### Phase 0: Restructure Landing Page
+
+**File**: `packages/web/src/routes/Home.tsx`
+
+#### 0.1 Update Home to show navigation cards
+
+Transform the Home page from showing the posts list directly to showing two navigation cards:
+
+**Layout**:
+```
+┌─────────────────────────────────────────┐
+│  الصفحة الرئيسية                        │
+│                                          │
+│  ┌──────────────┐  ┌──────────────┐    │
+│  │              │  │              │    │
+│  │  📚 الحلقات  │  │ 👥 الطالبات  │    │
+│  │              │  │              │    │
+│  └──────────────┘  └──────────────┘    │
+└─────────────────────────────────────────┘
+```
+
+**Cards**:
+1. **الحلقات** - Links to `/halaqas`
+   - Icon: 📚 or similar
+   - Description: عرض وإدارة الحلقات
+
+2. **الطالبات** - Links to `/students`
+   - Icon: 👥 or similar
+   - Description: البحث عن الطالبات وعرض إحصائياتهن
+
+**Implementation**:
+- 2-column grid on desktop, single column on mobile
+- Use Card component from shadcn/ui
+- Make entire card clickable (Link wrapper)
+- Hover effects for better UX
+
+---
+
+#### 0.2 Create Halaqas route
+
+**File**: `packages/web/src/routes/Halaqas.tsx`
+
+Move the current Home component content to a new Halaqas component:
+- Show posts list (using `getAllPosts` query)
+- Same layout and functionality as current Home
+- Update title to "الحلقات" instead of "المنشورات"
+
+---
 
 ### Phase 1: Backend - Database Query
 
@@ -179,34 +235,57 @@ getUserParticipations(userId: number)
 
 ### Phase 4: Integration
 
-#### 4.1 Add route to App.tsx
+#### 4.1 Update routes in App.tsx
 
 **File**: `packages/web/src/App.tsx`
 
-Add route:
+Update route structure:
 ```tsx
-<Route path="/students" component={Students} />
+<Switch>
+  <Route path="/" component={Home} />  {/* Now shows navigation cards */}
+  <Route path="/halaqas" component={Halaqas} />  {/* Posts list */}
+  <Route path="/students" component={Students} />  {/* Students view */}
+  <Route path="/posts/:chatId/:postId/summary" component={ParticipationSummary} />
+  <Route path="/posts/:chatId/:postId" component={PostDetail} />
+  <Route>404 page</Route>
+</Switch>
 ```
 
-#### 4.2 Add navigation to Layout (Optional)
+**Order matters**: More specific routes (`/posts/:chatId/:postId/summary`) should come before less specific ones (`/posts/:chatId/:postId`).
 
-Consider adding a navigation link to the students page from the main layout or home page.
+---
+
+#### 4.2 Update navigation links
+
+**Files to update**:
+- `packages/web/src/routes/Halaqas.tsx` - Update "back" or "home" links if any
+- `packages/web/src/routes/PostDetail.tsx` - Update back button to go to `/halaqas` instead of `/`
+- `packages/web/src/routes/ParticipationSummary.tsx` - No changes needed (goes back to PostDetail)
 
 ---
 
 ## File Changes Summary
 
 ### New Files
-1. `packages/web/src/routes/Students.tsx` - Main students page
-2. `packages/web/src/components/StudentStats.tsx` - Stats display component
+1. `packages/web/src/routes/Halaqas.tsx` - Posts/sessions list (moved from Home)
+2. `packages/web/src/routes/Students.tsx` - Students search and view page
+3. `packages/web/src/components/StudentStats.tsx` - Student stats display with calendar
 
 ### Modified Files
-1. `packages/db/convex/queries.ts` - Add `getUserParticipations` query
-2. `packages/web/src/App.tsx` - Add `/students` route
+1. `packages/web/src/routes/Home.tsx` - Convert to landing page with navigation cards
+2. `packages/web/src/routes/PostDetail.tsx` - Update back button link from `/` to `/halaqas`
+3. `packages/db/convex/queries.ts` - Add `getUserParticipations` query
+4. `packages/web/src/App.tsx` - Update routing structure
 
 ---
 
 ## Technical Decisions
+
+### Landing page with navigation cards
+- Cleaner user experience with clear entry points
+- Scalable - easy to add more sections in future (reports, settings, etc.)
+- Separates concerns: sessions management vs. student management
+- Familiar pattern in admin dashboards
 
 ### Why separate Stats component?
 - Keeps Students page focused on search
@@ -267,6 +346,19 @@ Consider adding a navigation link to the students page from the main layout or h
 
 ## Testing Checklist
 
+### Landing Page
+- [ ] Landing page displays both navigation cards
+- [ ] الحلقات card navigates to `/halaqas`
+- [ ] الطالبات card navigates to `/students`
+- [ ] Cards are responsive on mobile/tablet/desktop
+- [ ] Hover effects work correctly
+
+### Halaqas Page
+- [ ] Posts list displays correctly
+- [ ] Navigation to post details works
+- [ ] All existing functionality preserved
+
+### Students Page
 - [ ] Search finds users correctly
 - [ ] Calendar displays for user with participations
 - [ ] Calendar displays for user without participations (empty state)
