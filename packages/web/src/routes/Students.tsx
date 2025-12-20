@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'wouter'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
-import { Search, User } from 'lucide-react'
+import { Search, User, ArrowRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Loader } from '~/components/Loader'
 import { StudentStats } from '~/components/StudentStats'
 
@@ -47,7 +49,15 @@ export default function Students() {
   // Otherwise show search interface
   return (
     <div className="p-6 md:p-8 h-full flex flex-col">
-      <h1 className="text-3xl font-black text-foreground mb-6">الطالبات</h1>
+      <div className="mb-6">
+        <Link href="/">
+          <Button variant="ghost" size="sm" className="mb-4 gap-2">
+            <ArrowRight className="h-4 w-4" />
+            <span>العودة للصفحة الرئيسية</span>
+          </Button>
+        </Link>
+        <h1 className="text-3xl font-black text-foreground">الطالبات</h1>
+      </div>
 
       <div className="relative mb-6">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
