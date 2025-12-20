@@ -201,7 +201,7 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                       key={day}
                       className={`
                         rounded-lg border-2 p-1 flex flex-col items-center
-                        transition-all
+                        transition-all min-h-[60px]
                         ${isToday ? 'border-primary' : 'border-border'}
                         ${hasParticipations ? 'hover:scale-105 cursor-pointer bg-muted/30' : 'bg-background'}
                       `}
@@ -211,10 +211,10 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                       </div>
                       {hasParticipations && (
                         <div className="flex flex-col gap-0.5 w-full items-center">
-                          {dayParticipations.slice(0, 2).map((p, idx) => (
+                          {dayParticipations.map((p, idx) => (
                             <div
                               key={idx}
-                              className={`text-[10px] px-1 py-0.5 rounded text-white font-medium ${
+                              className={`text-[10px] px-1.5 py-0.5 rounded text-white font-medium whitespace-nowrap ${
                                 SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
                               }`}
                               title={p.sessionType}
@@ -222,11 +222,6 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                               {p.sessionType}
                             </div>
                           ))}
-                          {dayParticipations.length > 2 && (
-                            <div className="text-[10px] text-muted-foreground font-medium">
-                              +{dayParticipations.length - 2}
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
