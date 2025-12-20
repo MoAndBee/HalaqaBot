@@ -7,7 +7,7 @@ import { Loader } from '~/components/Loader'
 import { PostsList } from '~/components/PostsList'
 
 export default function Halaqas() {
-  const posts = useQuery(api.queries.getAllPosts) ?? []
+  const posts = useQuery(api.queries.getAllPosts)
 
   if (posts === undefined) {
     return (
