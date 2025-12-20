@@ -152,14 +152,15 @@ export const getUserList = query({
           notes: entry.notes || null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
+          recordCreatedAt: entry._creationTime, // When the participation record was created
         };
       })
     );
 
-    // Sort completed users by completion time
+    // Sort completed users by when they were marked complete (document creation time)
+    // This ensures newly completed users appear at the end of the list
     completedUsers.sort((a, b) => {
-      if (a.completedAt !== b.completedAt) return a.completedAt - b.completedAt;
-      return a.createdAt - b.createdAt;
+      return a.recordCreatedAt - b.recordCreatedAt;
     });
 
     return {
