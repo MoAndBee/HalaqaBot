@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار' | 'دعم'
+export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار' | 'دعم' | 'تعويض'
 
 const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم']
 
@@ -50,6 +50,7 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
       >
         {buttonText}
       </Button>
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -69,6 +70,12 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
               {type}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuItem
+            onClick={() => handleSelectType('تعويض')}
+            className="cursor-pointer text-base py-2"
+          >
+            تعويض
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

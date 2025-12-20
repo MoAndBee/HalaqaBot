@@ -20,6 +20,8 @@ export default defineSchema({
     .index("by_channel_post", ["channelId", "postId"])
     .index("by_chat_message", ["chatId", "messageId"]),
 
+  // DEPRECATED: Use turnQueue and participationHistory instead
+  // Kept for backward compatibility during migration
   userLists: defineTable({
     chatId: v.number(),
     postId: v.number(),
@@ -38,6 +40,46 @@ export default defineSchema({
     .index("by_chat_post_position", ["chatId", "postId", "position"])
     .index("by_channel_post", ["channelId", "postId"])
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
+
+  // Active turn queue - users waiting for their turn
+  turnQueue: defineTable({
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    userId: v.number(),
+    position: v.number(),
+    channelId: v.optional(v.number()),
+    createdAt: v.number(), // timestamp in ms
+    carriedOver: v.optional(v.boolean()), // true if user was carried over from previous session
+    sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", "اختبار", "تعويض"
+    isCompensation: v.optional(v.boolean()), // true if this turn is for compensation
+    compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
+  })
+    .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
+    .index("by_chat_post_position", ["chatId", "postId", "position"])
+    .index("by_chat_post", ["chatId", "postId"])
+    .index("by_channel_post", ["channelId", "postId"]),
+
+  // Historical record of all completed participations
+  participationHistory: defineTable({
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    userId: v.number(),
+    sessionType: v.string(), // "تلاوة", "تسميع", "تطبيق", "اختبار", "تعويض"
+    notes: v.optional(v.string()),
+    channelId: v.optional(v.number()),
+    createdAt: v.number(), // timestamp in ms when user joined the queue
+    completedAt: v.number(), // timestamp in ms when turn was completed
+    originalPosition: v.optional(v.number()), // position in queue when they joined
+    carriedOver: v.optional(v.boolean()), // true if user was carried over from previous session
+    isCompensation: v.optional(v.boolean()), // true if this participation is for compensation
+    compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
+  })
+    .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
+    .index("by_chat_post", ["chatId", "postId"])
+    .index("by_user", ["userId"])
+    .index("by_channel_post", ["channelId", "postId"]),
 
   lastListMessages: defineTable({
     chatId: v.number(),

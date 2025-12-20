@@ -9,6 +9,8 @@ export interface User {
   sessionType?: string;
   sessionNumber?: number;
   notes?: string | null;
+  isCompensation?: boolean; // true if this turn/participation is for compensation
+  compensatingForDates?: number[]; // array of timestamps for dates being compensated
 }
 
 export interface ChatStorage {

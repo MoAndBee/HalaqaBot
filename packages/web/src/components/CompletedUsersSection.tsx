@@ -34,6 +34,8 @@ interface CompletedUser {
   position: number
   completedAt?: number
   sessionType?: string
+  isCompensation?: boolean
+  compensatingForDates?: number[]
 }
 
 interface CompletedUsersSectionProps {
@@ -44,7 +46,7 @@ interface CompletedUsersSectionProps {
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
 }
 
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم']
+const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
 
 function CompletedUserCard({
   user,
@@ -167,6 +169,7 @@ function CompletedUserCard({
                 <Tag className="h-4 w-4 ml-2" />
                 تعديل المشاركة
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {onAddTurnAfter3 && (
                 <DropdownMenuItem onClick={handleAddTurnAfter3}>
                   <Plus className="h-4 w-4 ml-2" />
@@ -215,6 +218,13 @@ function CompletedUserCard({
               <div className="text-foreground text-xs sm:text-sm font-medium truncate">{primaryName}</div>
               {secondaryText && (
                 <div className="text-muted-foreground text-xs truncate">{secondaryText}</div>
+              )}
+              {user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0 && (
+                <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                  تعويض عن: {user.compensatingForDates.map(timestamp =>
+                    new Date(timestamp).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })
+                  ).join('، ')}
+                </div>
               )}
             </>
           )}
