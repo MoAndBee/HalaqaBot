@@ -485,10 +485,10 @@ export default function PostDetail() {
   return (
     <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
       <div className="mb-3 sm:mb-4 md:mb-6">
-        <Link href="/">
+        <Link href="/halaqas">
           <Button variant="ghost" size="sm" className="mb-2 sm:mb-3 md:mb-4 gap-2">
             <ArrowRight className="h-4 w-4" />
-            <span>العودة للمنشورات</span>
+            <span>العودة للحلقات</span>
           </Button>
         </Link>
 
