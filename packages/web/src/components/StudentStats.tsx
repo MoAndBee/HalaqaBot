@@ -135,7 +135,7 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   const monthName = currentDate.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })
 
   // Arabic day names (starting from Saturday)
-  const dayNames = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
+  const dayNames = ['سبت', 'أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة']
 
   // Build calendar grid
   const calendarDays = []
