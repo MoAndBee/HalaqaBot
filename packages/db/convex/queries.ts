@@ -589,14 +589,6 @@ export const getUserParticipations = query({
     userId: v.number(),
   },
   handler: async (ctx, args) => {
-    // Get user info
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
-      .first();
-
-    if (!user) return null;
-
     // Get all participations for this user
     const participations = await ctx.db
       .query("participationHistory")
@@ -606,23 +598,15 @@ export const getUserParticipations = query({
     // Sort by completedAt (newest first)
     participations.sort((a, b) => b.completedAt - a.completedAt);
 
-    return {
-      user: {
-        userId: user.userId,
-        username: user.username,
-        telegramName: user.telegramName,
-        realName: user.realName,
-      },
-      participations: participations.map((p) => ({
-        completedAt: p.completedAt,
-        sessionType: p.sessionType,
-        chatId: p.chatId,
-        postId: p.postId,
-        sessionNumber: p.sessionNumber,
-        notes: p.notes,
-        compensatingForDates: p.compensatingForDates,
-      })),
-    };
+    return participations.map((p) => ({
+      completedAt: p.completedAt,
+      sessionType: p.sessionType,
+      chatId: p.chatId,
+      postId: p.postId,
+      sessionNumber: p.sessionNumber,
+      notes: p.notes,
+      compensatingForDates: p.compensatingForDates,
+    }));
   },
 });
 

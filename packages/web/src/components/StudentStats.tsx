@@ -32,18 +32,17 @@ const SESSION_TYPE_COLORS: Record<string, string> = {
 }
 
 export function StudentStats({ userId, onBack }: StudentStatsProps) {
-  const data = useQuery(api.queries.getUserParticipations, { userId })
+  const user = useQuery(api.queries.getUser, { userId })
+  const participations = useQuery(api.queries.getUserParticipations, { userId })
   const [currentDate, setCurrentDate] = useState(new Date())
 
-  if (!data) {
+  if (!user || !participations) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />
       </div>
     )
   }
-
-  const { user, participations } = data
 
   // Get current month and year
   const year = currentDate.getFullYear()
