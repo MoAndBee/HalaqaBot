@@ -774,10 +774,10 @@ export const getParticipationSummary = query({
 
 export const getLongMessagesBySaturday = query({
   args: {
-    adminUserIds: v.optional(v.array(v.number())), // Admin user IDs (for isAdmin flag in response)
+    adminUserIds: v.array(v.number()), // Admin user IDs to filter by
   },
   handler: async (ctx, args) => {
-    const adminUserIds = new Set(args.adminUserIds ?? []);
+    const adminUserIds = new Set(args.adminUserIds);
 
     // Saturday 20/12/2025 timestamps (UTC)
     // Start: December 20, 2025 at 00:00:00 UTC
@@ -788,15 +788,17 @@ export const getLongMessagesBySaturday = query({
     // Get all messages from the messageAuthors table
     const allMessages = await ctx.db.query("messageAuthors").collect();
 
-    // Filter messages by date only
-    const saturdayMessages = allMessages.filter((msg) => {
-      return msg.createdAt >= startDate && msg.createdAt <= endDate;
+    // Filter messages by date and admin status
+    const adminMessages = allMessages.filter((msg) => {
+      const isInDateRange = msg.createdAt >= startDate && msg.createdAt <= endDate;
+      const isAdmin = adminUserIds.has(msg.userId);
+      return isInDateRange && isAdmin;
     });
 
     // Sort by time (earliest first)
-    saturdayMessages.sort((a, b) => a.createdAt - b.createdAt);
+    adminMessages.sort((a, b) => a.createdAt - b.createdAt);
 
-    return saturdayMessages.map((msg) => ({
+    return adminMessages.map((msg) => ({
       chatId: msg.chatId,
       postId: msg.postId,
       messageId: msg.messageId,
@@ -808,7 +810,6 @@ export const getLongMessagesBySaturday = query({
       messageLength: msg.messageText?.length ?? 0,
       createdAt: msg.createdAt,
       channelId: msg.channelId,
-      isAdmin: adminUserIds.has(msg.userId),
     }));
   },
 });
