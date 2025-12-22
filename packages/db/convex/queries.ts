@@ -775,9 +775,11 @@ export const getParticipationSummary = query({
 export const getLongMessagesBySaturday = query({
   args: {
     minLength: v.optional(v.number()), // Minimum message length (default: 1000 characters)
+    adminUserIds: v.optional(v.array(v.number())), // Admin user IDs (their messages are included regardless of length)
   },
   handler: async (ctx, args) => {
     const minLength = args.minLength ?? 1000;
+    const adminUserIds = new Set(args.adminUserIds ?? []);
 
     // Saturday 20/12/2025 timestamps (UTC)
     // Start: December 20, 2025 at 00:00:00 UTC
@@ -788,11 +790,18 @@ export const getLongMessagesBySaturday = query({
     // Get all messages from the messageAuthors table
     const allMessages = await ctx.db.query("messageAuthors").collect();
 
-    // Filter messages by date and length
+    // Filter messages by date and (length OR admin status)
     const longMessages = allMessages.filter((msg) => {
       const isInDateRange = msg.createdAt >= startDate && msg.createdAt <= endDate;
+      if (!isInDateRange) return false;
+
+      // Include if user is admin (regardless of length)
+      const isAdmin = adminUserIds.has(msg.userId);
+      if (isAdmin) return true;
+
+      // Otherwise, check if message is long enough
       const isLongEnough = msg.messageText && msg.messageText.length >= minLength;
-      return isInDateRange && isLongEnough;
+      return isLongEnough;
     });
 
     // Sort by message length (longest first)
@@ -814,6 +823,7 @@ export const getLongMessagesBySaturday = query({
       messageLength: msg.messageText?.length ?? 0,
       createdAt: msg.createdAt,
       channelId: msg.channelId,
+      isAdmin: adminUserIds.has(msg.userId),
     }));
   },
 });
