@@ -771,3 +771,45 @@ export const getParticipationSummary = query({
     };
   },
 });
+
+export const getLongMessagesBySaturday = query({
+  args: {
+    adminUserIds: v.array(v.number()), // Admin user IDs to filter by
+  },
+  handler: async (ctx, args) => {
+    const adminUserIds = new Set(args.adminUserIds);
+
+    // Saturday 20/12/2025 timestamps (UTC)
+    // Start: December 20, 2025 at 00:00:00 UTC
+    // End: December 20, 2025 at 23:59:59.999 UTC
+    const startDate = new Date('2025-12-20T00:00:00.000Z').getTime();
+    const endDate = new Date('2025-12-20T23:59:59.999Z').getTime();
+
+    // Get all messages from the messageAuthors table
+    const allMessages = await ctx.db.query("messageAuthors").collect();
+
+    // Filter messages by date and admin status
+    const adminMessages = allMessages.filter((msg) => {
+      const isInDateRange = msg.createdAt >= startDate && msg.createdAt <= endDate;
+      const isAdmin = adminUserIds.has(msg.userId);
+      return isInDateRange && isAdmin;
+    });
+
+    // Sort by time (earliest first)
+    adminMessages.sort((a, b) => a.createdAt - b.createdAt);
+
+    return adminMessages.map((msg) => ({
+      chatId: msg.chatId,
+      postId: msg.postId,
+      messageId: msg.messageId,
+      userId: msg.userId,
+      firstName: msg.firstName,
+      lastName: msg.lastName,
+      username: msg.username,
+      messageText: msg.messageText,
+      messageLength: msg.messageText?.length ?? 0,
+      createdAt: msg.createdAt,
+      channelId: msg.channelId,
+    }));
+  },
+});
