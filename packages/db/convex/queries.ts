@@ -774,11 +774,9 @@ export const getParticipationSummary = query({
 
 export const getLongMessagesBySaturday = query({
   args: {
-    minLength: v.optional(v.number()), // Minimum message length (default: 1000 characters)
-    adminUserIds: v.optional(v.array(v.number())), // Admin user IDs (their messages are included regardless of length)
+    adminUserIds: v.optional(v.array(v.number())), // Admin user IDs (for isAdmin flag in response)
   },
   handler: async (ctx, args) => {
-    const minLength = args.minLength ?? 1000;
     const adminUserIds = new Set(args.adminUserIds ?? []);
 
     // Saturday 20/12/2025 timestamps (UTC)
@@ -790,28 +788,15 @@ export const getLongMessagesBySaturday = query({
     // Get all messages from the messageAuthors table
     const allMessages = await ctx.db.query("messageAuthors").collect();
 
-    // Filter messages by date and (length OR admin status)
-    const longMessages = allMessages.filter((msg) => {
-      const isInDateRange = msg.createdAt >= startDate && msg.createdAt <= endDate;
-      if (!isInDateRange) return false;
-
-      // Include if user is admin (regardless of length)
-      const isAdmin = adminUserIds.has(msg.userId);
-      if (isAdmin) return true;
-
-      // Otherwise, check if message is long enough
-      const isLongEnough = msg.messageText && msg.messageText.length >= minLength;
-      return isLongEnough;
+    // Filter messages by date only
+    const saturdayMessages = allMessages.filter((msg) => {
+      return msg.createdAt >= startDate && msg.createdAt <= endDate;
     });
 
-    // Sort by message length (longest first)
-    longMessages.sort((a, b) => {
-      const aLength = a.messageText?.length ?? 0;
-      const bLength = b.messageText?.length ?? 0;
-      return bLength - aLength;
-    });
+    // Sort by time (earliest first)
+    saturdayMessages.sort((a, b) => a.createdAt - b.createdAt);
 
-    return longMessages.map((msg) => ({
+    return saturdayMessages.map((msg) => ({
       chatId: msg.chatId,
       postId: msg.postId,
       messageId: msg.messageId,
