@@ -771,3 +771,49 @@ export const getParticipationSummary = query({
     };
   },
 });
+
+export const getLongMessagesBySaturday = query({
+  args: {
+    minLength: v.optional(v.number()), // Minimum message length (default: 1000 characters)
+  },
+  handler: async (ctx, args) => {
+    const minLength = args.minLength ?? 1000;
+
+    // Saturday 20/12/2025 timestamps (UTC)
+    // Start: December 20, 2025 at 00:00:00 UTC
+    // End: December 20, 2025 at 23:59:59.999 UTC
+    const startDate = new Date('2025-12-20T00:00:00.000Z').getTime();
+    const endDate = new Date('2025-12-20T23:59:59.999Z').getTime();
+
+    // Get all messages from the messageAuthors table
+    const allMessages = await ctx.db.query("messageAuthors").collect();
+
+    // Filter messages by date and length
+    const longMessages = allMessages.filter((msg) => {
+      const isInDateRange = msg.createdAt >= startDate && msg.createdAt <= endDate;
+      const isLongEnough = msg.messageText && msg.messageText.length >= minLength;
+      return isInDateRange && isLongEnough;
+    });
+
+    // Sort by message length (longest first)
+    longMessages.sort((a, b) => {
+      const aLength = a.messageText?.length ?? 0;
+      const bLength = b.messageText?.length ?? 0;
+      return bLength - aLength;
+    });
+
+    return longMessages.map((msg) => ({
+      chatId: msg.chatId,
+      postId: msg.postId,
+      messageId: msg.messageId,
+      userId: msg.userId,
+      firstName: msg.firstName,
+      lastName: msg.lastName,
+      username: msg.username,
+      messageText: msg.messageText,
+      messageLength: msg.messageText?.length ?? 0,
+      createdAt: msg.createdAt,
+      channelId: msg.channelId,
+    }));
+  },
+});
