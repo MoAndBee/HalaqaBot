@@ -146,13 +146,14 @@ export class BotTaskService {
       allParticipants.forEach((participant: any, index: number) => {
         const arabicNumber = (index + 1).toLocaleString('ar-EG');
         const name = participant.realName || participant.telegramName;
+        const isDone = completedUsers.some((u: any) => u.id === participant.id);
         const activityLabel = (participant.sessionType === 'تلاوة' || participant.sessionType === 'تسميع')
           ? ` (${participant.sessionType})`
           : '';
-        const skipLabel = participant.skipCount && participant.skipCount > 0
+        const skipLabel = !isDone && participant.skipCount && participant.skipCount > 0
           ? ` (نوديت ${participant.skipCount === 1 ? 'مرة' : participant.skipCount === 2 ? 'مرتين' : `${participant.skipCount} مرات`})`
           : '';
-        const doneIcon = completedUsers.some((u: any) => u.id === participant.id) ? ' ✅' : '';
+        const doneIcon = isDone ? ' ✅' : '';
         message += `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
       });
 
