@@ -151,7 +151,7 @@ export class BotTaskService {
           ? ` (${participant.sessionType})`
           : '';
         const skipLabel = !isDone && participant.skipCount && participant.skipCount > 0
-          ? ` (نوديت ${participant.skipCount === 1 ? 'مرة' : participant.skipCount === 2 ? 'مرتين' : `${participant.skipCount} مرات`})`
+          ? ` (نوديت ${participant.skipCount === 1 ? 'مرة' : participant.skipCount === 2 ? 'مرتين' : `${participant.skipCount.toLocaleString('ar-EG')} مرات`})`
           : '';
         const doneIcon = isDone ? ' ✅' : '';
         message += `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
