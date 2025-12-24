@@ -54,6 +54,7 @@ export default defineSchema({
     sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", "اختبار", "تعويض"
     isCompensation: v.optional(v.boolean()), // true if this turn is for compensation
     compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
+    wasSkipped: v.optional(v.boolean()), // true if this participant has been skipped
   })
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
     .index("by_chat_post_position", ["chatId", "postId", "position"])
