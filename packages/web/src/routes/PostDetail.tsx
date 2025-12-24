@@ -53,7 +53,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
         ? ` (${user.sessionType})`
         : ''
       const skipLabel = !isDone && user.skipCount && user.skipCount > 0
-        ? ` (نوديت ${user.skipCount === 1 ? 'مرة' : user.skipCount === 2 ? 'مرتين' : `${user.skipCount.toLocaleString('ar-EG')} مرات`})`
+        ? ` 🗣️`
         : ''
       const doneIcon = isDone ? ' ✅' : ''
       return `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`

@@ -294,7 +294,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               )}
               {user.skipCount && user.skipCount > 0 && (
                 <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-                  (نوديت {user.skipCount === 1 ? 'مرة' : user.skipCount === 2 ? 'مرتين' : `${user.skipCount.toLocaleString('ar-EG')} مرات`})
+                  🗣️
                 </div>
               )}
             </>
