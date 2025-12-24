@@ -319,13 +319,17 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               </div>
             ) : (
               <Badge variant={
-                (user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0) || user.sessionType
-                  ? "default"
-                  : "secondary"
+                user.skipCount && user.skipCount > 0
+                  ? "secondary"
+                  : ((user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0) || user.sessionType
+                    ? "default"
+                    : "secondary")
               } className="text-xs">
-                {(user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
-                  ? 'تعويض'
-                  : (user.sessionType || 'غير محدد')}
+                {user.skipCount && user.skipCount > 0
+                  ? `(called out ${user.skipCount} ${user.skipCount === 1 ? 'time' : 'times'})`
+                  : ((user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
+                    ? 'تعويض'
+                    : (user.sessionType || 'غير محدد'))}
               </Badge>
             )}
           </div>
