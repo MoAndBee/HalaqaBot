@@ -326,7 +326,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                     : "secondary")
               } className="text-xs">
                 {user.skipCount && user.skipCount > 0
-                  ? `(called out ${user.skipCount} ${user.skipCount === 1 ? 'time' : 'times'})`
+                  ? `(نوديت ${user.skipCount === 1 ? 'مرة' : user.skipCount === 2 ? 'مرتين' : `${user.skipCount} مرات`})`
                   : ((user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
                     ? 'تعويض'
                     : (user.sessionType || 'غير محدد'))}
