@@ -152,14 +152,15 @@ export const getUserList = query({
           notes: entry.notes || null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
+          recordCreatedAt: entry._creationTime, // When the participation record was created
         };
       })
     );
 
-    // Sort completed users by completion time
+    // Sort completed users by when they were marked complete (document creation time)
+    // This ensures newly completed users appear at the end of the list
     completedUsers.sort((a, b) => {
-      if (a.completedAt !== b.completedAt) return a.completedAt - b.completedAt;
-      return a.createdAt - b.createdAt;
+      return a.recordCreatedAt - b.recordCreatedAt;
     });
 
     return {
@@ -581,6 +582,32 @@ export const getUser = query({
       sourceMessageText: user.sourceMessageText,
       updatedAt: user.updatedAt,
     };
+  },
+});
+
+export const getUserParticipations = query({
+  args: {
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Get all participations for this user
+    const participations = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    // Sort by completedAt (newest first)
+    participations.sort((a, b) => b.completedAt - a.completedAt);
+
+    return participations.map((p) => ({
+      completedAt: p.completedAt,
+      sessionType: p.sessionType,
+      chatId: p.chatId,
+      postId: p.postId,
+      sessionNumber: p.sessionNumber,
+      notes: p.notes,
+      compensatingForDates: p.compensatingForDates,
+    }));
   },
 });
 

@@ -3,6 +3,8 @@ import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from './components/ThemeProvider'
 import Layout from './components/Layout'
 import Home from './routes/Home'
+import Halaqas from './routes/Halaqas'
+import Students from './routes/Students'
 import PostDetail from './routes/PostDetail'
 import ParticipationSummary from './routes/ParticipationSummary'
 
@@ -12,6 +14,8 @@ export default function App() {
       <Layout>
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/halaqas" component={Halaqas} />
+          <Route path="/students" component={Students} />
           <Route path="/posts/:chatId/:postId/summary" component={ParticipationSummary} />
           <Route path="/posts/:chatId/:postId" component={PostDetail} />
           <Route>
