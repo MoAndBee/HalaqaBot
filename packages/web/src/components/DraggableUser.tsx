@@ -292,6 +292,11 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   ).join('، ')}
                 </div>
               )}
+              {user.skipCount && user.skipCount > 0 && (
+                <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                  (نوديت {user.skipCount === 1 ? 'مرة' : user.skipCount === 2 ? 'مرتين' : `${user.skipCount} مرات`})
+                </div>
+              )}
             </>
           )}
         </div>
@@ -319,17 +324,13 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               </div>
             ) : (
               <Badge variant={
-                user.skipCount && user.skipCount > 0
-                  ? "secondary"
-                  : ((user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0) || user.sessionType
-                    ? "default"
-                    : "secondary")
+                (user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0) || user.sessionType
+                  ? "default"
+                  : "secondary"
               } className="text-xs">
-                {user.skipCount && user.skipCount > 0
-                  ? `(نوديت ${user.skipCount === 1 ? 'مرة' : user.skipCount === 2 ? 'مرتين' : `${user.skipCount} مرات`})`
-                  : ((user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
-                    ? 'تعويض'
-                    : (user.sessionType || 'غير محدد'))}
+                {(user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
+                  ? 'تعويض'
+                  : (user.sessionType || 'غير محدد')}
               </Badge>
             )}
           </div>
