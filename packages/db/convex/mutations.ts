@@ -181,6 +181,7 @@ export const addUserToList = mutation({
       channelId: args.channelId,
       createdAt: Date.now(),
       carriedOver: false, // This is a new addition, not carried over
+      sessionType: args.sessionType,
       isCompensation: args.isCompensation,
       compensatingForDates: args.compensatingForDates,
     });
@@ -297,6 +298,7 @@ export const addUserAtPosition = mutation({
       channelId: args.channelId,
       createdAt: Date.now(),
       carriedOver: false,
+      sessionType: args.sessionType,
       isCompensation: args.isCompensation,
       compensatingForDates: args.compensatingForDates,
     });
@@ -983,6 +985,9 @@ export const startNewSession = mutation({
           channelId: entry.channelId,
           createdAt: Date.now(),
           carriedOver: true,
+          sessionType: entry.sessionType,
+          isCompensation: entry.isCompensation,
+          compensatingForDates: entry.compensatingForDates,
         });
       }
     }
