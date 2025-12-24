@@ -52,8 +52,11 @@ function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
       const activityLabel = (user.sessionType === 'تلاوة' || user.sessionType === 'تسميع')
         ? ` (${user.sessionType})`
         : ''
+      const skipLabel = user.skipCount && user.skipCount > 0
+        ? ` (نوديت ${user.skipCount === 1 ? 'مرة' : user.skipCount === 2 ? 'مرتين' : `${user.skipCount} مرات`})`
+        : ''
       const doneIcon = isDone ? ' ✅' : ''
-      return `${arabicNumber}. ${name}${activityLabel}${doneIcon}`
+      return `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
     })
     .join('\n')
 }
