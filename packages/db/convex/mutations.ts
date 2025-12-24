@@ -691,9 +691,8 @@ export const skipUserTurn = mutation({
       throw new Error("Cannot skip - no next user available");
     }
 
-    // Increment skip count for the user being skipped
-    const currentSkipCount = currentEntry.skipCount || 0;
-    await ctx.db.patch(args.entryId, { skipCount: currentSkipCount + 1 });
+    // Mark the user as skipped
+    await ctx.db.patch(args.entryId, { wasSkipped: true });
 
     // Swap positions in the array
     [activeUsers[currentIndex], activeUsers[currentIndex + 1]] =

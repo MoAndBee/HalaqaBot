@@ -11,7 +11,7 @@ export interface User {
   notes?: string | null;
   isCompensation?: boolean; // true if this turn/participation is for compensation
   compensatingForDates?: number[]; // array of timestamps for dates being compensated
-  skipCount?: number; // number of times this participant has been skipped
+  wasSkipped?: boolean; // true if this participant has been skipped
 }
 
 export interface ChatStorage {

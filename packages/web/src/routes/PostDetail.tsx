@@ -52,7 +52,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
       const activityLabel = (user.sessionType === 'تلاوة' || user.sessionType === 'تسميع')
         ? ` (${user.sessionType})`
         : ''
-      const skipLabel = !isDone && user.skipCount && user.skipCount > 0
+      const skipLabel = !isDone && user.wasSkipped
         ? ` 🗣️`
         : ''
       const doneIcon = isDone ? ' ✅' : ''

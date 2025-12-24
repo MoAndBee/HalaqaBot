@@ -121,7 +121,7 @@ export const getUserList = query({
           notes: null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
-          skipCount: entry.skipCount,
+          wasSkipped: entry.wasSkipped,
         };
       })
     );

@@ -150,7 +150,7 @@ export class BotTaskService {
         const activityLabel = (participant.sessionType === 'تلاوة' || participant.sessionType === 'تسميع')
           ? ` (${participant.sessionType})`
           : '';
-        const skipLabel = !isDone && participant.skipCount && participant.skipCount > 0
+        const skipLabel = !isDone && participant.wasSkipped
           ? ` 🗣️`
           : '';
         const doneIcon = isDone ? ' ✅' : '';

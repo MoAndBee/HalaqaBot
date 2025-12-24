@@ -292,7 +292,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   ).join('، ')}
                 </div>
               )}
-              {user.skipCount && user.skipCount > 0 && (
+              {user.wasSkipped && (
                 <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
                   🗣️
                 </div>
