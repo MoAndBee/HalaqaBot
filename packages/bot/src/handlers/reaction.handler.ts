@@ -150,6 +150,28 @@ export function registerReactionHandler(
           realName = classification.detectedNames.join(' ');
         }
 
+        // Only proceed if a name was detected
+        if (!realName) {
+          console.log(`⚠️  No name detected in message ${messageId}, ignoring reaction (not an attendance confirmation)`);
+          return;
+        }
+
+        // Check if user already has a realName in the database
+        const existingUser = await convex.query(api.queries.getUser, {
+          userId: messageAuthor.id,
+        });
+
+        // Only update realName if user doesn't already have one
+        const userIdToRealName = existingUser?.realName
+          ? undefined  // Don't update - user already has a name
+          : new Map([[messageAuthor.id, realName]]);  // Update with detected name
+
+        if (existingUser?.realName) {
+          console.log(`ℹ️  User ${messageAuthor.id} already has realName: "${existingUser.realName}", keeping existing name`);
+        } else {
+          console.log(`ℹ️  User ${messageAuthor.id} has no realName, will update with detected name: "${realName}"`);
+        }
+
         // Extract activity type from this message
         let activityType = classification?.activityType;
 
@@ -161,11 +183,6 @@ export function registerReactionHandler(
             userId: messageAuthor.id,
           });
         }
-
-        // Create userIdToRealName map if we have a real name
-        const userIdToRealName = realName
-          ? new Map([[messageAuthor.id, realName]])
-          : undefined;
 
         // Create userIdToActivityType map if we have an activity type
         const userIdToActivityType = activityType
