@@ -115,6 +115,8 @@ export function registerReactionHandler(
             messageId,
           });
 
+          console.log(`ℹ️  Message text from database: "${messageText}"`);
+
           if (messageText && messageText.trim().length > 0) {
             // Classify the message
             const classifications = await classificationService.classifyBatch([
@@ -141,6 +143,8 @@ export function registerReactionHandler(
                 activityType: result.activityType,
               };
             }
+          } else {
+            console.log(`⚠️  Message text is empty or not found in database for message ${messageId}, cannot classify`);
           }
         }
 
