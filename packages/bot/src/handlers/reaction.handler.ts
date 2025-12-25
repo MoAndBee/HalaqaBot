@@ -109,13 +109,44 @@ export function registerReactionHandler(
         // If not classified yet, try to classify it now
         if (!classification) {
           // Get the message text from the database
-          const messageText = await convex.query(api.queries.getMessageText, {
+          let messageText = await convex.query(api.queries.getMessageText, {
             chatId,
             postId,
             messageId,
           });
 
           console.log(`ℹ️  Message text from database: "${messageText}"`);
+
+          // If message text is missing, try to fetch it from Telegram
+          if (!messageText || messageText.trim().length === 0) {
+            console.log(`⚠️  Message text missing from database, attempting to fetch from Telegram...`);
+            try {
+              const forwardedMessage = await ctx.api.forwardMessage(
+                config.forwardChatId,
+                chatId,
+                messageId,
+              );
+
+              // Extract text from the forwarded message
+              messageText = forwardedMessage.text || forwardedMessage.caption || null;
+              console.log(`✅ Fetched message text from Telegram: "${messageText}"`);
+
+              // Update the database with the text
+              if (messageText) {
+                await convex.mutation(api.mutations.addMessageAuthor, {
+                  chatId,
+                  postId,
+                  messageId,
+                  user: messageAuthor,
+                  messageText,
+                  channelId,
+                });
+                console.log(`✅ Updated database with message text`);
+              }
+            } catch (error) {
+              console.error(`❌ Error fetching message from Telegram:`, error);
+            }
+          }
 
           if (messageText && messageText.trim().length > 0) {
             // Classify the message
@@ -144,7 +175,7 @@ export function registerReactionHandler(
               };
             }
           } else {
-            console.log(`⚠️  Message text is empty or not found in database for message ${messageId}, cannot classify`);
+            console.log(`⚠️  Message text is empty or could not be retrieved for message ${messageId}, cannot classify`);
           }
         }
 
