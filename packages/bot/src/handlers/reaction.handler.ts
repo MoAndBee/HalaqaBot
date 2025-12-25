@@ -106,84 +106,127 @@ export function registerReactionHandler(
           messageId,
         });
 
-        // If not classified yet, try to classify it now
-        if (!classification) {
-          // Get the message text from the database
-          let messageText = await convex.query(api.queries.getMessageText, {
-            chatId,
-            postId,
-            messageId,
-          });
+        // Get the message text (we'll need it for re-classification if needed)
+        let messageText = await convex.query(api.queries.getMessageText, {
+          chatId,
+          postId,
+          messageId,
+        });
 
-          console.log(`ℹ️  Message text from database: "${messageText}"`);
+        console.log(`ℹ️  Message text from database: "${messageText}"`);
 
-          // If message text is missing, try to fetch it from Telegram
-          if (!messageText || messageText.trim().length === 0) {
-            console.log(`⚠️  Message text missing from database, attempting to fetch from Telegram...`);
-            try {
-              const forwardedMessage = await ctx.api.forwardMessage(
-                config.forwardChatId,
-                chatId,
-                messageId,
-              );
+        // If message text is missing, try to fetch it from Telegram
+        if (!messageText || messageText.trim().length === 0) {
+          console.log(`⚠️  Message text missing from database, attempting to fetch from Telegram...`);
+          try {
+            const forwardedMessage = await ctx.api.forwardMessage(
+              config.forwardChatId,
+              chatId,
+              messageId,
+            );
 
-              // Extract text from the forwarded message
-              messageText = forwardedMessage.text || forwardedMessage.caption || null;
-              console.log(`✅ Fetched message text from Telegram: "${messageText}"`);
+            // Extract text from the forwarded message
+            messageText = forwardedMessage.text || forwardedMessage.caption || null;
+            console.log(`✅ Fetched message text from Telegram: "${messageText}"`);
 
-              // Update the database with the text
-              if (messageText) {
-                await convex.mutation(api.mutations.addMessageAuthor, {
-                  chatId,
-                  postId,
-                  messageId,
-                  user: messageAuthor,
-                  messageText,
-                  channelId,
-                });
-                console.log(`✅ Updated database with message text`);
-              }
-            } catch (error) {
-              console.error(`❌ Error fetching message from Telegram:`, error);
-            }
-          }
-
-          if (messageText && messageText.trim().length > 0) {
-            // Classify the message
-            const classifications = await classificationService.classifyBatch([
-              { id: messageId, text: messageText }
-            ]);
-
-            const result = classifications.get(messageId);
-            console.log(`🔍 Classification result:`, {
-              containsName: result?.containsName,
-              detectedNames: result?.detectedNames,
-              activityType: result?.activityType,
-              rawResponse: result?.rawResponse,
-            });
-
-            if (result) {
-              // Store the classification
-              await convex.mutation(api.mutations.storeClassification, {
+            // Update the database with the text
+            if (messageText) {
+              await convex.mutation(api.mutations.addMessageAuthor, {
                 chatId,
                 postId,
                 messageId,
-                messageText: messageText,
-                containsName: result.containsName,
-                detectedNames: result.detectedNames || [],
-                activityType: result.activityType ?? undefined,
+                user: messageAuthor,
+                messageText,
                 channelId,
               });
-
-              classification = {
-                containsName: result.containsName,
-                detectedNames: result.detectedNames || [],
-                activityType: result.activityType,
-              };
+              console.log(`✅ Updated database with message text`);
             }
-          } else {
-            console.log(`⚠️  Message text is empty or could not be retrieved for message ${messageId}, cannot classify`);
+          } catch (error) {
+            console.error(`❌ Error fetching message from Telegram:`, error);
           }
+        }
+
+        // If classification exists but has no names detected, re-run FULL classification
+        // This happens when activity-type-only classification was used during auto-classification
+        const needsFullClassification = classification &&
+          (!classification.containsName || !classification.detectedNames || classification.detectedNames.length === 0);
+
+        if (needsFullClassification && messageText && messageText.trim().length > 0) {
+          console.log(`ℹ️  Existing classification has no names, re-running FULL classification on reaction...`);
+
+          const classifications = await classificationService.classifyBatch([
+            { id: messageId, text: messageText }
+          ]);
+
+          const result = classifications.get(messageId);
+          console.log(`🔍 Full classification result:`, {
+            containsName: result?.containsName,
+            detectedNames: result?.detectedNames,
+            activityType: result?.activityType,
+            rawResponse: result?.rawResponse,
+          });
+
+          if (result) {
+            // Update the stored classification with detected names
+            await convex.mutation(api.mutations.storeClassification, {
+              chatId,
+              postId,
+              messageId,
+              messageText: messageText,
+              containsName: result.containsName,
+              detectedNames: result.detectedNames || [],
+              activityType: result.activityType ?? classification.activityType ?? undefined,
+              channelId,
+            });
+
+            // Update our local classification variable
+            classification = {
+              containsName: result.containsName,
+              detectedNames: result.detectedNames || [],
+              activityType: result.activityType ?? classification.activityType,
+            };
+          }
+        }
+
+        // If not classified yet at all, classify it now
+        if (!classification && messageText && messageText.trim().length > 0) {
+          console.log(`ℹ️  No classification exists, running FULL classification...`);
+
+          const classifications = await classificationService.classifyBatch([
+            { id: messageId, text: messageText }
+          ]);
+
+          const result = classifications.get(messageId);
+          console.log(`🔍 Classification result:`, {
+            containsName: result?.containsName,
+            detectedNames: result?.detectedNames,
+            activityType: result?.activityType,
+            rawResponse: result?.rawResponse,
+          });
+
+          if (result) {
+            // Store the classification
+            await convex.mutation(api.mutations.storeClassification, {
+              chatId,
+              postId,
+              messageId,
+              messageText: messageText,
+              containsName: result.containsName,
+              detectedNames: result.detectedNames || [],
+              activityType: result.activityType ?? undefined,
+              channelId,
+            });
+
+            classification = {
+              containsName: result.containsName,
+              detectedNames: result.detectedNames || [],
+              activityType: result.activityType,
+            };
+          }
+        }
+
+        if (!messageText || messageText.trim().length === 0) {
+          console.log(`⚠️  Message text is empty or could not be retrieved for message ${messageId}, cannot classify`);
         }
 
         // Check if user already has a realName in the database
