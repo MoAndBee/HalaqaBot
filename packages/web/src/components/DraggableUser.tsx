@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
-import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUpDown, Trash2, Check, X, Calendar } from 'lucide-react'
+import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar } from 'lucide-react'
 import type { User } from '@halakabot/db'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,7 @@ interface DraggableUserProps {
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onUpdateSessionType?: (entryId: string, sessionType: SessionType) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
+  onMoveToTop?: (entryId: string) => void
   onMoveToEnd?: (entryId: string) => void
   onMoveToPosition?: (entryId: string, position: number) => void
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
@@ -39,7 +40,7 @@ interface DraggableUserProps {
 
 const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
@@ -87,6 +88,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     if (onAddTurnAfter3) {
       const currentPosition = user.position ?? (index + 1)
       onAddTurnAfter3(user.id, currentPosition)
+    }
+  }
+
+  const handleMoveToTop = () => {
+    if (onMoveToTop && user.entryId) {
+      onMoveToTop(user.entryId)
     }
   }
 
@@ -206,6 +213,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 <DropdownMenuItem onClick={handleAddTurnAfter3}>
                   <Plus className="h-4 w-4 ml-2" />
                   إضافة دور بعد ٣
+                </DropdownMenuItem>
+              )}
+              {onMoveToTop && (
+                <DropdownMenuItem onClick={handleMoveToTop}>
+                  <ArrowUp className="h-4 w-4 ml-2" />
+                  نقل إلى أول القائمة
                 </DropdownMenuItem>
               )}
               {onMoveToPosition && (

@@ -203,6 +203,31 @@ export function UserList({
     }
   }
 
+  const handleMoveToTop = async (entryId: string) => {
+    const userIndex = items.findIndex((user) => user.entryId === entryId)
+    if (userIndex === -1 || userIndex === 0) return
+
+    const originalItems = [...items]
+    const newItems = [...items]
+    const [movedUser] = newItems.splice(userIndex, 1)
+    newItems.unshift(movedUser)
+
+    setItems(newItems)
+    setIsReordering(true)
+    setError(null)
+
+    try {
+      await onReorder(entryId, 1)
+    } catch (error) {
+      console.error('Failed to move user to top:', error)
+      setItems(originalItems)
+      setError('فشل نقل المستخدم إلى أول القائمة. الرجاء المحاولة مرة أخرى.')
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsReordering(false)
+    }
+  }
+
   const handleMoveToEnd = async (entryId: string) => {
     const userIndex = items.findIndex((user) => user.entryId === entryId)
     if (userIndex === -1 || userIndex === items.length - 1) return
@@ -305,6 +330,7 @@ export function UserList({
                     onUpdateDisplayName={handleUpdateDisplayName}
                     onUpdateSessionType={handleUpdateSessionType}
                     onAddTurnAfter3={onAddTurnAfter3}
+                    onMoveToTop={handleMoveToTop}
                     onMoveToEnd={handleMoveToEnd}
                     onMoveToPosition={handleMoveToPosition}
                     onEditNotes={onEditNotes}
