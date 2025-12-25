@@ -62,17 +62,24 @@ export class ClassificationService {
       const { object } = await generateObject({
         model: groq("openai/gpt-oss-20b"),
         schema: batchClassificationSchema,
-        prompt: `Analyze the following Arabic messages and for each message:
-1. Determine if it contains a person's name
-2. Extract all person names found (first, middle, last names)
-3. Do NOT include words like "تلاوة", "تسميع", "تصحيح" as names
-4. Determine the activity type:
-   - "تسميع" (recitation from memory)
-   - "تلاوة" (reading from Quran)
-   - null if not mentioned
-5. Return the message_id, contains_name (true/false), names array, and activity_type
+        prompt: `You are analyzing Arabic messages to extract student names and activity types.
 
-Messages: ${messagesList}`
+For each message:
+1. Identify if it contains a PERSON'S NAME (Arabic names like "أسماء بكري محمود", "فاطمة أحمد", etc.)
+2. Extract ALL parts of the name (first, middle, last) as separate elements in the names array
+3. IMPORTANT: Do NOT include these words as names: "تلاوة", "تسميع", "تصحيح", "مراجعة"
+4. Detect the activity type:
+   - "تسميع" = recitation from memory
+   - "تلاوة" = reading from Quran
+   - null = not mentioned
+
+Example:
+- Input: "أسماء بكري محمود تسميع"
+- Output: contains_name=true, names=["أسماء", "بكري", "محمود"], activity_type="تسميع"
+
+Messages to analyze: ${messagesList}
+
+Return the message_id, contains_name (true/false), names array, and activity_type for each message.`
       });
 
       const results = new Map<number, ClassificationResult>();

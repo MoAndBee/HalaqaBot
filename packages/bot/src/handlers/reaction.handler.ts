@@ -155,6 +155,13 @@ export function registerReactionHandler(
             ]);
 
             const result = classifications.get(messageId);
+            console.log(`🔍 Classification result:`, {
+              containsName: result?.containsName,
+              detectedNames: result?.detectedNames,
+              activityType: result?.activityType,
+              rawResponse: result?.rawResponse,
+            });
+
             if (result) {
               // Store the classification
               await convex.mutation(api.mutations.storeClassification, {
