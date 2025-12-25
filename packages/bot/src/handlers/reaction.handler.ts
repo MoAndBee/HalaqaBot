@@ -229,27 +229,28 @@ export function registerReactionHandler(
           console.log(`⚠️  Message text is empty or could not be retrieved for message ${messageId}, cannot classify`);
         }
 
-        // Check if user already has a realName in the database
-        const existingUser = await convex.query(api.queries.getUser, {
-          userId: messageAuthor.id,
-        });
-
         // Extract real name if available (join all detected names)
         let realName: string | undefined;
         if (classification?.detectedNames && classification.detectedNames.length > 0) {
           realName = classification.detectedNames.join(' ');
         }
 
-        // If user doesn't already have a realName, require name detection
-        if (!existingUser?.realName && !realName) {
-          console.log(`⚠️  No name detected in message ${messageId} and user has no existing realName, ignoring reaction (not an attendance confirmation)`);
+        // ALWAYS require name detection in the message, even if user has existing realName
+        // This prevents adding users when reacting to "thanks", "no sound", etc.
+        if (!realName) {
+          console.log(`⚠️  No name detected in message ${messageId}, ignoring reaction (message must contain a name)`);
           return;
         }
 
-        // Only update realName if user doesn't already have one
+        // Check if user already has a realName in the database
+        const existingUser = await convex.query(api.queries.getUser, {
+          userId: messageAuthor.id,
+        });
+
+        // Only update realName if user doesn't already have one (Option 1: keep existing)
         const userIdToRealName = existingUser?.realName
           ? undefined  // Don't update - user already has a name
-          : new Map([[messageAuthor.id, realName!]]);  // Update with detected name
+          : new Map([[messageAuthor.id, realName]]);  // Update with detected name
 
         if (existingUser?.realName) {
           console.log(`ℹ️  User ${messageAuthor.id} already has realName: "${existingUser.realName}", keeping existing name`);
