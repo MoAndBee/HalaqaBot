@@ -60,12 +60,16 @@ export class MessageService {
           };
           console.log("Found message author from forward:", messageAuthor);
 
-          // Store it for future use
+          // Extract message text from the forwarded message
+          const messageText = forwardedMessage.text || forwardedMessage.caption;
+
+          // Store it for future use (including message text)
           await this.convex.mutation(api.mutations.addMessageAuthor, {
             chatId,
             postId,
             messageId,
             user: messageAuthor,
+            messageText,
           });
         } else if (origin.type === "hidden_user") {
           console.log(
