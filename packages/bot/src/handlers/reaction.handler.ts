@@ -116,6 +116,8 @@ export function registerReactionHandler(
           });
 
           if (messageText && messageText.trim().length > 0) {
+            console.log(`📝 Classifying message ${messageId}: "${messageText}"`);
+
             // Classify the message
             const classifications = await classificationService.classifyBatch([
               { id: messageId, text: messageText }
@@ -123,6 +125,12 @@ export function registerReactionHandler(
 
             const result = classifications.get(messageId);
             if (result) {
+              console.log(`🔍 Classification result for message ${messageId}:`, {
+                containsName: result.containsName,
+                detectedNames: result.detectedNames,
+                activityType: result.activityType,
+              });
+
               // Store the classification
               await convex.mutation(api.mutations.storeClassification, {
                 chatId,
@@ -140,7 +148,11 @@ export function registerReactionHandler(
                 detectedNames: result.detectedNames || [],
                 activityType: result.activityType,
               };
+            } else {
+              console.log(`⚠️  No classification result returned for message ${messageId}`);
             }
+          } else {
+            console.log(`⚠️  Message ${messageId} has no text or empty text`);
           }
         }
 
@@ -149,6 +161,8 @@ export function registerReactionHandler(
         if (classification?.detectedNames && classification.detectedNames.length > 0) {
           realName = classification.detectedNames.join(' ');
         }
+
+        console.log(`🔎 Final classification check - containsName: ${classification?.containsName}, detectedNames: ${JSON.stringify(classification?.detectedNames)}, realName: "${realName}"`);
 
         // Only proceed if a name was detected
         if (!realName) {
