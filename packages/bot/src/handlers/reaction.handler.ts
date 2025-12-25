@@ -186,27 +186,27 @@ export function registerReactionHandler(
           }
         }
 
+        // Check if user already has a realName in the database
+        const existingUser = await convex.query(api.queries.getUser, {
+          userId: messageAuthor.id,
+        });
+
         // Extract real name if available (join all detected names)
         let realName: string | undefined;
         if (classification?.detectedNames && classification.detectedNames.length > 0) {
           realName = classification.detectedNames.join(' ');
         }
 
-        // Only proceed if a name was detected
-        if (!realName) {
-          console.log(`⚠️  No name detected in message ${messageId}, ignoring reaction (not an attendance confirmation)`);
+        // If user doesn't already have a realName, require name detection
+        if (!existingUser?.realName && !realName) {
+          console.log(`⚠️  No name detected in message ${messageId} and user has no existing realName, ignoring reaction (not an attendance confirmation)`);
           return;
         }
-
-        // Check if user already has a realName in the database
-        const existingUser = await convex.query(api.queries.getUser, {
-          userId: messageAuthor.id,
-        });
 
         // Only update realName if user doesn't already have one
         const userIdToRealName = existingUser?.realName
           ? undefined  // Don't update - user already has a name
-          : new Map([[messageAuthor.id, realName]]);  // Update with detected name
+          : new Map([[messageAuthor.id, realName!]]);  // Update with detected name
 
         if (existingUser?.realName) {
           console.log(`ℹ️  User ${messageAuthor.id} already has realName: "${existingUser.realName}", keeping existing name`);
