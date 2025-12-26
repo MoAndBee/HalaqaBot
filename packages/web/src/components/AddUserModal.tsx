@@ -80,7 +80,7 @@ export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
                   className="w-full justify-between h-auto p-3 group"
                   onClick={() => onAdd(user.userId)}
                 >
-                  <div className="text-right">
+                  <div className="flex-1 text-right">
                     <div className="font-medium">
                       {user.realName || user.telegramName}
                     </div>
