@@ -1,6 +1,6 @@
 import { Link } from 'wouter'
 import { Card, CardContent } from '@/components/ui/card'
-import { BookOpen, Users } from 'lucide-react'
+import { BookOpen, Users, BarChart3 } from 'lucide-react'
 
 export default function Home() {
   return (
@@ -27,6 +27,20 @@ export default function Home() {
             </CardContent>
           </Card>
         </Link>
+
+        {/* TODO: Implement stats card navigation/functionality */}
+        <Card
+          className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 h-48"
+          onClick={() => {
+            // TODO: Implement stats card onClick handler
+          }}
+        >
+          <CardContent className="flex flex-col items-center justify-center h-full p-6">
+            <BarChart3 className="h-16 w-16 mb-4 text-primary" />
+            <h2 className="text-2xl font-bold text-foreground mb-2">الإحصائيات</h2>
+            <p className="text-muted-foreground text-center">عرض الإحصائيات والتقارير</p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
