@@ -483,7 +483,12 @@ export default function PostDetail() {
     )
   }
 
-  const totalUsers = data.activeUsers.length + data.completedUsers.length
+  // Count unique users (some users may have multiple participation types)
+  const uniqueUserIds = new Set([
+    ...data.activeUsers.map(u => u.id),
+    ...data.completedUsers.map(u => u.id)
+  ])
+  const totalUsers = uniqueUserIds.size
 
   return (
     <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
