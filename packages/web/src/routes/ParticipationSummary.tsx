@@ -78,7 +78,7 @@ export default function ParticipationSummary() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs sm:text-sm font-normal text-muted-foreground">
-                  عدد الحلقات
+                  الحلقات
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -90,7 +90,7 @@ export default function ParticipationSummary() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs sm:text-sm font-normal text-muted-foreground">
-                  إجمالي الحضور
+                  الحضور
                 </CardTitle>
               </CardHeader>
               <CardContent>
