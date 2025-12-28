@@ -38,16 +38,16 @@ export function registerReactionHandler(
 
     const chatId = ctx.messageReaction!.chat.id;
 
-    // Check if the new reaction contains heart or thumbs up emoji
+    // Check if the new reaction contains OK hand emoji
     const newReaction = ctx.messageReaction!.new_reaction;
-    const hasHeartOrThumbsUp = newReaction.some((reaction) => {
+    const hasOkHandEmoji = newReaction.some((reaction) => {
       if (reaction.type === "emoji") {
-        return reaction.emoji === "❤" || reaction.emoji === "👍";
+        return reaction.emoji === "👌";
       }
       return false;
     });
 
-    if (hasHeartOrThumbsUp) {
+    if (hasOkHandEmoji) {
       const messageId = ctx.messageReaction!.message_id;
 
       // Try to find the post ID and channel ID from the database
