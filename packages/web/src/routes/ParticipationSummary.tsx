@@ -109,7 +109,7 @@ export default function ParticipationSummary() {
                 <div className="text-2xl sm:text-3xl md:text-4xl font-black">
                   {summary.totalParticipations.toLocaleString('ar-EG')}
                 </div>
-                <div className="text-xs sm:text-sm text-muted-foreground mt-1">
+                <div className="text-xs text-muted-foreground mt-1">
                   نسبة المشاركة: {summary.participationRate.toLocaleString('ar-EG')}%
                 </div>
               </CardContent>
