@@ -442,7 +442,7 @@ export const getAllPosts = query({
 
     const postsMap = new Map<
       string,
-      { chatId: number; postId: number; userCount: number; createdAt: number }
+      { chatId: number; postId: number; userCount: number; createdAt: number; userIds: Set<number> }
     >();
 
     for (const user of allUsers) {
@@ -453,15 +453,30 @@ export const getAllPosts = query({
           postId: user.postId,
           userCount: 0,
           createdAt: postDatesMap.get(key) ?? Date.now(),
+          userIds: new Set(),
         });
       }
-      postsMap.get(key)!.userCount++;
+      // Add user ID to set (automatically handles duplicates)
+      postsMap.get(key)!.userIds.add(user.userId);
     }
 
-    return Array.from(postsMap.values()).sort((a, b) => {
-      if (a.chatId !== b.chatId) return a.chatId - b.chatId;
-      return b.postId - a.postId;
-    });
+    // Update userCount based on unique user IDs
+    for (const post of postsMap.values()) {
+      post.userCount = post.userIds.size;
+    }
+
+    // Return posts without the userIds Set (not serializable)
+    return Array.from(postsMap.values())
+      .map(({ chatId, postId, userCount, createdAt }) => ({
+        chatId,
+        postId,
+        userCount,
+        createdAt,
+      }))
+      .sort((a, b) => {
+        if (a.chatId !== b.chatId) return a.chatId - b.chatId;
+        return b.postId - a.postId;
+      });
   },
 });
 
@@ -501,8 +516,14 @@ export const getPostDetails = query({
       )
       .first();
 
+    // Count unique users (avoid counting duplicates for users with multiple participation types)
+    const uniqueUserIds = new Set([
+      ...queueUsers.map((u) => u.userId),
+      ...completedUsers.map((u) => u.userId),
+    ]);
+
     return {
-      userCount: queueUsers.length + completedUsers.length,
+      userCount: uniqueUserIds.size,
       messageCount: messages.length,
       createdAt: firstMessage?.createdAt ?? Date.now(),
     };

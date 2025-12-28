@@ -78,7 +78,7 @@ export default function ParticipationSummary() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs sm:text-sm font-normal text-muted-foreground">
-                  عدد الحلقات
+                  الحلقات
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -90,7 +90,7 @@ export default function ParticipationSummary() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs sm:text-sm font-normal text-muted-foreground">
-                  إجمالي الحضور
+                  الحضور
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -102,15 +102,15 @@ export default function ParticipationSummary() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs sm:text-sm font-normal text-muted-foreground">
-                  نسبة المشاركة
+                  المشاركات
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl sm:text-3xl md:text-4xl font-black">
                   {summary.totalParticipations.toLocaleString('ar-EG')}
-                  <span className="text-base sm:text-lg md:text-xl text-muted-foreground mr-2">
-                    ({summary.participationRate.toLocaleString('ar-EG')}%)
-                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  النسبة: {summary.participationRate.toLocaleString('ar-EG')}%
                 </div>
               </CardContent>
             </Card>
