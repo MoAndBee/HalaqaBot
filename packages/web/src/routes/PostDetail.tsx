@@ -25,6 +25,7 @@ import { UserList } from '~/components/UserList'
 import { AddUserModal } from '~/components/AddUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
+import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import type { SessionType } from '~/components/SplitButton'
 
 function formatUserList(users: User[], isDone: boolean = false): string {
@@ -69,6 +70,7 @@ export default function PostDetail() {
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
+  const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
     currentNotes?: string | null
@@ -399,24 +401,12 @@ export default function PostDetail() {
     }
   }
 
-  const handleStartNewSession = async () => {
+  const handleStartNewSession = () => {
+    setIsStartNewSessionModalOpen(true)
+  }
+
+  const handleStartNewSessionSubmit = async (teacherName: string, supervisorName: string) => {
     if (!data) return
-
-    const names = window.prompt('أدخل اسم المعلمة، اسم المشرفة:')
-    if (!names || names.trim() === '') {
-      toast.error('يجب إدخال اسم المعلمة واسم المشرفة')
-      return
-    }
-
-    // Parse the input to extract teacher and supervisor names
-    const parts = names.split('،').map(s => s.trim())
-    if (parts.length !== 2 || parts[0] === '' || parts[1] === '') {
-      toast.error('يجب إدخال اسم المعلمة واسم المشرفة مفصولين بفاصلة')
-      return
-    }
-
-    const teacherName = parts[0]
-    const supervisorName = parts[1]
 
     const incompleteCount = data.activeUsers.length
 
@@ -679,6 +669,12 @@ export default function PostDetail() {
         onSave={handleSaveCompensation}
         currentDates={compensationModalState?.currentDates}
         userName={compensationModalState?.userName || ''}
+      />
+
+      <StartNewSessionModal
+        isOpen={isStartNewSessionModalOpen}
+        onClose={() => setIsStartNewSessionModalOpen(false)}
+        onStart={handleStartNewSessionSubmit}
       />
     </div>
   )
