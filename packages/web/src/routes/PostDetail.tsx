@@ -101,6 +101,7 @@ export default function PostDetail() {
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
   const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
+  const updateSessionSupervisor = useMutation(api.mutations.updateSessionSupervisor)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
@@ -366,6 +367,9 @@ export default function PostDetail() {
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
+    if (sessionInfo?.supervisorName) {
+      fullMessage += `اسم المشرفة: ${sessionInfo.supervisorName}\n`
+    }
     fullMessage += '\n'
     fullMessage += formatRealNames(data.activeUsers, data.completedUsers)
 
@@ -398,11 +402,21 @@ export default function PostDetail() {
   const handleStartNewSession = async () => {
     if (!data) return
 
-    const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:')
-    if (!teacherName || teacherName.trim() === '') {
-      toast.error('يجب إدخال اسم المعلمة')
+    const names = window.prompt('أدخل اسم المعلمة، اسم المشرفة:')
+    if (!names || names.trim() === '') {
+      toast.error('يجب إدخال اسم المعلمة واسم المشرفة')
       return
     }
+
+    // Parse the input to extract teacher and supervisor names
+    const parts = names.split('،').map(s => s.trim())
+    if (parts.length !== 2 || parts[0] === '' || parts[1] === '') {
+      toast.error('يجب إدخال اسم المعلمة واسم المشرفة مفصولين بفاصلة')
+      return
+    }
+
+    const teacherName = parts[0]
+    const supervisorName = parts[1]
 
     const incompleteCount = data.activeUsers.length
 
@@ -415,7 +429,8 @@ export default function PostDetail() {
         const result = await startNewSession({
           chatId,
           postId,
-          teacherName: teacherName.trim(),
+          teacherName,
+          supervisorName,
           carryOverIncomplete: confirmed
         })
         setSelectedSession(result.newSessionNumber)
@@ -434,7 +449,8 @@ export default function PostDetail() {
         const result = await startNewSession({
           chatId,
           postId,
-          teacherName: teacherName.trim(),
+          teacherName,
+          supervisorName,
           carryOverIncomplete: false
         })
         setSelectedSession(result.newSessionNumber)
@@ -472,6 +488,35 @@ export default function PostDetail() {
     } catch (error) {
       toast.error('فشل تحديث اسم المعلمة')
       console.error('Update teacher name failed:', error)
+    }
+  }
+
+  const handleEditSupervisorName = async () => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+    const currentSupervisorName = sessionInfo?.supervisorName || ''
+
+    const supervisorName = window.prompt('أدخل اسم المشرفة:', currentSupervisorName)
+
+    if (supervisorName === null) return
+
+    if (supervisorName.trim() === '') {
+      toast.error('يجب إدخال اسم المشرفة')
+      return
+    }
+
+    try {
+      await updateSessionSupervisor({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        supervisorName: supervisorName.trim(),
+      })
+      toast.success('تم تحديث اسم المشرفة!')
+    } catch (error) {
+      toast.error('فشل تحديث اسم المشرفة')
+      console.error('Update supervisor name failed:', error)
     }
   }
 
@@ -525,10 +570,14 @@ export default function PostDetail() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null }) => (
+                  {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null; supervisorName?: string | null }) => (
                     <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
                       الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
-                      {session.teacherName && ` (${session.teacherName})`}
+                      {(session.teacherName || session.supervisorName) && ` (`}
+                      {session.teacherName && session.teacherName}
+                      {session.teacherName && session.supervisorName && ` - `}
+                      {session.supervisorName && session.supervisorName}
+                      {(session.teacherName || session.supervisorName) && `)`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -553,6 +602,10 @@ export default function PostDetail() {
                 <DropdownMenuItem onClick={handleEditTeacherName}>
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل اسم المعلمة
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleEditSupervisorName}>
+                  <Pencil className="h-4 w-4 ml-2" />
+                  تعديل اسم المشرفة
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyList}>

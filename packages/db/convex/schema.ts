@@ -123,6 +123,7 @@ export default defineSchema({
     postId: v.number(),
     sessionNumber: v.number(),
     teacherName: v.string(), // Name of the teacher for this session
+    supervisorName: v.string(), // Name of the supervisor for this session
     createdAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post", ["chatId", "postId"])

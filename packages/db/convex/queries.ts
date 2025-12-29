@@ -197,6 +197,7 @@ export const getAvailableSessions = query({
     return sortedSessions.map(session => ({
       sessionNumber: session.sessionNumber,
       teacherName: session.teacherName,
+      supervisorName: session.supervisorName,
       createdAt: session.createdAt,
     }));
   },
@@ -221,6 +222,7 @@ export const getSessionInfo = query({
     return {
       sessionNumber: sessionMeta.sessionNumber,
       teacherName: sessionMeta.teacherName,
+      supervisorName: sessionMeta.supervisorName,
       createdAt: sessionMeta.createdAt,
     };
   },

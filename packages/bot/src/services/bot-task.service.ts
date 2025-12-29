@@ -102,7 +102,7 @@ export class BotTaskService {
       }
     }
 
-    // Get session details (for teacher name)
+    // Get session details (for teacher name and supervisor name)
     const sessions = await this.convex.query(api.queries.getAvailableSessions, {
       chatId,
       postId,
@@ -110,6 +110,7 @@ export class BotTaskService {
 
     const currentSession = sessions.find((s: any) => s.sessionNumber === sessionNumber);
     const teacherName = currentSession?.teacherName;
+    const supervisorName = currentSession?.supervisorName;
 
     // Get participants for this session
     const userListData = await this.convex.query(api.queries.getUserList, {
@@ -135,6 +136,10 @@ export class BotTaskService {
 
       if (teacherName) {
         message += `\nالمعلمة: ${teacherName}`;
+      }
+
+      if (supervisorName) {
+        message += `\nاسم المشرفة: ${supervisorName}`;
       }
 
       message += '\n\n';
