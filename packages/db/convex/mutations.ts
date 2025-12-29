@@ -1031,13 +1031,12 @@ export const updateSessionTeacher = mutation({
       .first();
 
     if (!session) {
-      // If session doesn't exist, create it with the teacher name and empty supervisor name
+      // If session doesn't exist, create it with the teacher name and no supervisor name
       await ctx.db.insert("sessions", {
         chatId: args.chatId,
         postId: args.postId,
         sessionNumber: args.sessionNumber,
         teacherName: args.teacherName,
-        supervisorName: "", // Default empty supervisor name
         createdAt: Date.now(),
       });
       return { created: true };
@@ -1071,12 +1070,12 @@ export const updateSessionSupervisor = mutation({
       .first();
 
     if (!session) {
-      // If session doesn't exist, create it with the supervisor name and empty teacher name
+      // If session doesn't exist, create it with the supervisor name and no teacher name
       await ctx.db.insert("sessions", {
         chatId: args.chatId,
         postId: args.postId,
         sessionNumber: args.sessionNumber,
-        teacherName: "", // Default empty teacher name
+        teacherName: "", // Default empty teacher name (required field)
         supervisorName: args.supervisorName,
         createdAt: Date.now(),
       });
