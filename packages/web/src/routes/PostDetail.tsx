@@ -11,6 +11,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -602,22 +605,6 @@ export default function PostDetail() {
                 </Select>
               )}
 
-              <Select
-                value={selectedFlower}
-                onValueChange={handleFlowerChange}
-              >
-                <SelectTrigger className="w-auto min-w-[60px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FLOWER_OPTIONS.map((flower) => (
-                    <SelectItem key={flower} value={flower}>
-                      {flower}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
               <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
@@ -654,6 +641,24 @@ export default function PostDetail() {
                   <Send className="h-4 w-4 ml-2" />
                   إرسال قائمة الأسماء
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <span className="ml-2">{selectedFlower}</span>
+                    اختيار الزهرة
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {FLOWER_OPTIONS.map((flower) => (
+                      <DropdownMenuItem
+                        key={flower}
+                        onClick={() => handleFlowerChange(flower)}
+                      >
+                        <span className="ml-2">{flower}</span>
+                        {flower === selectedFlower && '✓'}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
               </DropdownMenuContent>
             </DropdownMenu>
 
