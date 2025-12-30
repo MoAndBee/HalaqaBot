@@ -4,7 +4,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -25,6 +25,7 @@ import { UserList } from '~/components/UserList'
 import { AddUserModal } from '~/components/AddUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
+import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import type { SessionType } from '~/components/SplitButton'
 
 function formatUserList(users: User[], isDone: boolean = false): string {
@@ -69,6 +70,7 @@ export default function PostDetail() {
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
+  const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
     currentNotes?: string | null
@@ -101,6 +103,7 @@ export default function PostDetail() {
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
   const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
+  const updateSessionSupervisor = useMutation(api.mutations.updateSessionSupervisor)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
@@ -366,6 +369,9 @@ export default function PostDetail() {
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
+    if (sessionInfo?.supervisorName) {
+      fullMessage += `اسم المشرفة: ${sessionInfo.supervisorName}\n`
+    }
     fullMessage += '\n'
     fullMessage += formatRealNames(data.activeUsers, data.completedUsers)
 
@@ -395,14 +401,18 @@ export default function PostDetail() {
     }
   }
 
-  const handleStartNewSession = async () => {
+  const handleStartNewSession = () => {
+    setIsStartNewSessionModalOpen(true)
+  }
+
+  const handleStartNewSessionSubmit = async (teacherName: string, supervisorName: string) => {
     if (!data) return
 
-    const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:')
-    if (!teacherName || teacherName.trim() === '') {
-      toast.error('يجب إدخال اسم المعلمة')
-      return
-    }
+    // Close modal first to dismiss keyboard
+    setIsStartNewSessionModalOpen(false)
+
+    // Wait for keyboard to dismiss
+    await new Promise(resolve => setTimeout(resolve, 300))
 
     const incompleteCount = data.activeUsers.length
 
@@ -415,7 +425,8 @@ export default function PostDetail() {
         const result = await startNewSession({
           chatId,
           postId,
-          teacherName: teacherName.trim(),
+          teacherName,
+          supervisorName,
           carryOverIncomplete: confirmed
         })
         setSelectedSession(result.newSessionNumber)
@@ -434,7 +445,8 @@ export default function PostDetail() {
         const result = await startNewSession({
           chatId,
           postId,
-          teacherName: teacherName.trim(),
+          teacherName,
+          supervisorName,
           carryOverIncomplete: false
         })
         setSelectedSession(result.newSessionNumber)
@@ -475,6 +487,35 @@ export default function PostDetail() {
     }
   }
 
+  const handleEditSupervisorName = async () => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+    const currentSupervisorName = sessionInfo?.supervisorName || ''
+
+    const supervisorName = window.prompt('أدخل اسم المشرفة:', currentSupervisorName)
+
+    if (supervisorName === null) return
+
+    if (supervisorName.trim() === '') {
+      toast.error('يجب إدخال اسم المشرفة')
+      return
+    }
+
+    try {
+      await updateSessionSupervisor({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        supervisorName: supervisorName.trim(),
+      })
+      toast.success('تم تحديث اسم المشرفة!')
+    } catch (error) {
+      toast.error('فشل تحديث اسم المشرفة')
+      console.error('Update supervisor name failed:', error)
+    }
+  }
+
   if (!data) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -500,7 +541,7 @@ export default function PostDetail() {
           </Button>
         </Link>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             {postDetails?.createdAt && (
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground">
@@ -515,27 +556,28 @@ export default function PostDetail() {
             <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
             <p className="text-muted-foreground text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            {availableSessions && availableSessions.length >= 1 && (
-              <Select
-                value={(selectedSession ?? data.currentSession).toString()}
-                onValueChange={(val) => setSelectedSession(Number(val))}
-              >
-                <SelectTrigger className="w-auto min-w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null }) => (
-                    <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
-                      الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
-                      {session.teacherName && ` (${session.teacherName})`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              {availableSessions && availableSessions.length >= 1 && (
+                <Select
+                  value={(selectedSession ?? data.currentSession).toString()}
+                  onValueChange={(val) => setSelectedSession(Number(val))}
+                >
+                  <SelectTrigger className="w-auto min-w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null; supervisorName?: string | null }) => (
+                      <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
+                        الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
+                        {session.teacherName && ` (${session.teacherName})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
-            <DropdownMenu>
+              <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
                   <MoreVertical className="h-4 w-4" />
@@ -553,6 +595,10 @@ export default function PostDetail() {
                 <DropdownMenuItem onClick={handleEditTeacherName}>
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل اسم المعلمة
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleEditSupervisorName}>
+                  <UserCog className="h-4 w-4 ml-2" />
+                  تعديل اسم المشرفة
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyList}>
@@ -581,6 +627,12 @@ export default function PostDetail() {
                 </Button>
               </Link>
             </div>
+            </div>
+            {sessionInfo?.supervisorName && (
+              <p className="text-xs sm:text-sm text-muted-foreground text-right">
+                اسم المشرفة: {sessionInfo.supervisorName}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -626,6 +678,12 @@ export default function PostDetail() {
         onSave={handleSaveCompensation}
         currentDates={compensationModalState?.currentDates}
         userName={compensationModalState?.userName || ''}
+      />
+
+      <StartNewSessionModal
+        isOpen={isStartNewSessionModalOpen}
+        onClose={() => setIsStartNewSessionModalOpen(false)}
+        onStart={handleStartNewSessionSubmit}
       />
     </div>
   )

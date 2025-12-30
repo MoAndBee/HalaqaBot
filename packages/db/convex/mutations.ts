@@ -948,6 +948,7 @@ export const startNewSession = mutation({
     chatId: v.number(),
     postId: v.number(),
     teacherName: v.string(), // name of the teacher for this session
+    supervisorName: v.string(), // name of the supervisor for this session
     carryOverIncomplete: v.optional(v.boolean()), // whether to carry over incomplete users
   },
   handler: async (ctx, args) => {
@@ -972,6 +973,7 @@ export const startNewSession = mutation({
       postId: args.postId,
       sessionNumber: newSessionNumber,
       teacherName: args.teacherName,
+      supervisorName: args.supervisorName,
       createdAt: Date.now(),
     });
 
@@ -1029,7 +1031,7 @@ export const updateSessionTeacher = mutation({
       .first();
 
     if (!session) {
-      // If session doesn't exist, create it with the teacher name
+      // If session doesn't exist, create it with the teacher name and no supervisor name
       await ctx.db.insert("sessions", {
         chatId: args.chatId,
         postId: args.postId,
@@ -1043,6 +1045,46 @@ export const updateSessionTeacher = mutation({
     // Update the existing session's teacher name
     await ctx.db.patch(session._id, {
       teacherName: args.teacherName,
+    });
+
+    return { created: false };
+  },
+});
+
+export const updateSessionSupervisor = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    supervisorName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      // If session doesn't exist, create it with the supervisor name and no teacher name
+      await ctx.db.insert("sessions", {
+        chatId: args.chatId,
+        postId: args.postId,
+        sessionNumber: args.sessionNumber,
+        teacherName: "", // Default empty teacher name (required field)
+        supervisorName: args.supervisorName,
+        createdAt: Date.now(),
+      });
+      return { created: true };
+    }
+
+    // Update the existing session's supervisor name
+    await ctx.db.patch(session._id, {
+      supervisorName: args.supervisorName,
     });
 
     return { created: false };
