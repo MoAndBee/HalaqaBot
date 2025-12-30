@@ -4,7 +4,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -597,7 +597,7 @@ export default function PostDetail() {
                   تعديل اسم المعلمة
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleEditSupervisorName}>
-                  <Pencil className="h-4 w-4 ml-2" />
+                  <UserCog className="h-4 w-4 ml-2" />
                   تعديل اسم المشرفة
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
