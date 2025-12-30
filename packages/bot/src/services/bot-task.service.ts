@@ -139,7 +139,7 @@ export class BotTaskService {
       }
 
       if (supervisorName) {
-        message += `\nاسم المشرفة: ${supervisorName}`;
+        message += `\nالمشرفة: ${supervisorName}`;
       }
 
       message += '\n\n';
