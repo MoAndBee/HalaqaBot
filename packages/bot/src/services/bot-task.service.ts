@@ -132,8 +132,8 @@ export class BotTaskService {
         day: 'numeric',
       });
 
-      // Start with decorative separator
-      let message = '🌸 ━━━━━━━ 🌸\n';
+      // Start with decorative separator (with RTL mark for proper alignment)
+      let message = '\u200F🌸 ━━━━━━━ 🌸\u200F\n';
       message += formattedDate;
 
       if (teacherName) {
@@ -144,8 +144,8 @@ export class BotTaskService {
         message += `\nالمشرفة: ${supervisorName}`;
       }
 
-      // Add closing decorative separator
-      message += '\n🌸 ━━━━━━━ 🌸\n\n';
+      // Add closing decorative separator (with RTL mark for proper alignment)
+      message += '\n\u200F🌸 ━━━━━━━ 🌸\u200F\n\n';
 
       // Combine: completed first, then active
       const allParticipants = [...completedUsers, ...activeUsers];
