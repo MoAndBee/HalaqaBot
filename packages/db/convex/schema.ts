@@ -134,6 +134,7 @@ export default defineSchema({
     chatId: v.number(),
     postId: v.number(),
     sessionNumber: v.optional(v.number()),
+    flower: v.optional(v.string()), // flower emoji to use in formatting
     status: v.string(), // "pending", "processing", "completed", "failed"
     resultMessageId: v.optional(v.number()), // message ID after sending
     error: v.optional(v.string()), // error message if failed
