@@ -1097,6 +1097,7 @@ export const createBotTask = mutation({
     chatId: v.number(),
     postId: v.number(),
     sessionNumber: v.optional(v.number()),
+    flower: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const taskId = await ctx.db.insert("botTasks", {
@@ -1104,6 +1105,7 @@ export const createBotTask = mutation({
       chatId: args.chatId,
       postId: args.postId,
       sessionNumber: args.sessionNumber,
+      flower: args.flower,
       status: "pending",
       createdAt: Date.now(),
     });

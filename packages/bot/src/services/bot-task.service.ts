@@ -87,6 +87,7 @@ export class BotTaskService {
   private async handleSendParticipantList(task: any) {
     const { chatId, postId } = task;
     let { sessionNumber } = task;
+    const flower = task.flower || '🌸'; // Default to 🌸 if not specified
 
     // Get the latest session if not specified
     if (sessionNumber === undefined) {
@@ -132,17 +133,21 @@ export class BotTaskService {
         day: 'numeric',
       });
 
-      let message = formattedDate;
+      // Create flower border
+      const flowerBorder = flower.repeat(10);
+
+      let message = `${flowerBorder}\n`;
+      message += `${flower} ${formattedDate}`;
 
       if (teacherName) {
-        message += `\nالمعلمة: ${teacherName}`;
+        message += `\n${flower} المعلمة: ${teacherName}`;
       }
 
       if (supervisorName) {
-        message += `\nالمشرفة: ${supervisorName}`;
+        message += `\n${flower} المشرفة: ${supervisorName}`;
       }
 
-      message += '\n\n';
+      message += `\n${flower} ـــــــــــــــــــــــ\n`;
 
       // Combine: completed first, then active
       const allParticipants = [...completedUsers, ...activeUsers];
@@ -159,8 +164,10 @@ export class BotTaskService {
           ? ` 🗣️`
           : '';
         const doneIcon = isDone ? ' ✅' : '';
-        message += `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
+        message += `${flower} ${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
       });
+
+      message += flowerBorder;
 
       return message;
     };

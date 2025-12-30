@@ -11,6 +11,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -43,7 +46,7 @@ function formatUserList(users: User[], isDone: boolean = false): string {
     .join('\n')
 }
 
-function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
+function formatRealNames(activeUsers: User[], completedUsers: User[], flower: string = DEFAULT_FLOWER): string {
   const allUsers = [...completedUsers, ...activeUsers]
   return allUsers
     .map((user, index) => {
@@ -57,10 +60,14 @@ function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
         ? ` 🗣️`
         : ''
       const doneIcon = isDone ? ' ✅' : ''
-      return `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
+      return `${flower} ${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
     })
     .join('\n')
 }
+
+const FLOWER_OPTIONS = ['🌸', '🌺', '🌼', '🌻', '❤️', '💛', '💜'] as const
+const DEFAULT_FLOWER = '🌸'
+const FLOWER_STORAGE_KEY = 'halaqa-selected-flower'
 
 export default function PostDetail() {
   const params = useParams<{ chatId: string; postId: string }>()
@@ -68,6 +75,7 @@ export default function PostDetail() {
   const postId = Number(params.postId)
 
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
+  const [selectedFlower, setSelectedFlower] = React.useState<string>(DEFAULT_FLOWER)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
@@ -83,6 +91,20 @@ export default function PostDetail() {
     sessionType: SessionType
     currentDates?: number[] | null
   } | null>(null)
+
+  // Load selected flower from localStorage on mount
+  React.useEffect(() => {
+    const savedFlower = localStorage.getItem(FLOWER_STORAGE_KEY)
+    if (savedFlower && FLOWER_OPTIONS.includes(savedFlower as any)) {
+      setSelectedFlower(savedFlower)
+    }
+  }, [])
+
+  // Save selected flower to localStorage when it changes
+  const handleFlowerChange = (flower: string) => {
+    setSelectedFlower(flower)
+    localStorage.setItem(FLOWER_STORAGE_KEY, flower)
+  }
 
   const data = useQuery(api.queries.getUserList, { chatId, postId, sessionNumber: selectedSession })
   const availableSessions = useQuery(api.queries.getAvailableSessions, { chatId, postId })
@@ -365,15 +387,20 @@ export default function PostDetail() {
       day: 'numeric',
     })
 
-    let fullMessage = `${formattedDate}\n`
+    // Create flower border
+    const flowerBorder = selectedFlower.repeat(10)
+
+    let fullMessage = `${flowerBorder}\n`
+    fullMessage += `${selectedFlower} ${formattedDate}\n`
     if (sessionInfo?.teacherName) {
-      fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
+      fullMessage += `${selectedFlower} المعلمة: ${sessionInfo.teacherName}\n`
     }
     if (sessionInfo?.supervisorName) {
-      fullMessage += `المشرفة: ${sessionInfo.supervisorName}\n`
+      fullMessage += `${selectedFlower} المشرفة: ${sessionInfo.supervisorName}\n`
     }
-    fullMessage += '\n'
-    fullMessage += formatRealNames(data.activeUsers, data.completedUsers)
+    fullMessage += `${selectedFlower} ـــــــــــــــــــــــ\n`
+    fullMessage += formatRealNames(data.activeUsers, data.completedUsers, selectedFlower)
+    fullMessage += `\n${flowerBorder}`
 
     try {
       await navigator.clipboard.writeText(fullMessage)
@@ -393,6 +420,7 @@ export default function PostDetail() {
         chatId,
         postId,
         sessionNumber: currentSession,
+        flower: selectedFlower,
       })
       toast.success('تم إرسال قائمة الأسماء!')
     } catch (error) {
@@ -613,6 +641,24 @@ export default function PostDetail() {
                   <Send className="h-4 w-4 ml-2" />
                   إرسال قائمة الأسماء
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <span className="ml-2">{selectedFlower}</span>
+                    اختيار الزينة
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {FLOWER_OPTIONS.map((flower) => (
+                      <DropdownMenuItem
+                        key={flower}
+                        onClick={() => handleFlowerChange(flower)}
+                      >
+                        <span className="ml-2">{flower}</span>
+                        {flower === selectedFlower && '✓'}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
               </DropdownMenuContent>
             </DropdownMenu>
 
