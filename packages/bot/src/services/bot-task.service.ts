@@ -132,7 +132,9 @@ export class BotTaskService {
         day: 'numeric',
       });
 
-      let message = formattedDate;
+      // Start with decorative separator
+      let message = '🌸 ━━━━━━━ 🌸\n';
+      message += formattedDate;
 
       if (teacherName) {
         message += `\nالمعلمة: ${teacherName}`;
@@ -142,7 +144,8 @@ export class BotTaskService {
         message += `\nالمشرفة: ${supervisorName}`;
       }
 
-      message += '\n\n';
+      // Add closing decorative separator
+      message += '\n🌸 ━━━━━━━ 🌸\n\n';
 
       // Combine: completed first, then active
       const allParticipants = [...completedUsers, ...activeUsers];
