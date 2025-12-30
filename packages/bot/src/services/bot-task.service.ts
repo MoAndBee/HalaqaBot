@@ -137,17 +137,17 @@ export class BotTaskService {
       const flowerBorder = `ه${flower}`.repeat(10);
 
       let message = `${flowerBorder}\n`;
-      message += `ه${flower} ${formattedDate}`;
+      message += `${formattedDate}`;
 
       if (teacherName) {
-        message += `\nه${flower} المعلمة: ${teacherName}`;
+        message += `\nالمعلمة: ${teacherName}🤍.`;
       }
 
       if (supervisorName) {
-        message += `\nه${flower} المشرفة: ${supervisorName}`;
+        message += `\nالمشرفة: ${supervisorName}🤍.`;
       }
 
-      message += `\nه${flower} ـــــــــــــــــــــــ\n`;
+      message += `\nـــــــــــــــــــــــ\n`;
 
       // Combine: completed first, then active
       const allParticipants = [...completedUsers, ...activeUsers];
@@ -164,7 +164,7 @@ export class BotTaskService {
           ? ` 🗣️`
           : '';
         const doneIcon = isDone ? ' ✅' : '';
-        message += `ه${flower} ${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
+        message += `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
       });
 
       message += flowerBorder;

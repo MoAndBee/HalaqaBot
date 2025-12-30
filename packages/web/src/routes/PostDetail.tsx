@@ -60,7 +60,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
         ? ` 🗣️`
         : ''
       const doneIcon = isDone ? ' ✅' : ''
-      return `ه${flower} ${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
+      return `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
     })
     .join('\n')
 }
@@ -391,14 +391,14 @@ export default function PostDetail() {
     const flowerBorder = `ه${selectedFlower}`.repeat(10)
 
     let fullMessage = `${flowerBorder}\n`
-    fullMessage += `ه${selectedFlower} ${formattedDate}\n`
+    fullMessage += `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
-      fullMessage += `ه${selectedFlower} المعلمة: ${sessionInfo.teacherName}\n`
+      fullMessage += `المعلمة: ${sessionInfo.teacherName}🤍.\n`
     }
     if (sessionInfo?.supervisorName) {
-      fullMessage += `ه${selectedFlower} المشرفة: ${sessionInfo.supervisorName}\n`
+      fullMessage += `المشرفة: ${sessionInfo.supervisorName}🤍.\n`
     }
-    fullMessage += `ه${selectedFlower} ـــــــــــــــــــــــ\n`
+    fullMessage += `ـــــــــــــــــــــــ\n`
     fullMessage += formatRealNames(data.activeUsers, data.completedUsers, selectedFlower)
     fullMessage += `\n${flowerBorder}`
 
