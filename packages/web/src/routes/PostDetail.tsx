@@ -535,7 +535,7 @@ export default function PostDetail() {
           </Button>
         </Link>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             {postDetails?.createdAt && (
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground">
@@ -550,31 +550,28 @@ export default function PostDetail() {
             <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
             <p className="text-muted-foreground text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            {availableSessions && availableSessions.length >= 1 && (
-              <Select
-                value={(selectedSession ?? data.currentSession).toString()}
-                onValueChange={(val) => setSelectedSession(Number(val))}
-              >
-                <SelectTrigger className="w-auto min-w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null; supervisorName?: string | null }) => (
-                    <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
-                      الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
-                      {(session.teacherName || session.supervisorName) && ` (`}
-                      {session.teacherName && session.teacherName}
-                      {session.teacherName && session.supervisorName && ` - `}
-                      {session.supervisorName && session.supervisorName}
-                      {(session.teacherName || session.supervisorName) && `)`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              {availableSessions && availableSessions.length >= 1 && (
+                <Select
+                  value={(selectedSession ?? data.currentSession).toString()}
+                  onValueChange={(val) => setSelectedSession(Number(val))}
+                >
+                  <SelectTrigger className="w-auto min-w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null; supervisorName?: string | null }) => (
+                      <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
+                        الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
+                        {session.teacherName && ` (${session.teacherName})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
-            <DropdownMenu>
+              <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon">
                   <MoreVertical className="h-4 w-4" />
@@ -624,6 +621,12 @@ export default function PostDetail() {
                 </Button>
               </Link>
             </div>
+            </div>
+            {sessionInfo?.supervisorName && (
+              <p className="text-xs sm:text-sm text-muted-foreground text-right">
+                اسم المشرفة: {sessionInfo.supervisorName}
+              </p>
+            )}
           </div>
         </div>
       </div>
