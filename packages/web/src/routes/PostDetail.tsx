@@ -370,7 +370,7 @@ export default function PostDetail() {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
     if (sessionInfo?.supervisorName) {
-      fullMessage += `اسم المشرفة: ${sessionInfo.supervisorName}\n`
+      fullMessage += `المشرفة: ${sessionInfo.supervisorName}\n`
     }
     fullMessage += '\n'
     fullMessage += formatRealNames(data.activeUsers, data.completedUsers)
