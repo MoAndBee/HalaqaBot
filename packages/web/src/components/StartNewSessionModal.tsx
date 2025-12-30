@@ -64,12 +64,12 @@ export function StartNewSessionModal({ isOpen, onClose, onStart }: StartNewSessi
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md" dir="rtl">
+      <DialogContent className="max-w-md top-[20%] translate-y-[-20%] sm:top-[50%] sm:translate-y-[-50%] max-h-[90vh] overflow-y-auto p-4 sm:p-6" dir="rtl">
         <DialogHeader>
           <DialogTitle>بدء حلقة جديدة</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           <div className="space-y-2">
             <label htmlFor="teacherName" className="text-sm font-medium">اسم المعلمة</label>
             <Input
