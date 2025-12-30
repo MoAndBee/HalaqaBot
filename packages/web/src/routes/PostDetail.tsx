@@ -645,7 +645,7 @@ export default function PostDetail() {
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <span className="ml-2">{selectedFlower}</span>
-                    اختيار الزهرة
+                    اختيار الزينة
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
                     {FLOWER_OPTIONS.map((flower) => (
