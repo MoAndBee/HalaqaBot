@@ -20,6 +20,26 @@ export interface ListData {
 export class ImageGeneratorService {
   private readonly width = 800;
   private readonly height = 1200;
+  private fontsRegistered = false;
+
+  constructor() {
+    // Register Arabic fonts
+    this.registerFonts();
+  }
+
+  private registerFonts() {
+    if (this.fontsRegistered) return;
+
+    try {
+      // Register DejaVu Sans for Arabic support
+      GlobalFonts.registerFromPath('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 'DejaVuSans');
+      GlobalFonts.registerFromPath('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 'DejaVuSans-Bold');
+      this.fontsRegistered = true;
+      console.log('Arabic fonts registered successfully');
+    } catch (error) {
+      console.error('Failed to register fonts:', error);
+    }
+  }
 
   /**
    * Generate a beautiful image of the participant list
@@ -62,7 +82,7 @@ export class ImageGeneratorService {
 
     // Main title
     ctx.fillStyle = '#d946a6';
-    ctx.font = 'bold 42px Arial';
+    ctx.font = 'bold 42px DejaVuSans';
     ctx.textAlign = 'center';
     ctx.fillText('🌸 أدوار صُوَيحِبات القرآن 🌸', this.width / 2, yPos);
     yPos += 60;
@@ -83,7 +103,7 @@ export class ImageGeneratorService {
 
     // Info text
     ctx.fillStyle = '#4a5568';
-    ctx.font = 'bold 28px Arial';
+    ctx.font = 'bold 28px DejaVuSans';
     ctx.textAlign = 'right';
     ctx.fillText(`📅 ${data.date}`, this.width - 120, cardY + 45);
     ctx.fillText(`👩‍🏫 المعلمة: ${data.teacherName}`, this.width - 120, cardY + 85);
@@ -155,7 +175,7 @@ export class ImageGeneratorService {
 
     // Main title
     ctx.fillStyle = '#d4af37';
-    ctx.font = 'bold 44px Arial';
+    ctx.font = 'bold 44px DejaVuSans';
     ctx.textAlign = 'center';
     ctx.fillText('أدوار صُوَيحِبات القرآن', this.width / 2, yPos);
 
@@ -186,7 +206,7 @@ export class ImageGeneratorService {
 
     // Info text in gold
     ctx.fillStyle = '#ffd700';
-    ctx.font = 'bold 26px Arial';
+    ctx.font = 'bold 26px DejaVuSans';
     ctx.textAlign = 'right';
     ctx.fillText(`📅 ${data.date}`, this.width - 140, cardY + 45);
     ctx.fillText(`👩‍🏫 المعلمة: ${data.teacherName}`, this.width - 140, cardY + 85);
@@ -245,7 +265,7 @@ export class ImageGeneratorService {
 
     // Section header
     ctx.fillStyle = color;
-    ctx.font = 'bold 32px Arial';
+    ctx.font = 'bold 32px DejaVuSans';
     ctx.textAlign = 'right';
     ctx.fillText(title, this.width - 100, yPos);
     yPos += 50;
@@ -271,7 +291,7 @@ export class ImageGeneratorService {
 
       // Participant info
       ctx.fillStyle = '#2d3748';
-      ctx.font = 'bold 26px Arial';
+      ctx.font = 'bold 26px DejaVuSans';
       ctx.textAlign = 'right';
 
       const arabicNumber = (startIndex + index + 1).toLocaleString('ar-EG');
@@ -306,7 +326,7 @@ export class ImageGeneratorService {
 
     // Section header with ornament
     ctx.fillStyle = '#d4af37';
-    ctx.font = 'bold 32px Arial';
+    ctx.font = 'bold 32px DejaVuSans';
     ctx.textAlign = 'center';
     ctx.fillText(title, this.width / 2, yPos);
 
@@ -337,7 +357,7 @@ export class ImageGeneratorService {
 
       // Participant info in light color
       ctx.fillStyle = '#f0f0f0';
-      ctx.font = 'bold 24px Arial';
+      ctx.font = 'bold 24px DejaVuSans';
       ctx.textAlign = 'right';
 
       const arabicNumber = (startIndex + index + 1).toLocaleString('ar-EG');
@@ -484,7 +504,7 @@ export class ImageGeneratorService {
    */
   private drawFooterDecoration(ctx: any, y: number, color: string) {
     ctx.fillStyle = color;
-    ctx.font = '24px Arial';
+    ctx.font = '24px DejaVuSans';
     ctx.textAlign = 'center';
     ctx.fillText('🌸 ━━━━━━━━━━━━━━━━━━ 🌸', this.width / 2, y);
   }
