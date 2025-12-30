@@ -137,17 +137,17 @@ export class BotTaskService {
       const flowerBorder = flower.repeat(13);
 
       let message = `${flowerBorder}\n`;
-      message += `${flower} ${formattedDate}`;
+      message += `ه${flower} ${formattedDate}`;
 
       if (teacherName) {
-        message += `\n${flower} المعلمة: ${teacherName}`;
+        message += `\nه${flower} المعلمة: ${teacherName}`;
       }
 
       if (supervisorName) {
-        message += `\n${flower} المشرفة: ${supervisorName}`;
+        message += `\nه${flower} المشرفة: ${supervisorName}`;
       }
 
-      message += `\n${flower} ـــــــــــــــــــــــ\n`;
+      message += `\nه${flower} ـــــــــــــــــــــــ\n`;
 
       // Combine: completed first, then active
       const allParticipants = [...completedUsers, ...activeUsers];

@@ -391,14 +391,14 @@ export default function PostDetail() {
     const flowerBorder = selectedFlower.repeat(10)
 
     let fullMessage = `${flowerBorder}\n`
-    fullMessage += `${selectedFlower} ${formattedDate}\n`
+    fullMessage += `ه${selectedFlower} ${formattedDate}\n`
     if (sessionInfo?.teacherName) {
-      fullMessage += `${selectedFlower} المعلمة: ${sessionInfo.teacherName}\n`
+      fullMessage += `ه${selectedFlower} المعلمة: ${sessionInfo.teacherName}\n`
     }
     if (sessionInfo?.supervisorName) {
-      fullMessage += `${selectedFlower} المشرفة: ${sessionInfo.supervisorName}\n`
+      fullMessage += `ه${selectedFlower} المشرفة: ${sessionInfo.supervisorName}\n`
     }
-    fullMessage += `${selectedFlower} ـــــــــــــــــــــــ\n`
+    fullMessage += `ه${selectedFlower} ـــــــــــــــــــــــ\n`
     fullMessage += formatRealNames(data.activeUsers, data.completedUsers, selectedFlower)
     fullMessage += `\n${flowerBorder}`
 
