@@ -26,6 +26,7 @@ export function StartNewSessionModal({ isOpen, onClose, onStart }: StartNewSessi
     if (isOpen) {
       setTeacherName('')
       setSupervisorName('')
+      setIsStarting(false)
       setTimeout(() => teacherInputRef.current?.focus(), 100)
     }
   }, [isOpen])
@@ -41,10 +42,9 @@ export function StartNewSessionModal({ isOpen, onClose, onStart }: StartNewSessi
     setIsStarting(true)
     try {
       await onStart(trimmedTeacher, trimmedSupervisor)
-      onClose()
+      // Modal will be closed by parent after confirmation
     } catch (error) {
       console.error('Error starting session:', error)
-    } finally {
       setIsStarting(false)
     }
   }

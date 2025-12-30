@@ -408,6 +408,12 @@ export default function PostDetail() {
   const handleStartNewSessionSubmit = async (teacherName: string, supervisorName: string) => {
     if (!data) return
 
+    // Close modal first to dismiss keyboard
+    setIsStartNewSessionModalOpen(false)
+
+    // Wait for keyboard to dismiss
+    await new Promise(resolve => setTimeout(resolve, 300))
+
     const incompleteCount = data.activeUsers.length
 
     if (incompleteCount > 0) {
