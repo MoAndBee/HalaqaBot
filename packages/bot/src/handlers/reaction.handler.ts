@@ -84,12 +84,6 @@ export function registerReactionHandler(
         return;
       }
 
-      // Check if user is in the allowed whitelist
-      if (!config.allowedReactionUserIds.includes(userId)) {
-        console.log(`⚠️  User ${userId} is not in the allowed reaction whitelist, ignoring reaction`);
-        return;
-      }
-
       // Get the message author (from storage or via forwarding)
       const messageAuthor = await messageService.getMessageAuthor(
         ctx.api,
