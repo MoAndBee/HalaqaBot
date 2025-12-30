@@ -140,11 +140,11 @@ export class BotTaskService {
       message += `${formattedDate}`;
 
       if (teacherName) {
-        message += `\nالمعلمة: ${teacherName}🤍.`;
+        message += `\nالمعلمة: ${teacherName}`;
       }
 
       if (supervisorName) {
-        message += `\nالمشرفة: ${supervisorName}🤍.`;
+        message += `\nالمشرفة: ${supervisorName}`;
       }
 
       message += `\nـــــــــــــــــــــــ\n`;

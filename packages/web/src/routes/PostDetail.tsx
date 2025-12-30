@@ -393,10 +393,10 @@ export default function PostDetail() {
     let fullMessage = `${flowerBorder}\n`
     fullMessage += `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
-      fullMessage += `المعلمة: ${sessionInfo.teacherName}🤍.\n`
+      fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
     if (sessionInfo?.supervisorName) {
-      fullMessage += `المشرفة: ${sessionInfo.supervisorName}🤍.\n`
+      fullMessage += `المشرفة: ${sessionInfo.supervisorName}\n`
     }
     fullMessage += `ـــــــــــــــــــــــ\n`
     fullMessage += formatRealNames(data.activeUsers, data.completedUsers, selectedFlower)
