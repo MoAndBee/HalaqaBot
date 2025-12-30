@@ -64,7 +64,7 @@ export function StartNewSessionModal({ isOpen, onClose, onStart }: StartNewSessi
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md top-[20%] translate-y-[-20%] sm:top-[50%] sm:translate-y-[-50%] max-h-[90vh] overflow-y-auto p-4 sm:p-6" dir="rtl">
+      <DialogContent className="max-w-md top-4 left-[50%] translate-x-[-50%] translate-y-0 sm:top-[50%] sm:translate-y-[-50%] max-h-[80vh] overflow-y-auto p-4 sm:p-6" dir="rtl">
         <DialogHeader>
           <DialogTitle>بدء حلقة جديدة</DialogTitle>
         </DialogHeader>
