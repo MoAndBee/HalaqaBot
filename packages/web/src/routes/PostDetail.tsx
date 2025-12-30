@@ -652,9 +652,10 @@ export default function PostDetail() {
                       <DropdownMenuItem
                         key={flower}
                         onClick={() => handleFlowerChange(flower)}
+                        className="justify-center"
                       >
-                        <span className="ml-2">{flower}</span>
-                        {flower === selectedFlower && '✓'}
+                        <span className="text-xl">{flower}</span>
+                        {flower === selectedFlower && <span className="mr-2">✓</span>}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuSubContent>
