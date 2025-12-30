@@ -134,7 +134,7 @@ export class BotTaskService {
       });
 
       // Create flower border
-      const flowerBorder = flower.repeat(10);
+      const flowerBorder = flower.repeat(13);
 
       let message = `${flowerBorder}\n`;
       message += `${flower} ${formattedDate}`;
