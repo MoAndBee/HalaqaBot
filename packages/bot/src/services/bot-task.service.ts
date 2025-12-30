@@ -164,7 +164,7 @@ export class BotTaskService {
           ? ` 🗣️`
           : '';
         const doneIcon = isDone ? ' ✅' : '';
-        message += `${flower} ${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
+        message += `ه${flower} ${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
       });
 
       message += flowerBorder;

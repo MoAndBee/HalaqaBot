@@ -60,7 +60,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
         ? ` 🗣️`
         : ''
       const doneIcon = isDone ? ' ✅' : ''
-      return `${flower} ${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
+      return `ه${flower} ${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
     })
     .join('\n')
 }
