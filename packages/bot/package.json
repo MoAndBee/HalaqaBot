@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-sdk/groq": "^2.0.28",
     "@halakabot/db": "workspace:*",
+    "@napi-rs/canvas": "^0.1.88",
     "@types/express": "^5.0.5",
     "ai": "^5.0.89",
     "convex": "^1.29.0",
