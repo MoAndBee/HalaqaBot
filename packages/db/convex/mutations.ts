@@ -358,6 +358,7 @@ export const setLastListMessage = mutation({
     chatId: v.number(),
     postId: v.number(),
     messageId: v.number(),
+    sessionNumber: v.optional(v.number()),
     channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -371,6 +372,7 @@ export const setLastListMessage = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         messageId: args.messageId,
+        sessionNumber: args.sessionNumber,
         channelId: args.channelId,
         updatedAt: Date.now(),
       });
@@ -379,6 +381,7 @@ export const setLastListMessage = mutation({
         chatId: args.chatId,
         postId: args.postId,
         messageId: args.messageId,
+        sessionNumber: args.sessionNumber,
         channelId: args.channelId,
         updatedAt: Date.now(),
       });
