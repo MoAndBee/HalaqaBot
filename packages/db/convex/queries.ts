@@ -247,6 +247,7 @@ export const getLastListMessage = query({
       messageId: record.messageId,
       chatId: record.chatId,
       postId: record.postId,
+      sessionNumber: record.sessionNumber,
       channelId: record.channelId,
       updatedAt: record.updatedAt,
     };

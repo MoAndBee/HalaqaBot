@@ -180,14 +180,17 @@ export class BotTaskService {
       postId,
     });
 
-    // Delete old message if it exists
-    if (lastListMessage) {
+    // Delete old message only if it's for the same session (halaqa)
+    if (lastListMessage && lastListMessage.sessionNumber === sessionNumber) {
       try {
         await this.bot.api.deleteMessage(chatId, lastListMessage.messageId);
+        console.log(`Deleted previous message for session ${sessionNumber}`);
       } catch (error) {
         console.error('Failed to delete old message:', error);
         // Continue anyway - old message might already be deleted
       }
+    } else if (lastListMessage) {
+      console.log(`Keeping previous message (session ${lastListMessage.sessionNumber}) as new message is for different session (${sessionNumber})`);
     }
 
     // Send the new message (reply to the post)
@@ -195,11 +198,12 @@ export class BotTaskService {
       reply_to_message_id: postId,
     });
 
-    // Store the new message ID
+    // Store the new message ID with session number
     await this.convex.mutation(api.mutations.setLastListMessage, {
       chatId,
       postId,
       messageId: sentMessage.message_id,
+      sessionNumber,
     });
 
     // Mark task as completed

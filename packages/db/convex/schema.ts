@@ -86,6 +86,7 @@ export default defineSchema({
     chatId: v.number(),
     postId: v.number(),
     messageId: v.number(),
+    sessionNumber: v.optional(v.number()), // session number to track which halaqa this message is for
     channelId: v.optional(v.number()),
     updatedAt: v.number(), // timestamp in ms
   })
