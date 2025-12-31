@@ -62,6 +62,12 @@ export class ClassificationService {
       const { object } = await generateObject({
         model: groq("openai/gpt-oss-20b"),
         schema: batchClassificationSchema,
+        providerOptions: {
+          groq: {
+            reasoningFormat: 'parsed',
+            reasoningEffort: 'high',
+          },
+        },
         prompt: `You are analyzing Arabic messages to extract student names and activity types.
 
 For each message:
@@ -143,6 +149,12 @@ Return the message_id, contains_name (true/false), names array, and activity_typ
       const { object } = await generateObject({
         model: groq("openai/gpt-oss-20b"),
         schema: activityTypeOnlySchema,
+        providerOptions: {
+          groq: {
+            reasoningFormat: 'parsed',
+            reasoningEffort: 'high',
+          },
+        },
         prompt: `Analyze the following Arabic messages and for each message, determine the activity type:
 - "تسميع" (recitation from memory)
 - "تلاوة" (reading from Quran)
