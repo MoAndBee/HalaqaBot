@@ -259,14 +259,15 @@ export const addUserAtPosition = mutation({
     // Sort by position
     activeUsers.sort((a, b) => a.position - b.position);
 
-    if (activeUsers.length === 0) {
-      throw new Error("No active users in session");
-    }
-
     let targetIndex: number;
 
     if (args.currentPosition !== undefined) {
       // Case 1 & 2: NOT DONE user
+      // We need at least one active user to position relative to
+      if (activeUsers.length === 0) {
+        throw new Error("No active users in session");
+      }
+
       // Find the index of the current user in the active users list
       const currentIndex = activeUsers.findIndex(u => u.position === args.currentPosition);
 
@@ -280,6 +281,7 @@ export const addUserAtPosition = mutation({
     } else {
       // Case 3 & 4: DONE user
       // Insert at index 3 (4th position in active list, 0-indexed)
+      // Allow adding even if active list is empty (they become first in line)
       targetIndex = Math.min(3, activeUsers.length);
     }
 
@@ -593,6 +595,24 @@ export const removeUserFromList = mutation({
       entryToRemove.postId,
       sessionNumber
     );
+  },
+});
+
+export const removeCompletedUser = mutation({
+  args: {
+    entryId: v.id("participationHistory"),
+  },
+  handler: async (ctx, args) => {
+    // Get the entry to remove from participationHistory
+    const entryToRemove = await ctx.db.get(args.entryId);
+
+    if (!entryToRemove) {
+      throw new Error(`Entry not found in participation history`);
+    }
+
+    // Delete the entry from participation history
+    // No need to resequence since participationHistory doesn't use positions
+    await ctx.db.delete(args.entryId);
   },
 });
 

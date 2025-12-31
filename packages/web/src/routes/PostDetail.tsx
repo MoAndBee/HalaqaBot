@@ -115,6 +115,7 @@ export default function PostDetail() {
   )
   const updatePosition = useMutation(api.mutations.updateUserPosition)
   const removeUser = useMutation(api.mutations.removeUserFromList)
+  const removeCompletedUser = useMutation(api.mutations.removeCompletedUser)
   const completeUserTurn = useMutation(api.mutations.completeUserTurn)
   const skipUserTurn = useMutation(api.mutations.skipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
@@ -136,6 +137,10 @@ export default function PostDetail() {
 
   const handleDelete = async (entryId: string) => {
     await removeUser({ entryId })
+  }
+
+  const handleDeleteCompleted = async (entryId: string) => {
+    await removeCompletedUser({ entryId })
   }
 
   const handleComplete = async (entryId: string, sessionType: SessionType) => {
@@ -691,6 +696,7 @@ export default function PostDetail() {
           completedUsers={data.completedUsers}
           onReorder={handleReorder}
           onDelete={handleDelete}
+          onDeleteCompleted={handleDeleteCompleted}
           onComplete={handleComplete}
           onSkip={handleSkip}
           onUpdateSessionType={handleUpdateSessionType}
