@@ -31,7 +31,8 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
       return
     }
     onComplete(selectedType)
-    setSelectedType(null)
+    // Don't reset selectedType here - let useEffect update it when defaultSessionType changes
+    // This prevents the button from being disabled during the async operation
   }
 
   const handleSelectType = (type: SessionType) => {
