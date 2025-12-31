@@ -30,7 +30,7 @@ export function TurnControls({
           variant="secondary"
           className="h-12 px-4 text-base shrink-0 bg-amber-600 hover:bg-amber-700 text-white disabled:bg-muted disabled:text-muted-foreground"
         >
-          تخطي
+          🗣️ تخطي
         </Button>
       </div>
     </div>
