@@ -388,7 +388,7 @@ export default function PostDetail() {
     })
 
     // Create flower border
-    const flowerBorder = `ه${selectedFlower}`.repeat(9)
+    const flowerBorder = `ه${selectedFlower}`.repeat(7)
 
     let fullMessage = `${flowerBorder}\n`
     fullMessage += `${formattedDate}\n`
