@@ -1029,7 +1029,7 @@ export const startNewSession = mutation({
         await ctx.db.patch(previousSession._id, {
           isLocked: true,
           lockedAt: Date.now(),
-          lockedBy: "auto-locked on new session",
+          lockedBy: "auto",
         });
       }
     }
@@ -1190,7 +1190,7 @@ export const lockSession = mutation({
     await ctx.db.patch(session._id, {
       isLocked: true,
       lockedAt: Date.now(),
-      lockedBy: args.lockedBy || "admin",
+      lockedBy: args.lockedBy || "manual",
     });
 
     return { success: true };

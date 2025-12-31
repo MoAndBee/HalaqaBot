@@ -558,7 +558,7 @@ export default function PostDetail() {
         chatId,
         postId,
         sessionNumber: currentSession,
-        lockedBy: 'admin',
+        lockedBy: 'manual',
       })
       toast.success('تم قفل الحلقة بنجاح!')
     } catch (error: any) {
