@@ -4,7 +4,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -29,6 +29,7 @@ import { AddUserModal } from '~/components/AddUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
+import { UnlockSessionModal } from '~/components/UnlockSessionModal'
 import type { SessionType } from '~/components/SplitButton'
 
 function formatUserList(users: User[], isDone: boolean = false): string {
@@ -79,6 +80,7 @@ export default function PostDetail() {
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
     currentNotes?: string | null
@@ -128,6 +130,8 @@ export default function PostDetail() {
   const updateSessionSupervisor = useMutation(api.mutations.updateSessionSupervisor)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
+  const lockSession = useMutation(api.mutations.lockSession)
+  const unlockSession = useMutation(api.mutations.unlockSession)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
 
   const handleReorder = async (entryId: string, newPosition: number) => {
@@ -544,6 +548,44 @@ export default function PostDetail() {
     }
   }
 
+  const handleLockSession = async () => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    try {
+      await lockSession({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        lockedBy: 'admin',
+      })
+      toast.success('تم قفل الحلقة بنجاح!')
+    } catch (error: any) {
+      toast.error(error?.message || 'فشل قفل الحلقة')
+      console.error('Lock session failed:', error)
+    }
+  }
+
+  const handleUnlockSession = async (passcode: string) => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    try {
+      await unlockSession({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        passcode,
+      })
+      toast.success('تم فتح قفل الحلقة بنجاح!')
+    } catch (error: any) {
+      toast.error(error?.message || 'كلمة مرور خاطئة')
+      throw error
+    }
+  }
+
   if (!data) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -629,6 +671,18 @@ export default function PostDetail() {
                   تعديل اسم المشرفة
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                {sessionInfo?.isLocked ? (
+                  <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
+                    <LockOpen className="h-4 w-4 ml-2" />
+                    فتح قفل الحلقة
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={handleLockSession}>
+                    <Lock className="h-4 w-4 ml-2" />
+                    قفل الحلقة
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyList}>
                   <Copy className="h-4 w-4 ml-2" />
                   نسخ القائمة
@@ -678,6 +732,12 @@ export default function PostDetail() {
               <p className="text-xs sm:text-sm text-muted-foreground text-right">
                 اسم المشرفة: {sessionInfo.supervisorName}
               </p>
+            )}
+            {sessionInfo?.isLocked && (
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-right">
+                <Lock className="h-3.5 w-3.5" />
+                <span>الحلقة مقفلة</span>
+              </div>
             )}
           </div>
         </div>
@@ -730,6 +790,13 @@ export default function PostDetail() {
         isOpen={isStartNewSessionModalOpen}
         onClose={() => setIsStartNewSessionModalOpen(false)}
         onStart={handleStartNewSessionSubmit}
+      />
+
+      <UnlockSessionModal
+        isOpen={isUnlockModalOpen}
+        onClose={() => setIsUnlockModalOpen(false)}
+        onUnlock={handleUnlockSession}
+        sessionNumber={selectedSession ?? data.currentSession}
       />
     </div>
   )
