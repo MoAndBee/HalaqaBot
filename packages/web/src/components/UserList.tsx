@@ -34,6 +34,7 @@ interface UserListProps {
   completedUsers: CompletedUser[]
   onReorder: (entryId: string, newPosition: number) => Promise<void>
   onDelete: (entryId: string) => Promise<void>
+  onDeleteCompleted: (entryId: string) => Promise<void>
   onComplete: (entryId: string, sessionType: SessionType) => Promise<void>
   onSkip: (entryId: string) => Promise<void>
   onUpdateSessionType: (entryId: string, sessionType: SessionType) => Promise<void>
@@ -50,6 +51,7 @@ export function UserList({
   completedUsers,
   onReorder,
   onDelete,
+  onDeleteCompleted,
   onComplete,
   onSkip,
   onUpdateSessionType,
@@ -126,6 +128,21 @@ export function UserList({
     } catch (error) {
       console.error('Failed to delete user:', error)
       setItems(originalItems)
+      setError('فشل حذف المستخدم. الرجاء المحاولة مرة أخرى.')
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleDeleteCompleted = async (entryId: string) => {
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      await onDeleteCompleted(entryId)
+    } catch (error) {
+      console.error('Failed to delete completed user:', error)
       setError('فشل حذف المستخدم. الرجاء المحاولة مرة أخرى.')
       setTimeout(() => setError(null), 3000)
     } finally {
@@ -306,7 +323,7 @@ export function UserList({
           users={completedUsers}
           onUpdateSessionType={handleUpdateSessionType}
           onUpdateDisplayName={handleUpdateDisplayName}
-          onDelete={handleDelete}
+          onDelete={handleDeleteCompleted}
           onAddTurnAfter3={onAddTurnAfter3}
         />
 
