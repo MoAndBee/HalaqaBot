@@ -36,11 +36,12 @@ interface DraggableUserProps {
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
   totalUsers?: number
+  isLocked?: boolean
 }
 
 const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers, isLocked }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
@@ -191,50 +192,50 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               {onUpdateDisplayName && (
-                <DropdownMenuItem onClick={handleEdit}>
+                <DropdownMenuItem onClick={handleEdit} disabled={isLocked}>
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل الاسم
                 </DropdownMenuItem>
               )}
               {onUpdateSessionType && (
-                <DropdownMenuItem onClick={handleEditTypeClick}>
+                <DropdownMenuItem onClick={handleEditTypeClick} disabled={isLocked}>
                   <Tag className="h-4 w-4 ml-2" />
                   تعديل المشاركة
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               {/* {onEditNotes && (
-                <DropdownMenuItem onClick={handleEditNotes}>
+                <DropdownMenuItem onClick={handleEditNotes} disabled={isLocked}>
                   <StickyNote className="h-4 w-4 ml-2" />
                   إضافة ملاحظات
                 </DropdownMenuItem>
               )} */}
               {onAddTurnAfter3 && (
-                <DropdownMenuItem onClick={handleAddTurnAfter3}>
+                <DropdownMenuItem onClick={handleAddTurnAfter3} disabled={isLocked}>
                   <Plus className="h-4 w-4 ml-2" />
                   إضافة دور بعد ٣
                 </DropdownMenuItem>
               )}
               {onMoveToTop && (
-                <DropdownMenuItem onClick={handleMoveToTop}>
+                <DropdownMenuItem onClick={handleMoveToTop} disabled={isLocked}>
                   <ArrowUp className="h-4 w-4 ml-2" />
                   نقل إلى أول القائمة
                 </DropdownMenuItem>
               )}
               {onMoveToPosition && (
-                <DropdownMenuItem onClick={handleMoveToPosition}>
+                <DropdownMenuItem onClick={handleMoveToPosition} disabled={isLocked}>
                   <ArrowUpDown className="h-4 w-4 ml-2" />
                   نقل إلى دور معين
                 </DropdownMenuItem>
               )}
               {onMoveToEnd && (
-                <DropdownMenuItem onClick={handleMoveToEnd}>
+                <DropdownMenuItem onClick={handleMoveToEnd} disabled={isLocked}>
                   <ArrowDown className="h-4 w-4 ml-2" />
                   نقل إلى آخر القائمة
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleDeleteClick} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem onClick={handleDeleteClick} disabled={isLocked} className="text-destructive focus:text-destructive">
                 <Trash2 className="h-4 w-4" />
                 حذف
               </DropdownMenuItem>

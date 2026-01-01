@@ -41,6 +41,7 @@ interface UserListProps {
   onAddTurnAfter3: (userId: number, currentPosition: number | undefined) => Promise<void>
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
+  isLocked: boolean
 }
 
 export function UserList({
@@ -56,7 +57,8 @@ export function UserList({
   onUpdateDisplayName,
   onAddTurnAfter3,
   onEditNotes,
-  onSetCompensation
+  onSetCompensation,
+  isLocked
 }: UserListProps) {
   const [items, setItems] = useState(activeUsers)
   const [isReordering, setIsReordering] = useState(false)
@@ -308,6 +310,7 @@ export function UserList({
           onUpdateDisplayName={handleUpdateDisplayName}
           onDelete={handleDelete}
           onAddTurnAfter3={onAddTurnAfter3}
+          isLocked={isLocked}
         />
 
         {items.length > 0 ? (
@@ -336,6 +339,7 @@ export function UserList({
                     onEditNotes={onEditNotes}
                     onSetCompensation={onSetCompensation}
                     totalUsers={items.length}
+                    isLocked={isLocked}
                   />
                 ))}
               </div>
@@ -361,7 +365,7 @@ export function UserList({
           onComplete={handleComplete}
           onSkip={handleSkip}
           canSkip={items.length >= 2}
-          disabled={isProcessing}
+          disabled={isProcessing || isLocked}
           defaultSessionType={
             (items[0]?.isCompensation && items[0]?.compensatingForDates && items[0]?.compensatingForDates.length > 0)
               ? 'تعويض'

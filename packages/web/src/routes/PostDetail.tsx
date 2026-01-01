@@ -658,15 +658,24 @@ export default function PostDetail() {
                   <Plus className="h-4 w-4 ml-2" />
                   بدء حلقة جديدة
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsAddUserModalOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <UserPlus className="h-4 w-4 ml-2" />
                   إضافة مستخدم يدوياً
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleEditTeacherName}>
+                <DropdownMenuItem
+                  onClick={handleEditTeacherName}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل اسم المعلمة
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleEditSupervisorName}>
+                <DropdownMenuItem
+                  onClick={handleEditSupervisorName}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <UserCog className="h-4 w-4 ml-2" />
                   تعديل اسم المشرفة
                 </DropdownMenuItem>
@@ -758,6 +767,7 @@ export default function PostDetail() {
           onAddTurnAfter3={handleAddTurnAfter3}
           onEditNotes={handleOpenEditNotes}
           onSetCompensation={handleSetCompensationDates}
+          isLocked={sessionInfo?.isLocked || false}
         />
       </div>
 
