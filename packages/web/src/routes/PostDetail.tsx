@@ -553,6 +553,14 @@ export default function PostDetail() {
 
     const currentSession = selectedSession ?? data.currentSession
 
+    // Ask for confirmation before locking
+    const confirmed = window.confirm(
+      `هل أنت متأكد من إغلاق الحلقة رقم ${currentSession.toLocaleString('ar-EG')}؟\n\n` +
+      'بعد الإغلاق، لن تتمكن من تعديل أي بيانات في هذه الحلقة إلا بعد فتحها بكلمة المرور.'
+    )
+
+    if (!confirmed) return
+
     try {
       await lockSession({
         chatId,
