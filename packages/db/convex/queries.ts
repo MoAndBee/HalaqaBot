@@ -224,6 +224,9 @@ export const getSessionInfo = query({
       teacherName: sessionMeta.teacherName,
       supervisorName: sessionMeta.supervisorName,
       createdAt: sessionMeta.createdAt,
+      isLocked: sessionMeta.isLocked,
+      lockedAt: sessionMeta.lockedAt,
+      lockedBy: sessionMeta.lockedBy,
     };
   },
 });
