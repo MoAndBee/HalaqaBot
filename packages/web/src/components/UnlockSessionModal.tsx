@@ -62,7 +62,10 @@ export function UnlockSessionModal({ isOpen, onClose, onUnlock, sessionNumber }:
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md" dir="rtl">
+      <DialogContent
+        className="max-w-md top-[20%] sm:top-[50%] max-h-[80vh] overflow-y-auto"
+        dir="rtl"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lock className="h-5 w-5" />
