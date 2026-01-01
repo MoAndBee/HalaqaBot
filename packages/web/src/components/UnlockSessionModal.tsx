@@ -66,10 +66,10 @@ export function UnlockSessionModal({ isOpen, onClose, onUnlock, sessionNumber }:
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lock className="h-5 w-5" />
-            فتح قفل الحلقة
+            فتح الحلقة
           </DialogTitle>
           <DialogDescription>
-            الحلقة رقم {sessionNumber.toLocaleString('ar-EG')} مقفلة. الرجاء إدخال كلمة المرور لفتح القفل.
+            الحلقة رقم {sessionNumber.toLocaleString('ar-EG')} مغلقة. الرجاء إدخال كلمة المرور لفتح الحلقة.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,7 +94,7 @@ export function UnlockSessionModal({ isOpen, onClose, onUnlock, sessionNumber }:
           </div>
 
           <p className="text-xs text-muted-foreground">
-            اضغط Enter لتأكيد فتح القفل
+            اضغط Enter لتأكيد فتح الحلقة
           </p>
         </div>
 
@@ -116,7 +116,7 @@ export function UnlockSessionModal({ isOpen, onClose, onUnlock, sessionNumber }:
                 جاري الفتح...
               </>
             ) : (
-              'فتح القفل'
+              'فتح الحلقة'
             )}
           </Button>
         </DialogFooter>

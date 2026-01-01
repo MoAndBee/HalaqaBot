@@ -560,9 +560,9 @@ export default function PostDetail() {
         sessionNumber: currentSession,
         lockedBy: 'manual',
       })
-      toast.success('تم قفل الحلقة بنجاح!')
+      toast.success('تم إغلاق الحلقة بنجاح!')
     } catch (error: any) {
-      toast.error(error?.message || 'فشل قفل الحلقة')
+      toast.error(error?.message || 'فشل إغلاق الحلقة')
       console.error('Lock session failed:', error)
     }
   }
@@ -579,7 +579,7 @@ export default function PostDetail() {
         sessionNumber: currentSession,
         passcode,
       })
-      toast.success('تم فتح قفل الحلقة بنجاح!')
+      toast.success('تم فتح الحلقة بنجاح!')
     } catch (error: any) {
       toast.error(error?.message || 'كلمة مرور خاطئة')
       throw error
@@ -683,12 +683,12 @@ export default function PostDetail() {
                 {sessionInfo?.isLocked ? (
                   <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
                     <LockOpen className="h-4 w-4 ml-2" />
-                    فتح قفل الحلقة
+                    فتح الحلقة
                   </DropdownMenuItem>
                 ) : (
                   <DropdownMenuItem onClick={handleLockSession}>
                     <Lock className="h-4 w-4 ml-2" />
-                    قفل الحلقة
+                    إغلاق الحلقة
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -745,7 +745,7 @@ export default function PostDetail() {
             {sessionInfo?.isLocked && (
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-right">
                 <Lock className="h-3.5 w-3.5" />
-                <span>الحلقة مقفلة</span>
+                <span>الحلقة مغلقة</span>
               </div>
             )}
           </div>
