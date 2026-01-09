@@ -87,6 +87,7 @@ export class BotTaskService {
   private async handleSendParticipantList(task: any) {
     const { chatId, postId } = task;
     let { sessionNumber } = task;
+    const flower = task.flower || '🌸'; // Default to 🌸 if not specified
 
     // Get the latest session if not specified
     if (sessionNumber === undefined) {
@@ -132,17 +133,21 @@ export class BotTaskService {
         day: 'numeric',
       });
 
-      let message = formattedDate;
+      // Create flower border
+      const flowerBorder = `ه${flower}`.repeat(7);
+
+      let message = `${flowerBorder}\n`;
+      message += `${formattedDate}`;
 
       if (teacherName) {
         message += `\nالمعلمة: ${teacherName}`;
       }
 
       if (supervisorName) {
-        message += `\nاسم المشرفة: ${supervisorName}`;
+        message += `\nالمشرفة: ${supervisorName}`;
       }
 
-      message += '\n\n';
+      message += `\nـــــــــــــــــــــــ\n`;
 
       // Combine: completed first, then active
       const allParticipants = [...completedUsers, ...activeUsers];
@@ -162,6 +167,8 @@ export class BotTaskService {
         message += `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
       });
 
+      message += flowerBorder;
+
       return message;
     };
 
@@ -173,14 +180,17 @@ export class BotTaskService {
       postId,
     });
 
-    // Delete old message if it exists
-    if (lastListMessage) {
+    // Delete old message only if it's for the same session (halaqa)
+    if (lastListMessage && lastListMessage.sessionNumber === sessionNumber) {
       try {
         await this.bot.api.deleteMessage(chatId, lastListMessage.messageId);
+        console.log(`Deleted previous message for session ${sessionNumber}`);
       } catch (error) {
         console.error('Failed to delete old message:', error);
         // Continue anyway - old message might already be deleted
       }
+    } else if (lastListMessage) {
+      console.log(`Keeping previous message (session ${lastListMessage.sessionNumber}) as new message is for different session (${sessionNumber})`);
     }
 
     // Send the new message (reply to the post)
@@ -188,11 +198,12 @@ export class BotTaskService {
       reply_to_message_id: postId,
     });
 
-    // Store the new message ID
+    // Store the new message ID with session number
     await this.convex.mutation(api.mutations.setLastListMessage, {
       chatId,
       postId,
       messageId: sentMessage.message_id,
+      sessionNumber,
     });
 
     // Mark task as completed

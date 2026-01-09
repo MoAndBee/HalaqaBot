@@ -224,6 +224,9 @@ export const getSessionInfo = query({
       teacherName: sessionMeta.teacherName,
       supervisorName: sessionMeta.supervisorName,
       createdAt: sessionMeta.createdAt,
+      isLocked: sessionMeta.isLocked,
+      lockedAt: sessionMeta.lockedAt,
+      lockedBy: sessionMeta.lockedBy,
     };
   },
 });
@@ -247,6 +250,7 @@ export const getLastListMessage = query({
       messageId: record.messageId,
       chatId: record.chatId,
       postId: record.postId,
+      sessionNumber: record.sessionNumber,
       channelId: record.channelId,
       updatedAt: record.updatedAt,
     };

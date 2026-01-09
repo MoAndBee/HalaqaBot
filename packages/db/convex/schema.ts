@@ -86,6 +86,7 @@ export default defineSchema({
     chatId: v.number(),
     postId: v.number(),
     messageId: v.number(),
+    sessionNumber: v.optional(v.number()), // session number to track which halaqa this message is for
     channelId: v.optional(v.number()),
     updatedAt: v.number(), // timestamp in ms
   })
@@ -124,6 +125,9 @@ export default defineSchema({
     sessionNumber: v.number(),
     teacherName: v.string(), // Name of the teacher for this session
     supervisorName: v.optional(v.string()), // Name of the supervisor for this session
+    isLocked: v.optional(v.boolean()), // Whether this session is locked from editing
+    lockedAt: v.optional(v.number()), // Timestamp when session was locked
+    lockedBy: v.optional(v.string()), // Identifier of admin who locked the session
     createdAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post", ["chatId", "postId"])
@@ -134,6 +138,7 @@ export default defineSchema({
     chatId: v.number(),
     postId: v.number(),
     sessionNumber: v.optional(v.number()),
+    flower: v.optional(v.string()), // flower emoji to use in formatting
     status: v.string(), // "pending", "processing", "completed", "failed"
     resultMessageId: v.optional(v.number()), // message ID after sending
     error: v.optional(v.string()), // error message if failed

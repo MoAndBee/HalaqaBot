@@ -34,6 +34,7 @@ interface UserListProps {
   completedUsers: CompletedUser[]
   onReorder: (entryId: string, newPosition: number) => Promise<void>
   onDelete: (entryId: string) => Promise<void>
+  onDeleteCompleted: (entryId: string) => Promise<void>
   onComplete: (entryId: string, sessionType: SessionType) => Promise<void>
   onSkip: (entryId: string) => Promise<void>
   onUpdateSessionType: (entryId: string, sessionType: SessionType) => Promise<void>
@@ -41,6 +42,7 @@ interface UserListProps {
   onAddTurnAfter3: (userId: number, currentPosition: number | undefined) => Promise<void>
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
+  isLocked: boolean
 }
 
 export function UserList({
@@ -50,13 +52,15 @@ export function UserList({
   completedUsers,
   onReorder,
   onDelete,
+  onDeleteCompleted,
   onComplete,
   onSkip,
   onUpdateSessionType,
   onUpdateDisplayName,
   onAddTurnAfter3,
   onEditNotes,
-  onSetCompensation
+  onSetCompensation,
+  isLocked
 }: UserListProps) {
   const [items, setItems] = useState(activeUsers)
   const [isReordering, setIsReordering] = useState(false)
@@ -126,6 +130,21 @@ export function UserList({
     } catch (error) {
       console.error('Failed to delete user:', error)
       setItems(originalItems)
+      setError('فشل حذف المستخدم. الرجاء المحاولة مرة أخرى.')
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleDeleteCompleted = async (entryId: string) => {
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      await onDeleteCompleted(entryId)
+    } catch (error) {
+      console.error('Failed to delete completed user:', error)
       setError('فشل حذف المستخدم. الرجاء المحاولة مرة أخرى.')
       setTimeout(() => setError(null), 3000)
     } finally {
@@ -306,8 +325,9 @@ export function UserList({
           users={completedUsers}
           onUpdateSessionType={handleUpdateSessionType}
           onUpdateDisplayName={handleUpdateDisplayName}
-          onDelete={handleDelete}
+          onDelete={handleDeleteCompleted}
           onAddTurnAfter3={onAddTurnAfter3}
+          isLocked={isLocked}
         />
 
         {items.length > 0 ? (
@@ -336,6 +356,7 @@ export function UserList({
                     onEditNotes={onEditNotes}
                     onSetCompensation={onSetCompensation}
                     totalUsers={items.length}
+                    isLocked={isLocked}
                   />
                 ))}
               </div>
@@ -361,7 +382,7 @@ export function UserList({
           onComplete={handleComplete}
           onSkip={handleSkip}
           canSkip={items.length >= 2}
-          disabled={isProcessing}
+          disabled={isProcessing || isLocked}
           defaultSessionType={
             (items[0]?.isCompensation && items[0]?.compensatingForDates && items[0]?.compensatingForDates.length > 0)
               ? 'تعويض'

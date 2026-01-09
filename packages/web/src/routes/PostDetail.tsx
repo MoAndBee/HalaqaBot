@@ -4,13 +4,16 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -26,6 +29,7 @@ import { AddUserModal } from '~/components/AddUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
+import { UnlockSessionModal } from '~/components/UnlockSessionModal'
 import type { SessionType } from '~/components/SplitButton'
 
 function formatUserList(users: User[], isDone: boolean = false): string {
@@ -43,7 +47,7 @@ function formatUserList(users: User[], isDone: boolean = false): string {
     .join('\n')
 }
 
-function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
+function formatRealNames(activeUsers: User[], completedUsers: User[], flower: string = DEFAULT_FLOWER): string {
   const allUsers = [...completedUsers, ...activeUsers]
   return allUsers
     .map((user, index) => {
@@ -62,15 +66,21 @@ function formatRealNames(activeUsers: User[], completedUsers: User[]): string {
     .join('\n')
 }
 
+const FLOWER_OPTIONS = ['🌸', '🌺', '🌼', '🌻', '❤️', '💛', '💜'] as const
+const DEFAULT_FLOWER = '🌸'
+const FLOWER_STORAGE_KEY = 'halaqa-selected-flower'
+
 export default function PostDetail() {
   const params = useParams<{ chatId: string; postId: string }>()
   const chatId = Number(params.chatId)
   const postId = Number(params.postId)
 
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
+  const [selectedFlower, setSelectedFlower] = React.useState<string>(DEFAULT_FLOWER)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
     currentNotes?: string | null
@@ -84,6 +94,20 @@ export default function PostDetail() {
     currentDates?: number[] | null
   } | null>(null)
 
+  // Load selected flower from localStorage on mount
+  React.useEffect(() => {
+    const savedFlower = localStorage.getItem(FLOWER_STORAGE_KEY)
+    if (savedFlower && FLOWER_OPTIONS.includes(savedFlower as any)) {
+      setSelectedFlower(savedFlower)
+    }
+  }, [])
+
+  // Save selected flower to localStorage when it changes
+  const handleFlowerChange = (flower: string) => {
+    setSelectedFlower(flower)
+    localStorage.setItem(FLOWER_STORAGE_KEY, flower)
+  }
+
   const data = useQuery(api.queries.getUserList, { chatId, postId, sessionNumber: selectedSession })
   const availableSessions = useQuery(api.queries.getAvailableSessions, { chatId, postId })
   const postDetails = useQuery(api.queries.getPostDetails, { chatId, postId })
@@ -93,6 +117,7 @@ export default function PostDetail() {
   )
   const updatePosition = useMutation(api.mutations.updateUserPosition)
   const removeUser = useMutation(api.mutations.removeUserFromList)
+  const removeCompletedUser = useMutation(api.mutations.removeCompletedUser)
   const completeUserTurn = useMutation(api.mutations.completeUserTurn)
   const skipUserTurn = useMutation(api.mutations.skipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
@@ -106,6 +131,8 @@ export default function PostDetail() {
   const updateSessionSupervisor = useMutation(api.mutations.updateSessionSupervisor)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
+  const lockSession = useMutation(api.mutations.lockSession)
+  const unlockSession = useMutation(api.mutations.unlockSession)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
 
   const handleReorder = async (entryId: string, newPosition: number) => {
@@ -114,6 +141,10 @@ export default function PostDetail() {
 
   const handleDelete = async (entryId: string) => {
     await removeUser({ entryId })
+  }
+
+  const handleDeleteCompleted = async (entryId: string) => {
+    await removeCompletedUser({ entryId })
   }
 
   const handleComplete = async (entryId: string, sessionType: SessionType) => {
@@ -365,15 +396,20 @@ export default function PostDetail() {
       day: 'numeric',
     })
 
-    let fullMessage = `${formattedDate}\n`
+    // Create flower border
+    const flowerBorder = `ه${selectedFlower}`.repeat(7)
+
+    let fullMessage = `${flowerBorder}\n`
+    fullMessage += `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
     if (sessionInfo?.supervisorName) {
-      fullMessage += `اسم المشرفة: ${sessionInfo.supervisorName}\n`
+      fullMessage += `المشرفة: ${sessionInfo.supervisorName}\n`
     }
-    fullMessage += '\n'
-    fullMessage += formatRealNames(data.activeUsers, data.completedUsers)
+    fullMessage += `ـــــــــــــــــــــــ\n`
+    fullMessage += formatRealNames(data.activeUsers, data.completedUsers, selectedFlower)
+    fullMessage += `\n${flowerBorder}`
 
     try {
       await navigator.clipboard.writeText(fullMessage)
@@ -393,6 +429,7 @@ export default function PostDetail() {
         chatId,
         postId,
         sessionNumber: currentSession,
+        flower: selectedFlower,
       })
       toast.success('تم إرسال قائمة الأسماء!')
     } catch (error) {
@@ -516,6 +553,52 @@ export default function PostDetail() {
     }
   }
 
+  const handleLockSession = async () => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    // Ask for confirmation before locking
+    const confirmed = window.confirm(
+      `هل أنت متأكد من إغلاق الحلقة رقم ${currentSession.toLocaleString('ar-EG')}؟\n\n` +
+      'بعد الإغلاق، لن تتمكن من تعديل أي بيانات في هذه الحلقة إلا بعد فتحها بكلمة المرور.'
+    )
+
+    if (!confirmed) return
+
+    try {
+      await lockSession({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        lockedBy: 'manual',
+      })
+      toast.success('تم إغلاق الحلقة بنجاح!')
+    } catch (error: any) {
+      toast.error(error?.message || 'فشل إغلاق الحلقة')
+      console.error('Lock session failed:', error)
+    }
+  }
+
+  const handleUnlockSession = async (passcode: string) => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    try {
+      await unlockSession({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        passcode,
+      })
+      toast.success('تم فتح الحلقة بنجاح!')
+    } catch (error: any) {
+      toast.error(error?.message || 'كلمة مرور خاطئة')
+      throw error
+    }
+  }
+
   if (!data) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -588,18 +671,39 @@ export default function PostDetail() {
                   <Plus className="h-4 w-4 ml-2" />
                   بدء حلقة جديدة
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsAddUserModalOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <UserPlus className="h-4 w-4 ml-2" />
                   إضافة مستخدم يدوياً
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleEditTeacherName}>
+                <DropdownMenuItem
+                  onClick={handleEditTeacherName}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل اسم المعلمة
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleEditSupervisorName}>
+                <DropdownMenuItem
+                  onClick={handleEditSupervisorName}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <UserCog className="h-4 w-4 ml-2" />
                   تعديل اسم المشرفة
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {sessionInfo?.isLocked ? (
+                  <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
+                    <LockOpen className="h-4 w-4 ml-2" />
+                    فتح الحلقة
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={handleLockSession}>
+                    <Lock className="h-4 w-4 ml-2" />
+                    إغلاق الحلقة
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyList}>
                   <Copy className="h-4 w-4 ml-2" />
@@ -613,6 +717,24 @@ export default function PostDetail() {
                   <Send className="h-4 w-4 ml-2" />
                   إرسال قائمة الأسماء
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <span className="ml-2">{selectedFlower}</span>
+                    اختيار الزينة
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {FLOWER_OPTIONS.map((flower) => (
+                      <DropdownMenuItem
+                        key={flower}
+                        onClick={() => handleFlowerChange(flower)}
+                      >
+                        <span className="ml-2">{flower}</span>
+                        {flower === selectedFlower && '✓'}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -633,6 +755,12 @@ export default function PostDetail() {
                 اسم المشرفة: {sessionInfo.supervisorName}
               </p>
             )}
+            {sessionInfo?.isLocked && (
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-right">
+                <Lock className="h-3.5 w-3.5" />
+                <span>الحلقة مغلقة</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -645,6 +773,7 @@ export default function PostDetail() {
           completedUsers={data.completedUsers}
           onReorder={handleReorder}
           onDelete={handleDelete}
+          onDeleteCompleted={handleDeleteCompleted}
           onComplete={handleComplete}
           onSkip={handleSkip}
           onUpdateSessionType={handleUpdateSessionType}
@@ -652,6 +781,7 @@ export default function PostDetail() {
           onAddTurnAfter3={handleAddTurnAfter3}
           onEditNotes={handleOpenEditNotes}
           onSetCompensation={handleSetCompensationDates}
+          isLocked={sessionInfo?.isLocked || false}
         />
       </div>
 
@@ -684,6 +814,13 @@ export default function PostDetail() {
         isOpen={isStartNewSessionModalOpen}
         onClose={() => setIsStartNewSessionModalOpen(false)}
         onStart={handleStartNewSessionSubmit}
+      />
+
+      <UnlockSessionModal
+        isOpen={isUnlockModalOpen}
+        onClose={() => setIsUnlockModalOpen(false)}
+        onUnlock={handleUnlockSession}
+        sessionNumber={selectedSession ?? data.currentSession}
       />
     </div>
   )

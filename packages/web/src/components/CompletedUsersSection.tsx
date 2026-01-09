@@ -44,6 +44,7 @@ interface CompletedUsersSectionProps {
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onDelete?: (entryId: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
+  isLocked?: boolean
 }
 
 const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
@@ -54,6 +55,7 @@ function CompletedUserCard({
   onUpdateDisplayName,
   onDelete,
   onAddTurnAfter3,
+  isLocked,
 }: {
   user: CompletedUser
   index: number
@@ -61,6 +63,7 @@ function CompletedUserCard({
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onDelete?: (entryId: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
+  isLocked?: boolean
 }) {
   const [isEditingType, setIsEditingType] = useState(false)
   const [isEditingName, setIsEditingName] = useState(false)
@@ -160,18 +163,18 @@ function CompletedUserCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               {onUpdateDisplayName && (
-                <DropdownMenuItem onClick={handleEditNameClick}>
+                <DropdownMenuItem onClick={handleEditNameClick} disabled={isLocked}>
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل الاسم
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={handleEditTypeClick}>
+              <DropdownMenuItem onClick={handleEditTypeClick} disabled={isLocked}>
                 <Tag className="h-4 w-4 ml-2" />
                 تعديل المشاركة
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {onAddTurnAfter3 && (
-                <DropdownMenuItem onClick={handleAddTurnAfter3}>
+                <DropdownMenuItem onClick={handleAddTurnAfter3} disabled={isLocked}>
                   <Plus className="h-4 w-4 ml-2" />
                   إضافة دور بعد ٣
                 </DropdownMenuItem>
@@ -179,7 +182,7 @@ function CompletedUserCard({
               {onDelete && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+                  <DropdownMenuItem onClick={handleDelete} disabled={isLocked} className="text-destructive focus:text-destructive">
                     <Trash2 className="h-4 w-4 ml-2" />
                     حذف
                   </DropdownMenuItem>
@@ -271,6 +274,7 @@ export function CompletedUsersSection({
   onUpdateDisplayName,
   onDelete,
   onAddTurnAfter3,
+  isLocked,
 }: CompletedUsersSectionProps) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -303,6 +307,7 @@ export function CompletedUsersSection({
             onUpdateDisplayName={onUpdateDisplayName}
             onDelete={onDelete}
             onAddTurnAfter3={onAddTurnAfter3}
+            isLocked={isLocked}
           />
         ))}
       </CollapsibleContent>

@@ -10,6 +10,7 @@ export const sendParticipantList = action({
     chatId: v.number(),
     postId: v.number(),
     sessionNumber: v.optional(v.number()),
+    flower: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Create a task for the bot to process
@@ -18,6 +19,7 @@ export const sendParticipantList = action({
       chatId: args.chatId,
       postId: args.postId,
       sessionNumber: args.sessionNumber,
+      flower: args.flower,
     });
 
     return { success: true, taskId: result.taskId };
