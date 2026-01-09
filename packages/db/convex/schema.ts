@@ -147,4 +147,17 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_chat_post", ["chatId", "postId"]),
+
+  // Channel administrators cache for authorization
+  channelAdmins: defineTable({
+    channelId: v.number(), // Telegram channel ID
+    userId: v.number(), // Admin user ID
+    status: v.string(), // "creator" or "administrator"
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    username: v.optional(v.string()),
+    updatedAt: v.number(), // Last sync timestamp
+  })
+    .index("by_channel", ["channelId"])
+    .index("by_channel_user", ["channelId", "userId"]),
 });
