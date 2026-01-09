@@ -1128,3 +1128,77 @@ export const updateBotTask = mutation({
     });
   },
 });
+
+/**
+ * Sync channel administrators from Telegram to database
+ * This is called periodically by the bot to keep the admin list up to date
+ */
+export const syncChannelAdmins = mutation({
+  args: {
+    channelId: v.number(),
+    admins: v.array(
+      v.object({
+        userId: v.number(),
+        status: v.string(), // "creator" or "administrator"
+        firstName: v.optional(v.string()),
+        lastName: v.optional(v.string()),
+        username: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Get existing admins for this channel
+    const existingAdmins = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel", (q) => q.eq("channelId", args.channelId))
+      .collect();
+
+    // Create a map of existing admins by userId for quick lookup
+    const existingAdminMap = new Map(
+      existingAdmins.map((admin) => [admin.userId, admin])
+    );
+
+    // Create a set of new admin user IDs
+    const newAdminUserIds = new Set(args.admins.map((admin) => admin.userId));
+
+    // Remove admins that are no longer in the list
+    for (const existingAdmin of existingAdmins) {
+      if (!newAdminUserIds.has(existingAdmin.userId)) {
+        await ctx.db.delete(existingAdmin._id);
+        console.log(`Removed admin ${existingAdmin.userId} from channel ${args.channelId}`);
+      }
+    }
+
+    // Add or update admins
+    for (const admin of args.admins) {
+      const existing = existingAdminMap.get(admin.userId);
+
+      if (existing) {
+        // Update existing admin
+        await ctx.db.patch(existing._id, {
+          status: admin.status,
+          firstName: admin.firstName,
+          lastName: admin.lastName,
+          username: admin.username,
+          updatedAt: now,
+        });
+      } else {
+        // Add new admin
+        await ctx.db.insert("channelAdmins", {
+          channelId: args.channelId,
+          userId: admin.userId,
+          status: admin.status,
+          firstName: admin.firstName,
+          lastName: admin.lastName,
+          username: admin.username,
+          updatedAt: now,
+        });
+        console.log(`Added admin ${admin.userId} to channel ${args.channelId}`);
+      }
+    }
+
+    console.log(`Synced ${args.admins.length} admins for channel ${args.channelId}`);
+  },
+});

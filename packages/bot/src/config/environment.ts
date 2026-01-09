@@ -4,6 +4,8 @@ export interface Config {
   groqApiKey: string;
   autoReactionEmoji: "❤" | "👍" | "👎" | "🔥" | "🥰";
   allowedReactionUserIds: number[];
+  webAppUrl: string;
+  channelId: number;
 }
 
 export function loadConfig(): Config {
@@ -14,6 +16,8 @@ export function loadConfig(): Config {
   const allowedReactionUserIds = process.env.ALLOWED_REACTION_USER_IDS
     ? process.env.ALLOWED_REACTION_USER_IDS.split(",").map((id: string) => parseInt(id.trim(), 10))
     : [5627601992, 1093520031];
+  const webAppUrl = process.env.WEB_APP_URL || "https://halakabot.app.thawabcoding.work";
+  const channelId = process.env.CHANNEL_ID ? parseInt(process.env.CHANNEL_ID, 10) : -1002081068866;
 
   if (!botToken) {
     console.error("Error: BOT_TOKEN environment variable is not set");
@@ -45,5 +49,7 @@ export function loadConfig(): Config {
     groqApiKey,
     autoReactionEmoji,
     allowedReactionUserIds,
+    webAppUrl,
+    channelId,
   };
 }

@@ -864,3 +864,29 @@ export const getLongMessagesBySaturday = query({
     }));
   },
 });
+
+/**
+ * Check if a user is authorized to access the admin panel
+ * Returns true if the user is a channel administrator
+ */
+export const isUserAuthorized = query({
+  args: {
+    userId: v.number(),
+    channelId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Check if user is in channelAdmins table
+    const admin = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel_user", (q) =>
+        q.eq("channelId", args.channelId).eq("userId", args.userId)
+      )
+      .first();
+
+    const isAuthorized = admin !== null;
+
+    console.log(`Authorization check for user ${args.userId} on channel ${args.channelId}: ${isAuthorized ? "✅ AUTHORIZED" : "❌ UNAUTHORIZED"}`);
+
+    return isAuthorized;
+  },
+});

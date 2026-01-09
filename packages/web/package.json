@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.15",
+    "@twa-dev/types": "^8.0.2",
     "@types/node": "22.10.2",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
