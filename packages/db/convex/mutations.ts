@@ -158,15 +158,25 @@ export const addUserToList = mutation({
       }
     }
 
-    // Get current users in turnQueue for this post to calculate max position
+    // Get current users in turnQueue for this session
     const queueUsers = await ctx.db
       .query("turnQueue")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
-    // Always insert the user (allow duplicates)
+    // Check if user with same sessionType already exists in this session
+    // Allow duplicates only for different sessionTypes (e.g., تلاوة vs تسميع)
+    const existingEntry = queueUsers.find(
+      (u) => u.userId === args.userId && u.sessionType === args.sessionType
+    );
+
+    if (existingEntry) {
+      console.log(`User ${args.userId} with sessionType "${args.sessionType}" already in queue, skipping duplicate`);
+      return false; // User already in queue with same session type
+    }
+
     const maxPosition =
       queueUsers.length > 0
         ? Math.max(...queueUsers.map((u) => u.position))
@@ -497,7 +507,7 @@ export const storeClassification = mutation({
 
           await ctx.db.patch(existingUser._id, {
             realName: fullName,
-            sourceMessageText: messageAuthor.messageText,
+            sourceMessageText: args.messageText,
             updatedAt: Date.now(),
           });
 

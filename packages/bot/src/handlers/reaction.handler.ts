@@ -38,8 +38,17 @@ export function registerReactionHandler(
 
     const chatId = ctx.messageReaction!.chat.id;
 
-    // Check if the new reaction contains OK hand emoji
+    // Check if the OK hand emoji was NEWLY ADDED (not already present)
+    const oldReaction = ctx.messageReaction!.old_reaction;
     const newReaction = ctx.messageReaction!.new_reaction;
+
+    const hadOkHandEmoji = oldReaction.some((reaction) => {
+      if (reaction.type === "emoji") {
+        return reaction.emoji === "👌";
+      }
+      return false;
+    });
+
     const hasOkHandEmoji = newReaction.some((reaction) => {
       if (reaction.type === "emoji") {
         return reaction.emoji === "👌";
@@ -47,7 +56,8 @@ export function registerReactionHandler(
       return false;
     });
 
-    if (hasOkHandEmoji) {
+    // Only process if 👌 was NEWLY ADDED (not already there)
+    if (hasOkHandEmoji && !hadOkHandEmoji) {
       const messageId = ctx.messageReaction!.message_id;
 
       // Try to find the post ID and channel ID from the database
