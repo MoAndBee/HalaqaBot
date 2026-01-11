@@ -894,3 +894,39 @@ export const isUserAuthorized = query({
     return isAuthorized;
   },
 });
+
+/**
+ * Get the display name for an admin
+ * Returns preferredName if set, otherwise firstName + lastName
+ */
+export const getAdminDisplayName = query({
+  args: {
+    userId: v.number(),
+    channelId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Find the admin in channelAdmins table
+    const admin = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel_user", (q) =>
+        q.eq("channelId", args.channelId).eq("userId", args.userId)
+      )
+      .first();
+
+    if (!admin) {
+      console.log(`Admin ${args.userId} not found in channel ${args.channelId}`);
+      return null;
+    }
+
+    // Use preferredName if set, otherwise construct from firstName + lastName
+    if (admin.preferredName) {
+      return admin.preferredName;
+    }
+
+    const firstName = admin.firstName || "";
+    const lastName = admin.lastName || "";
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    return fullName || null;
+  },
+});

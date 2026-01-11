@@ -156,6 +156,7 @@ export default defineSchema({
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     username: v.optional(v.string()),
+    preferredName: v.optional(v.string()), // Custom name set by admin via "تعديل اسم المشرفة"
     updatedAt: v.number(), // Last sync timestamp
   })
     .index("by_channel", ["channelId"])

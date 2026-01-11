@@ -6,6 +6,7 @@ import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
 import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,6 +76,10 @@ export default function PostDetail() {
   const chatId = Number(params.chatId)
   const postId = Number(params.postId)
 
+  // Get current admin user from Telegram auth
+  const { user: telegramUser } = useTelegramAuthContext()
+  const CHANNEL_ID = -1002081068866 // TODO: Move to config/environment
+
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
   const [selectedFlower, setSelectedFlower] = React.useState<string>(DEFAULT_FLOWER)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
@@ -115,6 +120,11 @@ export default function PostDetail() {
     api.queries.getSessionInfo,
     data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession } : 'skip'
   )
+  // Fetch admin display name from channelAdmins table
+  const adminDisplayName = useQuery(
+    api.queries.getAdminDisplayName,
+    telegramUser ? { userId: telegramUser.id, channelId: CHANNEL_ID } : 'skip'
+  )
   const updatePosition = useMutation(api.mutations.updateUserPosition)
   const removeUser = useMutation(api.mutations.removeUserFromList)
   const removeCompletedUser = useMutation(api.mutations.removeCompletedUser)
@@ -129,6 +139,7 @@ export default function PostDetail() {
   const addUserToList = useMutation(api.mutations.addUserToList)
   const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
   const updateSessionSupervisor = useMutation(api.mutations.updateSessionSupervisor)
+  const updateAdminPreferredName = useMutation(api.mutations.updateAdminPreferredName)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
   const lockSession = useMutation(api.mutations.lockSession)
@@ -525,12 +536,13 @@ export default function PostDetail() {
   }
 
   const handleEditSupervisorName = async () => {
-    if (!data) return
+    if (!data || !telegramUser) return
 
     const currentSession = selectedSession ?? data.currentSession
-    const currentSupervisorName = sessionInfo?.supervisorName || ''
+    // Use adminDisplayName from channelAdmins as default
+    const currentName = adminDisplayName || ''
 
-    const supervisorName = window.prompt('أدخل اسم المشرفة:', currentSupervisorName)
+    const supervisorName = window.prompt('أدخل اسم المشرفة:', currentName)
 
     if (supervisorName === null) return
 
@@ -540,12 +552,21 @@ export default function PostDetail() {
     }
 
     try {
+      // Save to channelAdmins table as preferredName
+      await updateAdminPreferredName({
+        channelId: CHANNEL_ID,
+        userId: telegramUser.id,
+        preferredName: supervisorName.trim(),
+      })
+
+      // Also update sessions table for backward compatibility
       await updateSessionSupervisor({
         chatId,
         postId,
         sessionNumber: currentSession,
         supervisorName: supervisorName.trim(),
       })
+
       toast.success('تم تحديث اسم المشرفة!')
     } catch (error) {
       toast.error('فشل تحديث اسم المشرفة')
@@ -750,9 +771,9 @@ export default function PostDetail() {
               </Link>
             </div>
             </div>
-            {sessionInfo?.supervisorName && (
+            {adminDisplayName && (
               <p className="text-xs sm:text-sm text-muted-foreground text-right">
-                اسم المشرفة: {sessionInfo.supervisorName}
+                اسم المشرفة: {adminDisplayName}
               </p>
             )}
             {sessionInfo?.isLocked && (

@@ -1373,3 +1373,31 @@ export const syncChannelAdmins = mutation({
     console.log(`Synced ${args.admins.length} admins for channel ${args.channelId}`);
   },
 });
+
+export const updateAdminPreferredName = mutation({
+  args: {
+    channelId: v.number(),
+    userId: v.number(),
+    preferredName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the admin in channelAdmins table
+    const admin = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel_user", (q) =>
+        q.eq("channelId", args.channelId).eq("userId", args.userId)
+      )
+      .first();
+
+    if (!admin) {
+      throw new Error(`Admin with userId ${args.userId} not found for channel ${args.channelId}`);
+    }
+
+    // Update the preferredName
+    await ctx.db.patch(admin._id, {
+      preferredName: args.preferredName,
+    });
+
+    console.log(`Updated preferred name for admin ${args.userId} in channel ${args.channelId}`);
+  },
+});
