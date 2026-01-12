@@ -930,3 +930,56 @@ export const getAdminDisplayName = query({
     return fullName || null;
   },
 });
+
+/**
+ * Get the supervisor display name for a session
+ * Returns the name of the admin who is supervising the session
+ * Returns null if no supervisor is assigned
+ */
+export const getSessionSupervisorName = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    channelId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session || !session.supervisorUserId) {
+      return null;
+    }
+
+    // Find the admin in channelAdmins table
+    const admin = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel_user", (q) =>
+        q.eq("channelId", args.channelId).eq("userId", session.supervisorUserId)
+      )
+      .first();
+
+    if (!admin) {
+      console.log(`Supervisor ${session.supervisorUserId} not found in channel ${args.channelId}`);
+      return null;
+    }
+
+    // Use preferredName if set, otherwise construct from firstName + lastName
+    if (admin.preferredName) {
+      return admin.preferredName;
+    }
+
+    const firstName = admin.firstName || "";
+    const lastName = admin.lastName || "";
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    return fullName || null;
+  },
+});
