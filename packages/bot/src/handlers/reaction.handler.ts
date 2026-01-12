@@ -251,13 +251,15 @@ export function registerReactionHandler(
           userId: messageAuthor.id,
         });
 
-        // Only update realName if user doesn't already have one (Option 1: keep existing)
-        const userIdToRealName = existingUser?.realName
-          ? undefined  // Don't update - user already has a name
+        // Admin reaction is authoritative - always update realName unless it's manually verified
+        const userIdToRealName = (existingUser?.realName && existingUser?.realNameVerified)
+          ? undefined  // Don't update - user has a verified name
           : new Map([[messageAuthor.id, realName]]);  // Update with detected name
 
-        if (existingUser?.realName) {
-          console.log(`ℹ️  User ${messageAuthor.id} already has realName: "${existingUser.realName}", keeping existing name`);
+        if (existingUser?.realName && existingUser?.realNameVerified) {
+          console.log(`ℹ️  User ${messageAuthor.id} has verified realName: "${existingUser.realName}", keeping verified name`);
+        } else if (existingUser?.realName) {
+          console.log(`ℹ️  User ${messageAuthor.id} has unverified realName: "${existingUser.realName}", will update with detected name: "${realName}"`);
         } else {
           console.log(`ℹ️  User ${messageAuthor.id} has no realName, will update with detected name: "${realName}"`);
         }

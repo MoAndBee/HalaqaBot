@@ -491,10 +491,11 @@ export const storeClassification = mutation({
           .withIndex("by_user_id", (q) => q.eq("userId", messageAuthor.userId))
           .first();
 
-        console.log(`   existingUser found: ${!!existingUser}, has realName: ${!!existingUser?.realName}`);
+        console.log(`   existingUser found: ${!!existingUser}, has realName: ${!!existingUser?.realName}, realNameVerified: ${!!existingUser?.realNameVerified}`);
 
-        // Only set realName if user exists AND doesn't have a realName yet
-        if (existingUser && !existingUser.realName) {
+        // Set realName if user exists AND (doesn't have a realName OR name is not verified)
+        // This allows admin reactions to overwrite auto-detected names
+        if (existingUser && (!existingUser.realName || !existingUser.realNameVerified)) {
           // Join all detected names to form full name, cleaning up commas
           const fullName = args.detectedNames
             .join(' ')
@@ -512,8 +513,8 @@ export const storeClassification = mutation({
           });
 
           console.log(`   ✅ realName updated successfully`);
-        } else if (existingUser && existingUser.realName) {
-          console.log(`   ⏭️ User already has realName: ${existingUser.realName}, skipping update`);
+        } else if (existingUser && existingUser.realName && existingUser.realNameVerified) {
+          console.log(`   ⏭️ User already has verified realName: ${existingUser.realName}, skipping update`);
         } else {
           console.log(`   ⚠️ User not found in users table`);
         }
