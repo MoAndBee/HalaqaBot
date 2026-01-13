@@ -125,6 +125,9 @@ export default defineSchema({
     sessionNumber: v.number(),
     teacherName: v.string(), // Name of the teacher for this session
     supervisorName: v.optional(v.string()), // Name of the supervisor for this session
+    isLocked: v.optional(v.boolean()), // Whether this session is locked from editing
+    lockedAt: v.optional(v.number()), // Timestamp when session was locked
+    lockedBy: v.optional(v.string()), // Identifier of admin who locked the session
     createdAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post", ["chatId", "postId"])
@@ -144,4 +147,17 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_chat_post", ["chatId", "postId"]),
+
+  // Channel administrators cache for authorization
+  channelAdmins: defineTable({
+    channelId: v.number(), // Telegram channel ID
+    userId: v.number(), // Admin user ID
+    status: v.string(), // "creator" or "administrator"
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    username: v.optional(v.string()),
+    updatedAt: v.number(), // Last sync timestamp
+  })
+    .index("by_channel", ["channelId"])
+    .index("by_channel_user", ["channelId", "userId"]),
 });

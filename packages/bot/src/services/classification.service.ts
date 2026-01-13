@@ -62,20 +62,46 @@ export class ClassificationService {
       const { object } = await generateObject({
         model: groq("openai/gpt-oss-20b"),
         schema: batchClassificationSchema,
-        prompt: `You are analyzing Arabic messages to extract student names and activity types.
+        providerOptions: {
+          groq: {
+            reasoningFormat: 'parsed',
+            reasoningEffort: 'high',
+          },
+        },
+        prompt: `You are analyzing Arabic messages in a Quran study group (حلقة) to extract the SENDER'S OWN NAME when they are identifying themselves, and detect activity types.
+
+CRITICAL - User Intent Detection:
+You must determine WHY a name appears in the message. Only extract names when the sender is IDENTIFYING THEMSELVES.
+
+DO NOT extract names when:
+1. User is ASKING A QUESTION about someone else
+   - Example: "هل حلقه معلمه سهر خلصت" (asking if teacher Sahar's halaqa is done) → contains_name=false
+   - Example: "فين فاطمة النهارده؟" (where is Fatima today?) → contains_name=false
+
+2. User is MENTIONING or BLESSING someone else
+   - Example: "ربنا يبارك فيك يا منى يا حبيبتي" (blessing Mona) → contains_name=false
+   - Example: "جزاك الله خيرا يا أم أحمد" (thanking Um Ahmed) → contains_name=false
+
+3. User is LISTING other people's names (not their own)
+   - Example: "البنات اللي حضروا: سارة، نور، هدى" → contains_name=false
+
+4. User is referring to a TEACHER or ADMIN by name
+   - Example: "الأستاذة مريم قالت..." → contains_name=false
+
+DO extract names when:
+1. User is STATING THEIR OWN NAME to identify themselves
+   - Example: "أسماء بكري محمود تسميع" → contains_name=true, names=["أسماء", "بكري", "محمود"]
+   - Example: "انا فاطمة احمد" → contains_name=true, names=["فاطمة", "احمد"]
+   - Example: "نورا محمد - تلاوة" → contains_name=true, names=["نورا", "محمد"]
 
 For each message:
-1. Identify if it contains a PERSON'S NAME (Arabic names like "أسماء بكري محمود", "فاطمة أحمد", etc.)
-2. Extract ALL parts of the name (first, middle, last) as separate elements in the names array
-3. IMPORTANT: Do NOT include these words as names: "تلاوة", "تسميع", "تصحيح", "مراجعة"
-4. Detect the activity type:
-   - "تسميع" = recitation from memory
-   - "تلاوة" = reading from Quran
+1. Determine USER INTENT - is the sender identifying themselves or referring to others?
+2. Only if identifying themselves: Extract ALL parts of their name as separate elements
+3. NEVER include these words as names: "تلاوة", "تسميع", "تصحيح", "مراجعة", "معلمة", "أستاذة"
+4. Detect the activity type (users may misspell):
+   - "تسميع" = recitation from memory (also: تسمبع, تسميييع, تسمع, تثميع)
+   - "تلاوة" = reading from Quran (also: تلاوه, تلاااوة, طلاوة)
    - null = not mentioned
-
-Example:
-- Input: "أسماء بكري محمود تسميع"
-- Output: contains_name=true, names=["أسماء", "بكري", "محمود"], activity_type="تسميع"
 
 Messages to analyze: ${messagesList}
 
@@ -143,10 +169,18 @@ Return the message_id, contains_name (true/false), names array, and activity_typ
       const { object } = await generateObject({
         model: groq("openai/gpt-oss-20b"),
         schema: activityTypeOnlySchema,
-        prompt: `Analyze the following Arabic messages and for each message, determine the activity type:
-- "تسميع" (recitation from memory)
-- "تلاوة" (reading from Quran)
-- null if not mentioned
+        providerOptions: {
+          groq: {
+            reasoningFormat: 'parsed',
+            reasoningEffort: 'low',
+          },
+        },
+        prompt: `Analyze the following Arabic messages and detect the activity type. Users may misspell words.
+
+Activity types:
+- "تسميع" = recitation from memory (common misspellings: تسمبع, تسميييع, تسمع, تثميع, تسميه)
+- "تلاوة" = reading from Quran (common misspellings: تلاوه, تلاااوة, طلاوة, تلاوت)
+- null = not mentioned
 
 Return the message_id and activity_type for each message.
 

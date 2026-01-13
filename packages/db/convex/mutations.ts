@@ -4,6 +4,28 @@ import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
 
 /**
+ * Helper function to check if a session is locked
+ * Throws an error if the session is locked
+ */
+async function checkSessionLock(
+  ctx: GenericMutationCtx<DataModel>,
+  chatId: number,
+  postId: number,
+  sessionNumber: number
+): Promise<void> {
+  const session = await ctx.db
+    .query("sessions")
+    .withIndex("by_chat_post_session", (q) =>
+      q.eq("chatId", chatId).eq("postId", postId).eq("sessionNumber", sessionNumber)
+    )
+    .first();
+
+  if (session?.isLocked) {
+    throw new Error("This session is locked and cannot be modified. Please unlock it first.");
+  }
+}
+
+/**
  * Helper function to resequence active users to have contiguous positions [1, 2, 3, 4...]
  * This ensures frontend array indices always match database positions.
  */
@@ -158,6 +180,9 @@ export const addUserToList = mutation({
       }
     }
 
+    // Check if session is locked
+    await checkSessionLock(ctx, args.chatId, args.postId, sessionNumber);
+
     // Get current users in turnQueue for this session
     const queueUsers = await ctx.db
       .query("turnQueue")
@@ -257,6 +282,9 @@ export const addUserAtPosition = mutation({
         sessionNumber = allSessions[0].sessionNumber;
       }
     }
+
+    // Check if session is locked
+    await checkSessionLock(ctx, args.chatId, args.postId, sessionNumber);
 
     // Get all active users in the turn queue for this session
     const activeUsers = await ctx.db
@@ -542,6 +570,9 @@ export const updateUserPosition = mutation({
 
     const sessionNumber = currentEntry.sessionNumber;
 
+    // Check if session is locked
+    await checkSessionLock(ctx, currentEntry.chatId, currentEntry.postId, sessionNumber);
+
     // Get all active users in the turn queue for this session
     const activeUsers = await ctx.db
       .query("turnQueue")
@@ -596,6 +627,9 @@ export const removeUserFromList = mutation({
 
     const sessionNumber = entryToRemove.sessionNumber;
 
+    // Check if session is locked
+    await checkSessionLock(ctx, entryToRemove.chatId, entryToRemove.postId, sessionNumber);
+
     // Delete the entry
     await ctx.db.delete(args.entryId);
 
@@ -643,6 +677,9 @@ export const completeUserTurn = mutation({
     }
 
     const sessionNumber = entry.sessionNumber;
+
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, sessionNumber);
 
     // Determine final compensation status and dates
     // Priority: explicit args > entry values
@@ -713,6 +750,9 @@ export const skipUserTurn = mutation({
 
     const sessionNumber = currentEntry.sessionNumber;
 
+    // Check if session is locked
+    await checkSessionLock(ctx, currentEntry.chatId, currentEntry.postId, sessionNumber);
+
     // Get all active users in the turn queue for this session
     const activeUsers = await ctx.db
       .query("turnQueue")
@@ -765,6 +805,9 @@ export const updateSessionType = mutation({
       throw new Error(`Entry not found`);
     }
 
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
+
     // If changing FROM تعويض to another type, clear compensation fields
     // If changing TO تعويض, keep existing compensation fields (they should be set via compensation modal)
     const isChangingFromCompensation = entry.isCompensation && args.sessionType !== 'تعويض';
@@ -792,6 +835,9 @@ export const updateTurnQueueSessionType = mutation({
     if (!entry) {
       throw new Error(`Entry not found in turn queue`);
     }
+
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
 
     // If changing FROM تعويض to another type, clear compensation fields
     // If changing TO تعويض, keep existing compensation fields (they should be set via compensation modal)
@@ -874,6 +920,9 @@ export const updateUserNotes = mutation({
       throw new Error(`Entry not found`);
     }
 
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
+
     // Update notes (trim and set to undefined if empty)
     await ctx.db.patch(args.entryId, {
       notes: args.notes.trim() || undefined,
@@ -894,6 +943,9 @@ export const setTurnQueueCompensation = mutation({
     if (!entry) {
       throw new Error(`Entry not found in turn queue`);
     }
+
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
 
     // Validation: if setting compensation, must have dates
     if (args.isCompensation && args.compensatingForDates.length === 0) {
@@ -922,6 +974,9 @@ export const updateParticipationCompensation = mutation({
     if (!entry) {
       throw new Error(`Entry not found in participation history`);
     }
+
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
 
     // Validation: if setting compensation, must have dates
     if (args.isCompensation && args.compensatingForDates.length === 0) {
@@ -1001,6 +1056,18 @@ export const startNewSession = mutation({
 
     const newSessionNumber = currentMaxSession + 1;
 
+    // Auto-lock the previous session when starting a new one
+    if (currentMaxSession > 0) {
+      const previousSession = allSessions.find(s => s.sessionNumber === currentMaxSession);
+      if (previousSession && !previousSession.isLocked) {
+        await ctx.db.patch(previousSession._id, {
+          isLocked: true,
+          lockedAt: Date.now(),
+          lockedBy: "auto",
+        });
+      }
+    }
+
     // Store session metadata with teacher name
     await ctx.db.insert("sessions", {
       chatId: args.chatId,
@@ -1076,6 +1143,9 @@ export const updateSessionTeacher = mutation({
       return { created: true };
     }
 
+    // Check if session is locked before updating
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
     // Update the existing session's teacher name
     await ctx.db.patch(session._id, {
       teacherName: args.teacherName,
@@ -1116,12 +1186,88 @@ export const updateSessionSupervisor = mutation({
       return { created: true };
     }
 
+    // Check if session is locked before updating
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
     // Update the existing session's supervisor name
     await ctx.db.patch(session._id, {
       supervisorName: args.supervisorName,
     });
 
     return { created: false };
+  },
+});
+
+export const lockSession = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    lockedBy: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    // Lock the session
+    await ctx.db.patch(session._id, {
+      isLocked: true,
+      lockedAt: Date.now(),
+      lockedBy: args.lockedBy || "manual",
+    });
+
+    return { success: true };
+  },
+});
+
+export const unlockSession = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    passcode: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate passcode (hardcoded)
+    const UNLOCK_PASSCODE = "adminunlock311225";
+
+    if (args.passcode !== UNLOCK_PASSCODE) {
+      throw new Error("Invalid passcode");
+    }
+
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    // Unlock the session
+    await ctx.db.patch(session._id, {
+      isLocked: false,
+      lockedAt: undefined,
+      lockedBy: undefined,
+    });
+
+    return { success: true };
   },
 });
 
@@ -1162,5 +1308,79 @@ export const updateBotTask = mutation({
       error: args.error,
       processedAt: Date.now(),
     });
+  },
+});
+
+/**
+ * Sync channel administrators from Telegram to database
+ * This is called periodically by the bot to keep the admin list up to date
+ */
+export const syncChannelAdmins = mutation({
+  args: {
+    channelId: v.number(),
+    admins: v.array(
+      v.object({
+        userId: v.number(),
+        status: v.string(), // "creator" or "administrator"
+        firstName: v.optional(v.string()),
+        lastName: v.optional(v.string()),
+        username: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Get existing admins for this channel
+    const existingAdmins = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel", (q) => q.eq("channelId", args.channelId))
+      .collect();
+
+    // Create a map of existing admins by userId for quick lookup
+    const existingAdminMap = new Map(
+      existingAdmins.map((admin) => [admin.userId, admin])
+    );
+
+    // Create a set of new admin user IDs
+    const newAdminUserIds = new Set(args.admins.map((admin) => admin.userId));
+
+    // Remove admins that are no longer in the list
+    for (const existingAdmin of existingAdmins) {
+      if (!newAdminUserIds.has(existingAdmin.userId)) {
+        await ctx.db.delete(existingAdmin._id);
+        console.log(`Removed admin ${existingAdmin.userId} from channel ${args.channelId}`);
+      }
+    }
+
+    // Add or update admins
+    for (const admin of args.admins) {
+      const existing = existingAdminMap.get(admin.userId);
+
+      if (existing) {
+        // Update existing admin
+        await ctx.db.patch(existing._id, {
+          status: admin.status,
+          firstName: admin.firstName,
+          lastName: admin.lastName,
+          username: admin.username,
+          updatedAt: now,
+        });
+      } else {
+        // Add new admin
+        await ctx.db.insert("channelAdmins", {
+          channelId: args.channelId,
+          userId: admin.userId,
+          status: admin.status,
+          firstName: admin.firstName,
+          lastName: admin.lastName,
+          username: admin.username,
+          updatedAt: now,
+        });
+        console.log(`Added admin ${admin.userId} to channel ${args.channelId}`);
+      }
+    }
+
+    console.log(`Synced ${args.admins.length} admins for channel ${args.channelId}`);
   },
 });

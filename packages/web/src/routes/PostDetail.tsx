@@ -4,7 +4,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -29,6 +29,7 @@ import { AddUserModal } from '~/components/AddUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
+import { UnlockSessionModal } from '~/components/UnlockSessionModal'
 import type { SessionType } from '~/components/SplitButton'
 
 function formatUserList(users: User[], isDone: boolean = false): string {
@@ -79,6 +80,7 @@ export default function PostDetail() {
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
     currentNotes?: string | null
@@ -129,6 +131,8 @@ export default function PostDetail() {
   const updateSessionSupervisor = useMutation(api.mutations.updateSessionSupervisor)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
+  const lockSession = useMutation(api.mutations.lockSession)
+  const unlockSession = useMutation(api.mutations.unlockSession)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
 
   const handleReorder = async (entryId: string, newPosition: number) => {
@@ -549,6 +553,52 @@ export default function PostDetail() {
     }
   }
 
+  const handleLockSession = async () => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    // Ask for confirmation before locking
+    const confirmed = window.confirm(
+      `هل أنت متأكد من إغلاق الحلقة رقم ${currentSession.toLocaleString('ar-EG')}؟\n\n` +
+      'بعد الإغلاق، لن تتمكن من تعديل أي بيانات في هذه الحلقة إلا بعد فتحها بكلمة المرور.'
+    )
+
+    if (!confirmed) return
+
+    try {
+      await lockSession({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        lockedBy: 'manual',
+      })
+      toast.success('تم إغلاق الحلقة بنجاح!')
+    } catch (error: any) {
+      toast.error(error?.message || 'فشل إغلاق الحلقة')
+      console.error('Lock session failed:', error)
+    }
+  }
+
+  const handleUnlockSession = async (passcode: string) => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    try {
+      await unlockSession({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        passcode,
+      })
+      toast.success('تم فتح الحلقة بنجاح!')
+    } catch (error: any) {
+      toast.error(error?.message || 'كلمة مرور خاطئة')
+      throw error
+    }
+  }
+
   if (!data) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -621,18 +671,39 @@ export default function PostDetail() {
                   <Plus className="h-4 w-4 ml-2" />
                   بدء حلقة جديدة
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsAddUserModalOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <UserPlus className="h-4 w-4 ml-2" />
                   إضافة مستخدم يدوياً
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleEditTeacherName}>
+                <DropdownMenuItem
+                  onClick={handleEditTeacherName}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل اسم المعلمة
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleEditSupervisorName}>
+                <DropdownMenuItem
+                  onClick={handleEditSupervisorName}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <UserCog className="h-4 w-4 ml-2" />
                   تعديل اسم المشرفة
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {sessionInfo?.isLocked ? (
+                  <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
+                    <LockOpen className="h-4 w-4 ml-2" />
+                    فتح الحلقة
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={handleLockSession}>
+                    <Lock className="h-4 w-4 ml-2" />
+                    إغلاق الحلقة
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyList}>
                   <Copy className="h-4 w-4 ml-2" />
@@ -684,6 +755,12 @@ export default function PostDetail() {
                 اسم المشرفة: {sessionInfo.supervisorName}
               </p>
             )}
+            {sessionInfo?.isLocked && (
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-right">
+                <Lock className="h-3.5 w-3.5" />
+                <span>الحلقة مغلقة</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -704,6 +781,7 @@ export default function PostDetail() {
           onAddTurnAfter3={handleAddTurnAfter3}
           onEditNotes={handleOpenEditNotes}
           onSetCompensation={handleSetCompensationDates}
+          isLocked={sessionInfo?.isLocked || false}
         />
       </div>
 
@@ -736,6 +814,13 @@ export default function PostDetail() {
         isOpen={isStartNewSessionModalOpen}
         onClose={() => setIsStartNewSessionModalOpen(false)}
         onStart={handleStartNewSessionSubmit}
+      />
+
+      <UnlockSessionModal
+        isOpen={isUnlockModalOpen}
+        onClose={() => setIsUnlockModalOpen(false)}
+        onUnlock={handleUnlockSession}
+        sessionNumber={selectedSession ?? data.currentSession}
       />
     </div>
   )
