@@ -183,15 +183,25 @@ export const addUserToList = mutation({
     // Check if session is locked
     await checkSessionLock(ctx, args.chatId, args.postId, sessionNumber);
 
-    // Get current users in turnQueue for this post to calculate max position
+    // Get current users in turnQueue for this session
     const queueUsers = await ctx.db
       .query("turnQueue")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
       )
       .collect();
 
-    // Always insert the user (allow duplicates)
+    // Check if user with same sessionType already exists in this session
+    // Allow duplicates only for different sessionTypes (e.g., تلاوة vs تسميع)
+    const existingEntry = queueUsers.find(
+      (u) => u.userId === args.userId && u.sessionType === args.sessionType
+    );
+
+    if (existingEntry) {
+      console.log(`User ${args.userId} with sessionType "${args.sessionType}" already in queue, skipping duplicate`);
+      return false; // User already in queue with same session type
+    }
+
     const maxPosition =
       queueUsers.length > 0
         ? Math.max(...queueUsers.map((u) => u.position))
@@ -509,10 +519,11 @@ export const storeClassification = mutation({
           .withIndex("by_user_id", (q) => q.eq("userId", messageAuthor.userId))
           .first();
 
-        console.log(`   existingUser found: ${!!existingUser}, has realName: ${!!existingUser?.realName}`);
+        console.log(`   existingUser found: ${!!existingUser}, has realName: ${!!existingUser?.realName}, realNameVerified: ${!!existingUser?.realNameVerified}`);
 
-        // Only set realName if user exists AND doesn't have a realName yet
-        if (existingUser && !existingUser.realName) {
+        // Set realName if user exists AND (doesn't have a realName OR name is not verified)
+        // This allows admin reactions to overwrite auto-detected names
+        if (existingUser && (!existingUser.realName || !existingUser.realNameVerified)) {
           // Join all detected names to form full name, cleaning up commas
           const fullName = args.detectedNames
             .join(' ')
@@ -525,13 +536,13 @@ export const storeClassification = mutation({
 
           await ctx.db.patch(existingUser._id, {
             realName: fullName,
-            sourceMessageText: messageAuthor.messageText,
+            sourceMessageText: args.messageText,
             updatedAt: Date.now(),
           });
 
           console.log(`   ✅ realName updated successfully`);
-        } else if (existingUser && existingUser.realName) {
-          console.log(`   ⏭️ User already has realName: ${existingUser.realName}, skipping update`);
+        } else if (existingUser && existingUser.realName && existingUser.realNameVerified) {
+          console.log(`   ⏭️ User already has verified realName: ${existingUser.realName}, skipping update`);
         } else {
           console.log(`   ⚠️ User not found in users table`);
         }

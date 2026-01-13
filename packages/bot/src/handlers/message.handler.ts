@@ -100,39 +100,19 @@ export function registerMessageHandler(
     //   console.log("⚠️  Anonymous admin post detected - will retrieve real author via forwarding when needed");
     // }
 
-    // Automatically classify message to detect activity type (and names if needed)
-    // Always classify to get activity type, but use lightweight method if we know the name
+    // Automatically classify message to detect activity type ONLY
+    // Never auto-detect names from messages - only detect names from admin 👌 reactions
     if (messageText && messageText.trim().length > 0 && ctx.from) {
-      console.log(`\n🔍 Auto-classification check for user ${ctx.from.id}...`);
-
-      // Check if user already has a realName
-      const existingUser = await convex.query(api.queries.getUser, {
-        userId: ctx.from.id,
-      });
-
-      console.log(`   User exists: ${!!existingUser}, Has realName: ${!!existingUser?.realName}`);
-
-      const hasRealName = !!existingUser?.realName;
-
-      // Always classify, but use lightweight method if we already know the name
-      if (hasRealName) {
-        console.log(`🤖 Activity-type-only classification (user already has realName: ${existingUser.realName})`);
-      } else {
-        console.log(`🤖 Full classification (detecting name + activity type)`);
-      }
+      console.log(`\n🔍 Auto-classification (activity type only) for user ${ctx.from.id}...`);
       console.log(`   Message text: "${messageText}"`);
 
       try {
-        // Choose classification method based on whether we already know the name
-        const classifications = hasRealName
-          ? await classificationService.classifyActivityTypeOnly([{
-              id: ctx.message!.message_id,
-              text: messageText,
-            }])
-          : await classificationService.classifyBatch([{
-              id: ctx.message!.message_id,
-              text: messageText,
-            }]);
+        // Always use activity-type-only classification
+        // Name detection happens only through admin reactions (authoritative)
+        const classifications = await classificationService.classifyActivityTypeOnly([{
+          id: ctx.message!.message_id,
+          text: messageText,
+        }]);
 
         const classification = classifications.get(ctx.message!.message_id);
 
