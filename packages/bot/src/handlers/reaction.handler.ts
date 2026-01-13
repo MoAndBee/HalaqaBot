@@ -38,8 +38,17 @@ export function registerReactionHandler(
 
     const chatId = ctx.messageReaction!.chat.id;
 
-    // Check if the new reaction contains OK hand emoji
+    // Check if the OK hand emoji was NEWLY ADDED (not already present)
+    const oldReaction = ctx.messageReaction!.old_reaction;
     const newReaction = ctx.messageReaction!.new_reaction;
+
+    const hadOkHandEmoji = oldReaction.some((reaction) => {
+      if (reaction.type === "emoji") {
+        return reaction.emoji === "👌";
+      }
+      return false;
+    });
+
     const hasOkHandEmoji = newReaction.some((reaction) => {
       if (reaction.type === "emoji") {
         return reaction.emoji === "👌";
@@ -47,7 +56,8 @@ export function registerReactionHandler(
       return false;
     });
 
-    if (hasOkHandEmoji) {
+    // Only process if 👌 was NEWLY ADDED (not already there)
+    if (hasOkHandEmoji && !hadOkHandEmoji) {
       const messageId = ctx.messageReaction!.message_id;
 
       // Try to find the post ID and channel ID from the database
@@ -241,13 +251,15 @@ export function registerReactionHandler(
           userId: messageAuthor.id,
         });
 
-        // Only update realName if user doesn't already have one (Option 1: keep existing)
-        const userIdToRealName = existingUser?.realName
-          ? undefined  // Don't update - user already has a name
+        // Admin reaction is authoritative - always update realName unless it's manually verified
+        const userIdToRealName = (existingUser?.realName && existingUser?.realNameVerified)
+          ? undefined  // Don't update - user has a verified name
           : new Map([[messageAuthor.id, realName]]);  // Update with detected name
 
-        if (existingUser?.realName) {
-          console.log(`ℹ️  User ${messageAuthor.id} already has realName: "${existingUser.realName}", keeping existing name`);
+        if (existingUser?.realName && existingUser?.realNameVerified) {
+          console.log(`ℹ️  User ${messageAuthor.id} has verified realName: "${existingUser.realName}", keeping verified name`);
+        } else if (existingUser?.realName) {
+          console.log(`ℹ️  User ${messageAuthor.id} has unverified realName: "${existingUser.realName}", will update with detected name: "${realName}"`);
         } else {
           console.log(`ℹ️  User ${messageAuthor.id} has no realName, will update with detected name: "${realName}"`);
         }
