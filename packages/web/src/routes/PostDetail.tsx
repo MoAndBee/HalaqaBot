@@ -165,8 +165,13 @@ export default function PostDetail() {
             supervisorUserId: telegramUser.id,
           })
           console.log(`Auto-assigned supervisor ${telegramUser.id} to session ${data.currentSession}`)
+          toast.success('تم تعيينك كمشرفة لهذه الحلقة')
         } catch (error) {
           console.error('Failed to auto-assign supervisor:', error)
+          // Don't show error toast for already assigned case
+          if (error instanceof Error && !error.message.includes('already has supervisor')) {
+            toast.error('فشل التعيين التلقائي كمشرفة')
+          }
         }
       }
     }
@@ -808,6 +813,12 @@ export default function PostDetail() {
               </Link>
             </div>
             </div>
+            {/* Debug Info - Shows current admin's name */}
+            {telegramUser && currentAdminName && (
+              <div className="text-xs text-muted-foreground text-right mb-1">
+                أنت: {currentAdminName} (ID: {telegramUser.id})
+              </div>
+            )}
             <div className="flex items-center justify-end gap-2 text-xs sm:text-sm text-muted-foreground text-right">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
