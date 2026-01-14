@@ -6,6 +6,7 @@ import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
 import { ArrowRight, MoreVertical, Plus, UserPlus, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,6 +76,10 @@ export default function PostDetail() {
   const chatId = Number(params.chatId)
   const postId = Number(params.postId)
 
+  // Get current admin user from Telegram auth
+  const { user: telegramUser } = useTelegramAuthContext()
+  const CHANNEL_ID = -1002081068866 // TODO: Move to config/environment
+
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
   const [selectedFlower, setSelectedFlower] = React.useState<string>(DEFAULT_FLOWER)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
@@ -115,6 +120,16 @@ export default function PostDetail() {
     api.queries.getSessionInfo,
     data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession } : 'skip'
   )
+  // Fetch supervisor name for the current session
+  const supervisorName = useQuery(
+    api.queries.getSessionSupervisorName,
+    data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession, channelId: CHANNEL_ID } : 'skip'
+  )
+  // Fetch current admin's display name (for editing their preferred name)
+  const currentAdminName = useQuery(
+    api.queries.getAdminDisplayName,
+    telegramUser ? { userId: telegramUser.id, channelId: CHANNEL_ID } : 'skip'
+  )
   const updatePosition = useMutation(api.mutations.updateUserPosition)
   const removeUser = useMutation(api.mutations.removeUserFromList)
   const removeCompletedUser = useMutation(api.mutations.removeCompletedUser)
@@ -129,11 +144,34 @@ export default function PostDetail() {
   const addUserToList = useMutation(api.mutations.addUserToList)
   const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
   const updateSessionSupervisor = useMutation(api.mutations.updateSessionSupervisor)
+  const updateAdminPreferredName = useMutation(api.mutations.updateAdminPreferredName)
+  const assignSessionSupervisor = useMutation(api.mutations.assignSessionSupervisor)
+  const takeOverSession = useMutation(api.mutations.takeOverSession)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
   const lockSession = useMutation(api.mutations.lockSession)
   const unlockSession = useMutation(api.mutations.unlockSession)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
+
+  // Auto-assign supervisor on first page load if no supervisor is assigned (Option A)
+  React.useEffect(() => {
+    const autoAssign = async () => {
+      if (telegramUser && data?.currentSession && supervisorName === null) {
+        try {
+          await assignSessionSupervisor({
+            chatId,
+            postId,
+            sessionNumber: data.currentSession,
+            supervisorUserId: telegramUser.id,
+          })
+          console.log(`Auto-assigned supervisor ${telegramUser.id} to session ${data.currentSession}`)
+        } catch (error) {
+          console.error('Failed to auto-assign supervisor:', error)
+        }
+      }
+    }
+    autoAssign()
+  }, [telegramUser, data?.currentSession, supervisorName, assignSessionSupervisor, chatId, postId])
 
   const handleReorder = async (entryId: string, newPosition: number) => {
     await updatePosition({ entryId, newPosition })
@@ -443,7 +481,7 @@ export default function PostDetail() {
   }
 
   const handleStartNewSessionSubmit = async (teacherName: string, supervisorName: string) => {
-    if (!data) return
+    if (!data || !telegramUser) return
 
     // Close modal first to dismiss keyboard
     setIsStartNewSessionModalOpen(false)
@@ -463,7 +501,8 @@ export default function PostDetail() {
           chatId,
           postId,
           teacherName,
-          supervisorName,
+          supervisorName, // kept for backward compatibility
+          supervisorUserId: telegramUser.id, // assign current admin as supervisor
           carryOverIncomplete: confirmed
         })
         setSelectedSession(result.newSessionNumber)
@@ -483,7 +522,8 @@ export default function PostDetail() {
           chatId,
           postId,
           teacherName,
-          supervisorName,
+          supervisorName, // kept for backward compatibility
+          supervisorUserId: telegramUser.id, // assign current admin as supervisor
           carryOverIncomplete: false
         })
         setSelectedSession(result.newSessionNumber)
@@ -525,31 +565,56 @@ export default function PostDetail() {
   }
 
   const handleEditSupervisorName = async () => {
-    if (!data) return
+    if (!telegramUser) return
 
-    const currentSession = selectedSession ?? data.currentSession
-    const currentSupervisorName = sessionInfo?.supervisorName || ''
+    // Use current admin's name as default
+    const currentName = currentAdminName || ''
 
-    const supervisorName = window.prompt('أدخل اسم المشرفة:', currentSupervisorName)
+    const newName = window.prompt('تعديل الاسم المفضل (سيظهر في جميع الحلقات):', currentName)
 
-    if (supervisorName === null) return
+    if (newName === null) return
 
-    if (supervisorName.trim() === '') {
-      toast.error('يجب إدخال اسم المشرفة')
+    if (newName.trim() === '') {
+      toast.error('يجب إدخال الاسم المفضل')
       return
     }
 
     try {
-      await updateSessionSupervisor({
+      // Save to channelAdmins table as preferredName (affects all sessions)
+      await updateAdminPreferredName({
+        channelId: CHANNEL_ID,
+        userId: telegramUser.id,
+        preferredName: newName.trim(),
+      })
+
+      toast.success('تم تحديث الاسم المفضل!')
+    } catch (error) {
+      toast.error('فشل تحديث الاسم المفضل')
+      console.error('Update preferred name failed:', error)
+    }
+  }
+
+  const handleTakeOver = async () => {
+    if (!data || !telegramUser) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    const confirmed = window.confirm('هل تريد تسلّم هذه الحلقة؟ سيتم تغيير اسم المشرفة إلى اسمك.')
+
+    if (!confirmed) return
+
+    try {
+      await takeOverSession({
         chatId,
         postId,
         sessionNumber: currentSession,
-        supervisorName: supervisorName.trim(),
+        newSupervisorUserId: telegramUser.id,
       })
-      toast.success('تم تحديث اسم المشرفة!')
+
+      toast.success('تم تسلّم الحلقة بنجاح!')
     } catch (error) {
-      toast.error('فشل تحديث اسم المشرفة')
-      console.error('Update supervisor name failed:', error)
+      toast.error('فشل تسلّم الحلقة')
+      console.error('Take over session failed:', error)
     }
   }
 
@@ -685,13 +750,6 @@ export default function PostDetail() {
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل اسم المعلمة
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={handleEditSupervisorName}
-                  disabled={sessionInfo?.isLocked}
-                >
-                  <UserCog className="h-4 w-4 ml-2" />
-                  تعديل اسم المشرفة
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {sessionInfo?.isLocked ? (
                   <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
@@ -750,11 +808,28 @@ export default function PostDetail() {
               </Link>
             </div>
             </div>
-            {sessionInfo?.supervisorName && (
-              <p className="text-xs sm:text-sm text-muted-foreground text-right">
-                اسم المشرفة: {sessionInfo.supervisorName}
-              </p>
-            )}
+            <div className="flex items-center justify-end gap-2 text-xs sm:text-sm text-muted-foreground text-right">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleEditSupervisorName}>
+                    <Pencil className="h-4 w-4 ml-2" />
+                    تعديل الاسم المفضل
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleTakeOver}>
+                    <UserCog className="h-4 w-4 ml-2" />
+                    تسلم الحلقة
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span>
+                اسم المشرفة: {supervisorName || 'لم يتم تعيين مشرفة'}
+              </span>
+            </div>
             {sessionInfo?.isLocked && (
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-right">
                 <Lock className="h-3.5 w-3.5" />

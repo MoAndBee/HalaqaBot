@@ -124,7 +124,8 @@ export default defineSchema({
     postId: v.number(),
     sessionNumber: v.number(),
     teacherName: v.string(), // Name of the teacher for this session
-    supervisorName: v.optional(v.string()), // Name of the supervisor for this session
+    supervisorName: v.optional(v.string()), // DEPRECATED: Use supervisorUserId instead
+    supervisorUserId: v.optional(v.number()), // Telegram user ID of the admin supervising this session
     isLocked: v.optional(v.boolean()), // Whether this session is locked from editing
     lockedAt: v.optional(v.number()), // Timestamp when session was locked
     lockedBy: v.optional(v.string()), // Identifier of admin who locked the session
@@ -156,6 +157,7 @@ export default defineSchema({
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     username: v.optional(v.string()),
+    preferredName: v.optional(v.string()), // Custom name set by admin via "تعديل اسم المشرفة"
     updatedAt: v.number(), // Last sync timestamp
   })
     .index("by_channel", ["channelId"])

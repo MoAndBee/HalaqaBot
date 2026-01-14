@@ -1037,7 +1037,8 @@ export const startNewSession = mutation({
     chatId: v.number(),
     postId: v.number(),
     teacherName: v.string(), // name of the teacher for this session
-    supervisorName: v.string(), // name of the supervisor for this session
+    supervisorName: v.optional(v.string()), // DEPRECATED: kept for backward compatibility
+    supervisorUserId: v.number(), // Telegram user ID of the admin starting this session
     carryOverIncomplete: v.optional(v.boolean()), // whether to carry over incomplete users
   },
   handler: async (ctx, args) => {
@@ -1068,13 +1069,14 @@ export const startNewSession = mutation({
       }
     }
 
-    // Store session metadata with teacher name
+    // Store session metadata with teacher name and supervisor
     await ctx.db.insert("sessions", {
       chatId: args.chatId,
       postId: args.postId,
       sessionNumber: newSessionNumber,
       teacherName: args.teacherName,
-      supervisorName: args.supervisorName,
+      supervisorName: args.supervisorName, // deprecated, kept for backward compatibility
+      supervisorUserId: args.supervisorUserId,
       createdAt: Date.now(),
     });
 
@@ -1382,5 +1384,131 @@ export const syncChannelAdmins = mutation({
     }
 
     console.log(`Synced ${args.admins.length} admins for channel ${args.channelId}`);
+  },
+});
+
+export const updateAdminPreferredName = mutation({
+  args: {
+    channelId: v.number(),
+    userId: v.number(),
+    preferredName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the admin in channelAdmins table
+    const admin = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel_user", (q) =>
+        q.eq("channelId", args.channelId).eq("userId", args.userId)
+      )
+      .first();
+
+    if (!admin) {
+      throw new Error(`Admin with userId ${args.userId} not found for channel ${args.channelId}`);
+    }
+
+    // Update the preferredName
+    await ctx.db.patch(admin._id, {
+      preferredName: args.preferredName,
+    });
+
+    console.log(`Updated preferred name for admin ${args.userId} in channel ${args.channelId}`);
+  },
+});
+
+export const assignSessionSupervisor = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    supervisorUserId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      // If session doesn't exist, create it with the supervisor
+      await ctx.db.insert("sessions", {
+        chatId: args.chatId,
+        postId: args.postId,
+        sessionNumber: args.sessionNumber,
+        teacherName: "", // Default empty teacher name (required field)
+        supervisorUserId: args.supervisorUserId,
+        createdAt: Date.now(),
+      });
+      console.log(`Created session and assigned supervisor ${args.supervisorUserId}`);
+      return { created: true };
+    }
+
+    // Only assign if no supervisor is currently set
+    if (session.supervisorUserId) {
+      console.log(`Session already has supervisor ${session.supervisorUserId}`);
+      return { created: false, alreadyAssigned: true };
+    }
+
+    // Check if session is locked before updating
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
+    // Assign the supervisor
+    await ctx.db.patch(session._id, {
+      supervisorUserId: args.supervisorUserId,
+    });
+
+    console.log(`Assigned supervisor ${args.supervisorUserId} to session`);
+    return { created: false, alreadyAssigned: false };
+  },
+});
+
+export const takeOverSession = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    newSupervisorUserId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      // If session doesn't exist, create it with the new supervisor
+      await ctx.db.insert("sessions", {
+        chatId: args.chatId,
+        postId: args.postId,
+        sessionNumber: args.sessionNumber,
+        teacherName: "", // Default empty teacher name (required field)
+        supervisorUserId: args.newSupervisorUserId,
+        createdAt: Date.now(),
+      });
+      console.log(`Created session with supervisor ${args.newSupervisorUserId}`);
+      return { created: true };
+    }
+
+    // Check if session is locked before updating
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
+    const previousSupervisor = session.supervisorUserId;
+
+    // Update the supervisor (allows taking over even if already assigned)
+    await ctx.db.patch(session._id, {
+      supervisorUserId: args.newSupervisorUserId,
+    });
+
+    console.log(`Session taken over: ${previousSupervisor} → ${args.newSupervisorUserId}`);
+    return { created: false, previousSupervisor };
   },
 });
