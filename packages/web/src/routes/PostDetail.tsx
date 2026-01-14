@@ -814,11 +814,17 @@ export default function PostDetail() {
             </div>
             </div>
             {/* Debug Info - Shows current admin's name */}
-            {telegramUser && currentAdminName && (
-              <div className="text-xs text-muted-foreground text-right mb-1">
-                أنت: {currentAdminName} (ID: {telegramUser.id})
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground text-right mb-1 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded">
+              {telegramUser ? (
+                <>
+                  <div>✅ Authenticated User ID: {telegramUser.id}</div>
+                  <div>Name: {currentAdminName || '❌ Not found in channelAdmins table'}</div>
+                  <div>First: {telegramUser.firstName}, Last: {telegramUser.lastName || 'N/A'}</div>
+                </>
+              ) : (
+                <div>❌ Not authenticated - telegramUser is null</div>
+              )}
+            </div>
             <div className="flex items-center justify-end gap-2 text-xs sm:text-sm text-muted-foreground text-right">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
