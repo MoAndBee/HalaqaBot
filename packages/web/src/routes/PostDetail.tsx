@@ -742,20 +742,12 @@ export default function PostDetail() {
                   بدء حلقة جديدة
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => setIsAddUserModalOpen(true)}
-                  disabled={sessionInfo?.isLocked}
-                >
-                  <UserPlus className="h-4 w-4 ml-2" />
-                  إضافة مستخدم يدوياً
-                </DropdownMenuItem>
-                <DropdownMenuItem
                   onClick={handleEditTeacherName}
                   disabled={sessionInfo?.isLocked}
                 >
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل اسم المعلمة
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 {sessionInfo?.isLocked ? (
                   <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
                     <LockOpen className="h-4 w-4 ml-2" />
@@ -764,9 +756,17 @@ export default function PostDetail() {
                 ) : (
                   <DropdownMenuItem onClick={handleLockSession}>
                     <Lock className="h-4 w-4 ml-2" />
-                    إغلاق الحلقة
+                    إنهاء الحلقة
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setIsAddUserModalOpen(true)}
+                  disabled={sessionInfo?.isLocked}
+                >
+                  <UserPlus className="h-4 w-4 ml-2" />
+                  إضافة مستخدم يدوياً
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyList}>
                   <Copy className="h-4 w-4 ml-2" />
