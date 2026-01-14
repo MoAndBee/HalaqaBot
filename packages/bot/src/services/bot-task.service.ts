@@ -103,7 +103,7 @@ export class BotTaskService {
       }
     }
 
-    // Get session details (for teacher name and supervisor name)
+    // Get session details (for teacher name)
     const sessions = await this.convex.query(api.queries.getAvailableSessions, {
       chatId,
       postId,
@@ -111,7 +111,23 @@ export class BotTaskService {
 
     const currentSession = sessions.find((s: any) => s.sessionNumber === sessionNumber);
     const teacherName = currentSession?.teacherName;
-    const supervisorName = currentSession?.supervisorName;
+
+    // Get channel ID from the first message in this post
+    const channelIdResult = await this.convex.query(api.queries.getChannelIdForPost, {
+      chatId,
+      postId,
+    });
+    const channelId = channelIdResult || -1002081068866; // Fallback to default channel ID
+
+    // Get supervisor name from database (by looking up the supervisor user ID)
+    const supervisorName = channelId
+      ? await this.convex.query(api.queries.getSessionSupervisorName, {
+          chatId,
+          postId,
+          sessionNumber,
+          channelId,
+        })
+      : null;
 
     // Get participants for this session
     const userListData = await this.convex.query(api.queries.getUserList, {
