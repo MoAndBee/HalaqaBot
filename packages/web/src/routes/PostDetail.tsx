@@ -828,7 +828,7 @@ export default function PostDetail() {
               </Link>
             </div>
             </div>
-            <div className="flex items-center justify-end gap-2 text-xs sm:text-sm text-muted-foreground text-right">
+            <div className="flex flex-row-reverse items-center justify-start gap-2 text-xs sm:text-sm text-muted-foreground text-right">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -846,7 +846,7 @@ export default function PostDetail() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <span>
+              <span className="text-right">
                 اسم المشرفة: {supervisorName || 'لم يتم تعيين مشرفة'}
               </span>
             </div>
