@@ -173,9 +173,19 @@ export class BotTaskService {
         const arabicNumber = (index + 1).toLocaleString('ar-EG');
         const name = participant.realName || participant.telegramName;
         const isDone = completedUsers.some((u: any) => u.id === participant.id);
-        const activityLabel = (participant.sessionType === 'تلاوة' || participant.sessionType === 'تسميع')
-          ? ` (${participant.sessionType})`
-          : '';
+        // Format compensation dates if present
+        let activityLabel = '';
+        if (participant.compensatingForDates && participant.compensatingForDates.length > 0) {
+          const formattedDates = participant.compensatingForDates
+            .map((timestamp: number) => {
+              const date = new Date(timestamp);
+              return date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' });
+            })
+            .join('، ');
+          activityLabel = ` (تعويض: ${formattedDates})`;
+        } else if (participant.sessionType === 'تلاوة' || participant.sessionType === 'تسميع') {
+          activityLabel = ` (${participant.sessionType})`;
+        }
         const skipLabel = !isDone && participant.wasSkipped
           ? ` 🗣️`
           : '';
