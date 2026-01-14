@@ -814,9 +814,6 @@ export default function PostDetail() {
             </div>
             </div>
             <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground" dir="rtl">
-              <span className="flex-1">
-                اسم المشرفة: {supervisorName || 'لم يتم تعيين مشرفة'}
-              </span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -834,6 +831,9 @@ export default function PostDetail() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <span className="flex-1">
+                اسم المشرفة: {supervisorName || 'لم يتم تعيين مشرفة'}
+              </span>
             </div>
             {sessionInfo?.isLocked && (
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-right">
