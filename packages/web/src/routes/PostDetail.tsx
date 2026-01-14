@@ -686,21 +686,6 @@ export default function PostDetail() {
 
   return (
     <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
-      {/* DEBUG BANNER - ALWAYS VISIBLE AT TOP */}
-      <div className="mb-4 p-4 bg-yellow-200 dark:bg-yellow-800 border-4 border-yellow-400 dark:border-yellow-600 rounded-lg">
-        <div className="text-lg font-bold text-black dark:text-white mb-2">🔍 DEBUG INFO (Authentication Status)</div>
-        {telegramUser ? (
-          <div className="space-y-1 text-black dark:text-white">
-            <div className="text-base">✅ Authenticated User ID: <strong>{telegramUser.id}</strong></div>
-            <div className="text-base">👤 Name from DB: <strong>{currentAdminName || '❌ NOT FOUND in channelAdmins'}</strong></div>
-            <div className="text-base">📝 Telegram First: <strong>{telegramUser.firstName}</strong>, Last: <strong>{telegramUser.lastName || 'N/A'}</strong></div>
-            <div className="text-base">👮 Supervisor Name: <strong>{supervisorName || '❌ لم يتم تعيين مشرفة'}</strong></div>
-          </div>
-        ) : (
-          <div className="text-base text-red-600 dark:text-red-400 font-bold">❌ NOT AUTHENTICATED - telegramUser is null</div>
-        )}
-      </div>
-
       <div className="mb-3 sm:mb-4 md:mb-6">
         <Link href="/halaqas">
           <Button variant="ghost" size="sm" className="mb-2 sm:mb-3 md:mb-4 gap-2">
@@ -828,7 +813,10 @@ export default function PostDetail() {
               </Link>
             </div>
             </div>
-            <div className="flex flex-row-reverse items-center justify-start gap-2 text-xs sm:text-sm text-muted-foreground text-right">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground" dir="rtl">
+              <span className="flex-1">
+                اسم المشرفة: {supervisorName || 'لم يتم تعيين مشرفة'}
+              </span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -846,9 +834,6 @@ export default function PostDetail() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <span className="text-right">
-                اسم المشرفة: {supervisorName || 'لم يتم تعيين مشرفة'}
-              </span>
             </div>
             {sessionInfo?.isLocked && (
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-right">
