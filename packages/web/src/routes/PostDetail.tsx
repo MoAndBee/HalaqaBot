@@ -55,9 +55,19 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
       const name = user.realName || user.telegramName
       const isDone = completedUsers.some(cu => cu.id === user.id)
-      const activityLabel = (user.sessionType === 'تلاوة' || user.sessionType === 'تسميع')
-        ? ` (${user.sessionType})`
-        : ''
+      // Format compensation dates if present
+      let activityLabel = ''
+      if (user.compensatingForDates && user.compensatingForDates.length > 0) {
+        const formattedDates = user.compensatingForDates
+          .map(timestamp => {
+            const date = new Date(timestamp)
+            return date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' })
+          })
+          .join('، ')
+        activityLabel = ` (تعويض: ${formattedDates})`
+      } else if (user.sessionType === 'تلاوة' || user.sessionType === 'تسميع') {
+        activityLabel = ` (${user.sessionType})`
+      }
       const skipLabel = !isDone && user.wasSkipped
         ? ` 🗣️`
         : ''
