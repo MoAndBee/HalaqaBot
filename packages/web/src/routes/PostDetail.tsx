@@ -485,7 +485,7 @@ export default function PostDetail() {
     setIsStartNewSessionModalOpen(true)
   }
 
-  const handleStartNewSessionSubmit = async (teacherName: string, supervisorName: string) => {
+  const handleStartNewSessionSubmit = async (teacherName: string) => {
     if (!data || !telegramUser) return
 
     // Close modal first to dismiss keyboard
@@ -506,7 +506,6 @@ export default function PostDetail() {
           chatId,
           postId,
           teacherName,
-          supervisorName, // kept for backward compatibility
           supervisorUserId: telegramUser.id, // assign current admin as supervisor
           carryOverIncomplete: confirmed
         })
@@ -527,7 +526,6 @@ export default function PostDetail() {
           chatId,
           postId,
           teacherName,
-          supervisorName, // kept for backward compatibility
           supervisorUserId: telegramUser.id, // assign current admin as supervisor
           carryOverIncomplete: false
         })

@@ -13,19 +13,17 @@ import { Button } from '@/components/ui/button'
 interface StartNewSessionModalProps {
   isOpen: boolean
   onClose: () => void
-  onStart: (teacherName: string, supervisorName: string) => void
+  onStart: (teacherName: string) => void
 }
 
 export function StartNewSessionModal({ isOpen, onClose, onStart }: StartNewSessionModalProps) {
   const [teacherName, setTeacherName] = useState('')
-  const [supervisorName, setSupervisorName] = useState('')
   const [isStarting, setIsStarting] = useState(false)
   const teacherInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (isOpen) {
       setTeacherName('')
-      setSupervisorName('')
       setIsStarting(false)
       setTimeout(() => teacherInputRef.current?.focus(), 100)
     }
@@ -33,15 +31,14 @@ export function StartNewSessionModal({ isOpen, onClose, onStart }: StartNewSessi
 
   const handleStart = async () => {
     const trimmedTeacher = teacherName.trim()
-    const trimmedSupervisor = supervisorName.trim()
 
-    if (!trimmedTeacher || !trimmedSupervisor) {
+    if (!trimmedTeacher) {
       return
     }
 
     setIsStarting(true)
     try {
-      await onStart(trimmedTeacher, trimmedSupervisor)
+      await onStart(trimmedTeacher)
       // Modal will be closed by parent after confirmation
     } catch (error) {
       console.error('Error starting session:', error)
@@ -53,14 +50,13 @@ export function StartNewSessionModal({ isOpen, onClose, onStart }: StartNewSessi
     if (e.key === 'Enter') {
       e.preventDefault()
       const trimmedTeacher = teacherName.trim()
-      const trimmedSupervisor = supervisorName.trim()
-      if (trimmedTeacher && trimmedSupervisor) {
+      if (trimmedTeacher) {
         handleStart()
       }
     }
   }
 
-  const isValid = teacherName.trim() !== '' && supervisorName.trim() !== ''
+  const isValid = teacherName.trim() !== ''
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -80,19 +76,6 @@ export function StartNewSessionModal({ isOpen, onClose, onStart }: StartNewSessi
               onChange={(e) => setTeacherName(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="أدخل اسم المعلمة"
-              disabled={isStarting}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="supervisorName" className="text-sm font-medium">اسم المشرفة</label>
-            <Input
-              id="supervisorName"
-              type="text"
-              value={supervisorName}
-              onChange={(e) => setSupervisorName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="أدخل اسم المشرفة"
               disabled={isStarting}
             />
           </div>
