@@ -61,15 +61,38 @@ export function registerReactionHandler(
       const messageId = ctx.messageReaction!.message_id;
 
       // Try to find the post ID and channel ID from the database
-      const result = await convex.query(api.queries.getPostIdForMessage, {
+      // Use retry mechanism to handle race condition with message handler
+      let result = await convex.query(api.queries.getPostIdForMessage, {
         chatId,
         messageId,
       });
 
-      // If message not in database, ignore the reaction
+      // If message not in database, retry a few times with delays
+      // This handles the race condition where admin reacts before message is stored
       if (!result) {
-        console.log(`⚠️  Message ${messageId} not found in database, ignoring reaction`);
-        return;
+        const maxRetries = 3;
+        const retryDelays = [500, 1000, 2000]; // ms between retries
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          console.log(`⏳ Message ${messageId} not found in database, retrying in ${retryDelays[attempt]}ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
+
+          result = await convex.query(api.queries.getPostIdForMessage, {
+            chatId,
+            messageId,
+          });
+
+          if (result) {
+            console.log(`✅ Message ${messageId} found after ${attempt + 1} retry(ies)`);
+            break;
+          }
+        }
+
+        // If still not found after retries, give up
+        if (!result) {
+          console.log(`⚠️  Message ${messageId} not found in database after ${maxRetries} retries, ignoring reaction`);
+          return;
+        }
       }
 
       const { postId, channelId } = result;
