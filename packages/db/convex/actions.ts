@@ -13,6 +13,14 @@ export const sendParticipantList = action({
     flower: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Query the user list first to ensure the cache is warmed up with fresh data
+    // This prevents the bot from hitting stale cached data when it processes the task
+    await ctx.runQuery(api.queries.getUserList, {
+      chatId: args.chatId,
+      postId: args.postId,
+      sessionNumber: args.sessionNumber,
+    });
+
     // Create a task for the bot to process
     const result = await ctx.runMutation(api.mutations.createBotTask, {
       type: "send_participant_list",
