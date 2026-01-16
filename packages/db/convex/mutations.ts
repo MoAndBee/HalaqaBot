@@ -1560,7 +1560,7 @@ export const registerUser = mutation({
     await ctx.db.insert("users", {
       userId: newUserId,
       username: undefined,
-      telegramName: trimmedName,
+      telegramName: "مسجل يدوياً", // Placeholder to indicate no Telegram account
       realName: trimmedName,
       realNameVerified: true, // Manually registered users are pre-verified
       sourceMessageText: undefined,
