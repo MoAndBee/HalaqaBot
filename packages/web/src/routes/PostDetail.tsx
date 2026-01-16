@@ -27,6 +27,7 @@ import {
 import { Loader } from '~/components/Loader'
 import { UserList } from '~/components/UserList'
 import { AddUserModal } from '~/components/AddUserModal'
+import { RegisterUserModal } from '~/components/RegisterUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
@@ -93,6 +94,7 @@ export default function PostDetail() {
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
   const [selectedFlower, setSelectedFlower] = React.useState<string>(DEFAULT_FLOWER)
   const [isAddUserModalOpen, setIsAddUserModalOpen] = React.useState(false)
+  const [isRegisterUserModalOpen, setIsRegisterUserModalOpen] = React.useState(false)
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
@@ -155,6 +157,7 @@ export default function PostDetail() {
   const updateSessionTeacher = useMutation(api.mutations.updateSessionTeacher)
   const updateSessionSupervisor = useMutation(api.mutations.updateSessionSupervisor)
   const updateAdminPreferredName = useMutation(api.mutations.updateAdminPreferredName)
+  const registerUser = useMutation(api.mutations.registerUser)
   const assignSessionSupervisor = useMutation(api.mutations.assignSessionSupervisor)
   const takeOverSession = useMutation(api.mutations.takeOverSession)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
@@ -399,6 +402,17 @@ export default function PostDetail() {
     } catch (error) {
       toast.error('فشل إضافة المستخدم')
       console.error('Failed to add user:', error)
+    }
+  }
+
+  const handleRegisterUser = async (name: string, passcode: string) => {
+    try {
+      await registerUser({ name, passcode })
+      toast.success('تم تسجيل المستخدم بنجاح!')
+      setIsRegisterUserModalOpen(false)
+    } catch (error: any) {
+      // Error will be displayed in the modal
+      throw error
     }
   }
 
@@ -775,6 +789,12 @@ export default function PostDetail() {
                   <UserPlus className="h-4 w-4 ml-2" />
                   إضافة مستخدم يدوياً
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsRegisterUserModalOpen(true)}
+                >
+                  <UserPlus className="h-4 w-4 ml-2" />
+                  تسجيل مستخدم جديد
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyList}>
                   <Copy className="h-4 w-4 ml-2" />
@@ -877,6 +897,12 @@ export default function PostDetail() {
         isOpen={isAddUserModalOpen}
         onClose={() => setIsAddUserModalOpen(false)}
         onAdd={handleAddUser}
+      />
+
+      <RegisterUserModal
+        isOpen={isRegisterUserModalOpen}
+        onClose={() => setIsRegisterUserModalOpen(false)}
+        onRegister={handleRegisterUser}
       />
 
       <EditNotesModal
