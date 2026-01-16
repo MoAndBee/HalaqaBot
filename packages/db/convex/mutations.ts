@@ -1512,3 +1512,62 @@ export const takeOverSession = mutation({
     return { created: false, previousSupervisor };
   },
 });
+
+export const registerUser = mutation({
+  args: {
+    name: v.string(),
+    passcode: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate passcode (same as unlockSession)
+    const REGISTER_PASSCODE = "adminunlock311225";
+
+    if (args.passcode !== REGISTER_PASSCODE) {
+      throw new Error("Invalid passcode");
+    }
+
+    const trimmedName = args.name.trim();
+    if (!trimmedName) {
+      throw new Error("Name cannot be empty");
+    }
+
+    // Check if a user with this exact name already exists (case-insensitive)
+    const existingUser = await ctx.db
+      .query("users")
+      .collect()
+      .then((users) =>
+        users.find(
+          (u) =>
+            u.realName?.toLowerCase() === trimmedName.toLowerCase() ||
+            u.telegramName.toLowerCase() === trimmedName.toLowerCase()
+        )
+      );
+
+    if (existingUser) {
+      throw new Error("مستخدم بهذا الاسم موجود بالفعل");
+    }
+
+    // Generate a unique negative userId for manually registered users
+    // Start from -1 and go down to avoid conflicts with Telegram user IDs
+    const allUsers = await ctx.db.query("users").collect();
+    const manualUserIds = allUsers
+      .map((u) => u.userId)
+      .filter((id) => id < 0);
+    const minUserId = manualUserIds.length > 0 ? Math.min(...manualUserIds) : 0;
+    const newUserId = minUserId - 1;
+
+    // Create the new user
+    await ctx.db.insert("users", {
+      userId: newUserId,
+      username: undefined,
+      telegramName: "مسجل يدوياً", // Placeholder to indicate no Telegram account
+      realName: trimmedName,
+      realNameVerified: true, // Manually registered users are pre-verified
+      sourceMessageText: undefined,
+      updatedAt: Date.now(),
+    });
+
+    console.log(`Manually registered user: ${trimmedName} with userId ${newUserId}`);
+    return { userId: newUserId, name: trimmedName };
+  },
+});
