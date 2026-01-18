@@ -183,6 +183,68 @@ export const addUserToList = mutation({
     // Check if session is locked
     await checkSessionLock(ctx, args.chatId, args.postId, sessionNumber);
 
+    // Before adding user to queue, update their realName if we have detected names
+    // and their realName is not yet verified
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .first();
+
+    // Only update realName if user exists and doesn't have a verified realName
+    if (user && (!user.realName || !user.realNameVerified)) {
+      // Find all messages from this user in this post
+      const userMessages = await ctx.db
+        .query("messageAuthors")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .filter((q) => q.eq(q.field("userId"), args.userId))
+        .collect();
+
+      // Look for the most recent message with detected names
+      let detectedName: string | null = null;
+      let sourceMessageText: string | undefined;
+
+      for (const message of userMessages) {
+        const classification = await ctx.db
+          .query("messageClassifications")
+          .withIndex("by_chat_post_message", (q) =>
+            q
+              .eq("chatId", args.chatId)
+              .eq("postId", args.postId)
+              .eq("messageId", message.messageId)
+          )
+          .first();
+
+        if (
+          classification &&
+          classification.containsName &&
+          classification.detectedNames &&
+          classification.detectedNames.length > 0
+        ) {
+          detectedName = classification.detectedNames
+            .join(" ")
+            .replace(/،/g, " ") // Replace Arabic comma with space
+            .replace(/,/g, " ") // Replace English comma with space
+            .replace(/\s+/g, " ") // Replace multiple spaces with single space
+            .trim();
+          sourceMessageText = classification.messageText;
+          break; // Use the first message with detected names
+        }
+      }
+
+      if (detectedName) {
+        console.log(
+          `[addUserToList] Updating realName for user ${args.userId}: "${detectedName}"`
+        );
+        await ctx.db.patch(user._id, {
+          realName: detectedName,
+          sourceMessageText: sourceMessageText,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
     // Get current users in turnQueue for this session
     const queueUsers = await ctx.db
       .query("turnQueue")
