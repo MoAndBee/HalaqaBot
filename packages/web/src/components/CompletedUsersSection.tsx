@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { ChevronDown, CheckCircle, MoreVertical, Pencil, Tag, Plus, Trash2, Check, X } from 'lucide-react'
+import { ChevronDown, CheckCircle, MoreVertical, Pencil, Tag, Plus, Trash2, Check, X, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 import {
   Collapsible,
   CollapsibleContent,
@@ -116,6 +117,16 @@ function CompletedUserCard({
     }
   }
 
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(user.id.toString())
+      toast.success('تم نسخ المعرف!')
+    } catch (error) {
+      toast.error('فشل نسخ المعرف')
+      console.error('Copy ID failed:', error)
+    }
+  }
+
   const formatTimestamp = (timestamp?: number) => {
     if (!timestamp) return ''
 
@@ -171,6 +182,11 @@ function CompletedUserCard({
               <DropdownMenuItem onClick={handleEditTypeClick} disabled={isLocked}>
                 <Tag className="h-4 w-4 ml-2" />
                 تعديل المشاركة
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleCopyId}>
+                <Hash className="h-4 w-4 ml-2" />
+                نسخ المعرف
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {onAddTurnAfter3 && (

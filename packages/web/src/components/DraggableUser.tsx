@@ -1,11 +1,12 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
-import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar } from 'lucide-react'
+import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash } from 'lucide-react'
 import type { User } from '@halakabot/db'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -165,10 +166,20 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     setSelectedType(null)
   }
 
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(user.id.toString())
+      toast.success('تم نسخ المعرف!')
+    } catch (error) {
+      toast.error('فشل نسخ المعرف')
+      console.error('Copy ID failed:', error)
+    }
+  }
+
   const primaryName = user.realName || user.telegramName
   const secondaryText = user.realName
-    ? `${user.telegramName}${user.username ? ' @' + user.username : ''} (${user.id})`
-    : `${user.username ? '@' + user.username + ' ' : ''}(${user.id})`
+    ? `${user.telegramName}${user.username ? ' @' + user.username : ''}`
+    : `${user.username ? '@' + user.username : ''}`
 
   return (
     <div
@@ -203,6 +214,11 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   تعديل المشاركة
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleCopyId}>
+                <Hash className="h-4 w-4 ml-2" />
+                نسخ المعرف
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               {/* {onEditNotes && (
                 <DropdownMenuItem onClick={handleEditNotes} disabled={isLocked}>
