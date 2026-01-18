@@ -797,7 +797,7 @@ export default function PostDetail() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyTelegramNames}>
-                  <AtSign className="h-4 w-4 ml-2" />
+                  <Copy className="h-4 w-4 ml-2" />
                   نسخ قائمة الأسماء
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSendParticipantList}>
