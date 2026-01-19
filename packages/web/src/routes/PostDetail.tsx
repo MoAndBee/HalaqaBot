@@ -796,13 +796,9 @@ export default function PostDetail() {
                   تسجيل مستخدم جديد
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleCopyList}>
-                  <Copy className="h-4 w-4 ml-2" />
-                  نسخ القائمة
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyTelegramNames}>
-                  <AtSign className="h-4 w-4 ml-2" />
-                  نسخ الأسماء الحقيقية
+                  <Copy className="h-4 w-4 ml-2" />
+                  نسخ قائمة الأسماء
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSendParticipantList}>
                   <Send className="h-4 w-4 ml-2" />
