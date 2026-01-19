@@ -16,8 +16,8 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
   const [selectedDates, setSelectedDates] = useState<Date[]>(
     (currentDates || []).map(timestamp => {
       const date = new Date(timestamp)
-      date.setHours(0, 0, 0, 0)
-      return date
+      // Convert UTC midnight to local date with same calendar day
+      return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
     })
   )
   const [isSaving, setIsSaving] = useState(false)
@@ -27,8 +27,8 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
   useEffect(() => {
     setSelectedDates((currentDates || []).map(timestamp => {
       const date = new Date(timestamp)
-      date.setHours(0, 0, 0, 0)
-      return date
+      // Convert UTC midnight to local date with same calendar day
+      return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
     }))
   }, [currentDates, userName])
 
@@ -69,11 +69,10 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
 
     setIsSaving(true)
     try {
-      // Convert dates to timestamps
+      // Convert dates to UTC midnight timestamps
       const timestamps = selectedDates.map(date => {
         const d = new Date(date)
-        d.setHours(0, 0, 0, 0)
-        return d.getTime()
+        return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
       })
       await onSave(timestamps)
       onClose()
