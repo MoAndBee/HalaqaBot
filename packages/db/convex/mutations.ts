@@ -716,7 +716,7 @@ export const completeUserTurn = mutation({
       sessionNumber,
       userId: entry.userId,
       sessionType: args.sessionType,
-      notes: undefined,
+      notes: entry.notes,
       channelId: entry.channelId,
       createdAt: entry.createdAt,
       completedAt,
@@ -914,6 +914,29 @@ export const updateUserNotes = mutation({
   },
   handler: async (ctx, args) => {
     // Get the entry from participationHistory
+    const entry = await ctx.db.get(args.entryId);
+
+    if (!entry) {
+      throw new Error(`Entry not found`);
+    }
+
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
+
+    // Update notes (trim and set to undefined if empty)
+    await ctx.db.patch(args.entryId, {
+      notes: args.notes.trim() || undefined,
+    });
+  },
+});
+
+export const updateTurnQueueNotes = mutation({
+  args: {
+    entryId: v.id("turnQueue"),
+    notes: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get the entry from turnQueue
     const entry = await ctx.db.get(args.entryId);
 
     if (!entry) {

@@ -153,6 +153,7 @@ export default function PostDetail() {
   const updateTurnQueueSessionType = useMutation(api.mutations.updateTurnQueueSessionType)
   const updateUserRealName = useMutation(api.mutations.updateUserRealName)
   const updateUserNotes = useMutation(api.mutations.updateUserNotes)
+  const updateTurnQueueNotes = useMutation(api.mutations.updateTurnQueueNotes)
   const startNewSession = useMutation(api.mutations.startNewSession)
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
@@ -293,10 +294,23 @@ export default function PostDetail() {
     if (!notesModalState) return
 
     try {
-      await updateUserNotes({
-        entryId: notesModalState.entryId,
-        notes,
-      })
+      // Determine if this is an active user or completed user
+      const activeUser = data?.activeUsers.find((u: User) => u.entryId === notesModalState.entryId)
+      const completedUser = data?.completedUsers.find((u: User) => u.entryId === notesModalState.entryId)
+
+      if (activeUser) {
+        // Use turnQueue mutation for active users
+        await updateTurnQueueNotes({
+          entryId: notesModalState.entryId as any,
+          notes,
+        })
+      } else if (completedUser) {
+        // Use participationHistory mutation for completed users
+        await updateUserNotes({
+          entryId: notesModalState.entryId as any,
+          notes,
+        })
+      }
       toast.success('تم حفظ الملاحظات!')
     } catch (error) {
       console.error('Failed to save notes:', error)

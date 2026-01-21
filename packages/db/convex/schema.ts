@@ -52,6 +52,7 @@ export default defineSchema({
     createdAt: v.number(), // timestamp in ms
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous session
     sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", "اختبار", "تعويض"
+    notes: v.optional(v.string()), // optional notes for this participant
     isCompensation: v.optional(v.boolean()), // true if this turn is for compensation
     compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
     wasSkipped: v.optional(v.boolean()), // true if this participant has been skipped
