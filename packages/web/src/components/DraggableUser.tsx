@@ -221,11 +221,6 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleCopyId}>
-                <Hash className="h-4 w-4 ml-2" />
-                نسخ المعرف
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               {onAddTurnAfter3 && (
                 <DropdownMenuItem onClick={handleAddTurnAfter3} disabled={isLocked}>
                   <Plus className="h-4 w-4 ml-2" />
@@ -251,6 +246,10 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleCopyId}>
+                <Hash className="h-4 w-4 ml-2" />
+                نسخ المعرف
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDeleteClick} disabled={isLocked} className="text-destructive focus:text-destructive">
                 <Trash2 className="h-4 w-4" />
                 حذف
