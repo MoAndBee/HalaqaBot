@@ -41,10 +41,11 @@ function formatUserList(users: User[], isDone: boolean = false): string {
       const username = user.username ? `@${user.username}` : ''
       const userId = `(${user.id})`
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
+      const notesLabel = user.notes ? ` - ${user.notes}` : ''
       const carriedOverLabel = user.carriedOver ? ' (من الحلقة السابقة)' : ''
       const sessionTypeLabel = user.sessionType ? ` - ${user.sessionType}` : ''
       const doneIcon = isDone ? '✅ ' : ''
-      return `ـ ${arabicNumber}. ${doneIcon}${displayName} ${username} ${userId}${carriedOverLabel}${sessionTypeLabel} ـ`
+      return `ـ ${arabicNumber}. ${doneIcon}${displayName}${notesLabel} ${username} ${userId}${carriedOverLabel}${sessionTypeLabel} ـ`
     })
     .join('\n')
 }
@@ -56,6 +57,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
       const name = user.realName || user.telegramName
       const isDone = completedUsers.some(cu => cu.id === user.id)
+      const notesLabel = user.notes ? ` - ${user.notes}` : ''
       // Format compensation dates if present
       let activityLabel = ''
       if (user.compensatingForDates && user.compensatingForDates.length > 0) {
@@ -73,7 +75,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
         ? ` 🗣️`
         : ''
       const doneIcon = isDone ? ' ✅' : ''
-      return `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
+      return `${arabicNumber}. ${name}${notesLabel}${activityLabel}${skipLabel}${doneIcon}`
     })
     .join('\n')
 }

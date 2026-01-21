@@ -173,6 +173,7 @@ export class BotTaskService {
         const arabicNumber = (index + 1).toLocaleString('ar-EG');
         const name = participant.realName || participant.telegramName;
         const isDone = completedUsers.some((u: any) => u.id === participant.id);
+        const notesLabel = participant.notes ? ` - ${participant.notes}` : '';
         // Format compensation dates if present
         let activityLabel = '';
         if (participant.compensatingForDates && participant.compensatingForDates.length > 0) {
@@ -190,7 +191,7 @@ export class BotTaskService {
           ? ` 🗣️`
           : '';
         const doneIcon = isDone ? ' ✅' : '';
-        message += `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}\n`;
+        message += `${arabicNumber}. ${name}${notesLabel}${activityLabel}${skipLabel}${doneIcon}\n`;
       });
 
       message += flowerBorder;
