@@ -214,18 +214,18 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   تعديل المشاركة
                 </DropdownMenuItem>
               )}
+              {onEditNotes && (
+                <DropdownMenuItem onClick={handleEditNotes} disabled={isLocked}>
+                  <StickyNote className="h-4 w-4 ml-2" />
+                  إضافة ملاحظات
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleCopyId}>
                 <Hash className="h-4 w-4 ml-2" />
                 نسخ المعرف
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {/* {onEditNotes && (
-                <DropdownMenuItem onClick={handleEditNotes} disabled={isLocked}>
-                  <StickyNote className="h-4 w-4 ml-2" />
-                  إضافة ملاحظات
-                </DropdownMenuItem>
-              )} */}
               {onAddTurnAfter3 && (
                 <DropdownMenuItem onClick={handleAddTurnAfter3} disabled={isLocked}>
                   <Plus className="h-4 w-4 ml-2" />
