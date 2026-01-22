@@ -592,7 +592,9 @@ export default function PostDetail() {
   }
 
   const handleEditSupervisorName = async () => {
-    if (!telegramUser) return
+    if (!telegramUser || !data) return
+
+    const currentSession = selectedSession ?? data.currentSession
 
     // Use current admin's name as default
     const currentName = currentAdminName || ''
@@ -612,6 +614,9 @@ export default function PostDetail() {
         channelId: CHANNEL_ID,
         userId: telegramUser.id,
         preferredName: newName.trim(),
+        chatId,
+        postId,
+        sessionNumber: currentSession,
       })
 
       toast.success('تم تحديث الاسم المفضل!')
@@ -845,11 +850,17 @@ export default function PostDetail() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleEditSupervisorName}>
+                  <DropdownMenuItem
+                    onClick={handleEditSupervisorName}
+                    disabled={sessionInfo?.isLocked}
+                  >
                     <Pencil className="h-4 w-4 ml-2" />
                     تعديل الاسم المفضل
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleTakeOver}>
+                  <DropdownMenuItem
+                    onClick={handleTakeOver}
+                    disabled={sessionInfo?.isLocked}
+                  >
                     <UserCog className="h-4 w-4 ml-2" />
                     تسلم الحلقة
                   </DropdownMenuItem>
