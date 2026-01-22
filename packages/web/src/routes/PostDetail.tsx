@@ -41,10 +41,11 @@ function formatUserList(users: User[], isDone: boolean = false): string {
       const username = user.username ? `@${user.username}` : ''
       const userId = `(${user.id})`
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
+      const notesLabel = user.notes ? ` - ${user.notes}` : ''
       const carriedOverLabel = user.carriedOver ? ' (من الحلقة السابقة)' : ''
       const sessionTypeLabel = user.sessionType ? ` - ${user.sessionType}` : ''
       const doneIcon = isDone ? '✅ ' : ''
-      return `ـ ${arabicNumber}. ${doneIcon}${displayName} ${username} ${userId}${carriedOverLabel}${sessionTypeLabel} ـ`
+      return `ـ ${arabicNumber}. ${doneIcon}${displayName}${notesLabel} ${username} ${userId}${carriedOverLabel}${sessionTypeLabel} ـ`
     })
     .join('\n')
 }
@@ -56,6 +57,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
       const name = user.realName || user.telegramName
       const isDone = completedUsers.some(cu => cu.id === user.id)
+      const notesLabel = user.notes ? ` - ${user.notes}` : ''
       // Format compensation dates if present
       let activityLabel = ''
       if (user.compensatingForDates && user.compensatingForDates.length > 0) {
@@ -73,7 +75,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
         ? ` 🗣️`
         : ''
       const doneIcon = isDone ? ' ✅' : ''
-      return `${arabicNumber}. ${name}${activityLabel}${skipLabel}${doneIcon}`
+      return `${arabicNumber}. ${name}${notesLabel}${activityLabel}${skipLabel}${doneIcon}`
     })
     .join('\n')
 }
@@ -151,6 +153,7 @@ export default function PostDetail() {
   const updateTurnQueueSessionType = useMutation(api.mutations.updateTurnQueueSessionType)
   const updateUserRealName = useMutation(api.mutations.updateUserRealName)
   const updateUserNotes = useMutation(api.mutations.updateUserNotes)
+  const updateTurnQueueNotes = useMutation(api.mutations.updateTurnQueueNotes)
   const startNewSession = useMutation(api.mutations.startNewSession)
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
@@ -291,10 +294,23 @@ export default function PostDetail() {
     if (!notesModalState) return
 
     try {
-      await updateUserNotes({
-        entryId: notesModalState.entryId,
-        notes,
-      })
+      // Determine if this is an active user or completed user
+      const activeUser = data?.activeUsers.find((u: User) => u.entryId === notesModalState.entryId)
+      const completedUser = data?.completedUsers.find((u: User) => u.entryId === notesModalState.entryId)
+
+      if (activeUser) {
+        // Use turnQueue mutation for active users
+        await updateTurnQueueNotes({
+          entryId: notesModalState.entryId as any,
+          notes,
+        })
+      } else if (completedUser) {
+        // Use participationHistory mutation for completed users
+        await updateUserNotes({
+          entryId: notesModalState.entryId as any,
+          notes,
+        })
+      }
       toast.success('تم حفظ الملاحظات!')
     } catch (error) {
       console.error('Failed to save notes:', error)

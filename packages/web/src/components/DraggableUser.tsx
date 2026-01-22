@@ -214,18 +214,13 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                   تعديل المشاركة
                 </DropdownMenuItem>
               )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleCopyId}>
-                <Hash className="h-4 w-4 ml-2" />
-                نسخ المعرف
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {/* {onEditNotes && (
+              {onEditNotes && (
                 <DropdownMenuItem onClick={handleEditNotes} disabled={isLocked}>
                   <StickyNote className="h-4 w-4 ml-2" />
                   إضافة ملاحظات
                 </DropdownMenuItem>
-              )} */}
+              )}
+              <DropdownMenuSeparator />
               {onAddTurnAfter3 && (
                 <DropdownMenuItem onClick={handleAddTurnAfter3} disabled={isLocked}>
                   <Plus className="h-4 w-4 ml-2" />
@@ -251,6 +246,10 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleCopyId}>
+                <Hash className="h-4 w-4 ml-2" />
+                نسخ المعرف
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDeleteClick} disabled={isLocked} className="text-destructive focus:text-destructive">
                 <Trash2 className="h-4 w-4" />
                 حذف
@@ -310,16 +309,16 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               {secondaryText && (
                 <div className="text-muted-foreground text-xs sm:text-sm truncate">{secondaryText}</div>
               )}
-              {user.notes && (
-                <div className="mt-1 text-muted-foreground text-xs sm:text-sm italic">
-                  {user.notes}
-                </div>
-              )}
               {user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0 && (
                 <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
                   تعويض عن: {user.compensatingForDates.map(timestamp =>
                     new Date(timestamp).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })
                   ).join('، ')}
+                </div>
+              )}
+              {user.notes && (
+                <div className="mt-1 text-muted-foreground text-xs sm:text-sm italic">
+                  {user.notes}
                 </div>
               )}
               {user.wasSkipped && (
