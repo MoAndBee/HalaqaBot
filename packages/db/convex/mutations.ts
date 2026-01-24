@@ -1146,6 +1146,9 @@ export const updateSessionTeacher = mutation({
     teacherName: v.string(),
   },
   handler: async (ctx, args) => {
+    // Check if session is locked before any modifications
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
     // Find the session
     const session = await ctx.db
       .query("sessions")
@@ -1168,9 +1171,6 @@ export const updateSessionTeacher = mutation({
       return { created: true };
     }
 
-    // Check if session is locked before updating
-    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
-
     // Update the existing session's teacher name
     await ctx.db.patch(session._id, {
       teacherName: args.teacherName,
@@ -1188,6 +1188,9 @@ export const updateSessionSupervisor = mutation({
     supervisorName: v.string(),
   },
   handler: async (ctx, args) => {
+    // Check if session is locked before any modifications
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
     // Find the session
     const session = await ctx.db
       .query("sessions")
@@ -1210,9 +1213,6 @@ export const updateSessionSupervisor = mutation({
       });
       return { created: true };
     }
-
-    // Check if session is locked before updating
-    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
     // Update the existing session's supervisor name
     await ctx.db.patch(session._id, {
@@ -1415,8 +1415,14 @@ export const updateAdminPreferredName = mutation({
     channelId: v.number(),
     userId: v.number(),
     preferredName: v.string(),
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
   },
   handler: async (ctx, args) => {
+    // Check if session is locked before any modifications
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
     // Find the admin in channelAdmins table
     const admin = await ctx.db
       .query("channelAdmins")
@@ -1446,6 +1452,9 @@ export const assignSessionSupervisor = mutation({
     supervisorUserId: v.number(),
   },
   handler: async (ctx, args) => {
+    // Check if session is locked before any modifications
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
     // Find the session
     const session = await ctx.db
       .query("sessions")
@@ -1476,9 +1485,6 @@ export const assignSessionSupervisor = mutation({
       return { created: false, alreadyAssigned: true };
     }
 
-    // Check if session is locked before updating
-    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
-
     // Assign the supervisor
     await ctx.db.patch(session._id, {
       supervisorUserId: args.supervisorUserId,
@@ -1497,6 +1503,9 @@ export const takeOverSession = mutation({
     newSupervisorUserId: v.number(),
   },
   handler: async (ctx, args) => {
+    // Check if session is locked before any modifications
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
     // Find the session
     const session = await ctx.db
       .query("sessions")
@@ -1520,9 +1529,6 @@ export const takeOverSession = mutation({
       console.log(`Created session with supervisor ${args.newSupervisorUserId}`);
       return { created: true };
     }
-
-    // Check if session is locked before updating
-    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
     const previousSupervisor = session.supervisorUserId;
 
