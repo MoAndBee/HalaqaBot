@@ -118,7 +118,7 @@ export const getUserList = query({
           createdAt: entry.createdAt,
           carriedOver: entry.carriedOver,
           sessionType: entry.sessionType,
-          notes: null,
+          notes: entry.notes || null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
           wasSkipped: entry.wasSkipped,
