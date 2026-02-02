@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { SessionType } from './SplitButton'
+import { ALL_SESSION_TYPES, type SessionType } from '@/lib/session-types'
 
 interface CompletedUser {
   entryId?: string
@@ -47,8 +47,6 @@ interface CompletedUsersSectionProps {
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
   isLocked?: boolean
 }
-
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'مراجعة', 'تعويض']
 
 function CompletedUserCard({
   user,
@@ -257,7 +255,7 @@ function CompletedUserCard({
                   <SelectValue placeholder="اختر" />
                 </SelectTrigger>
                 <SelectContent dir="rtl">
-                  {SESSION_TYPES.map((type) => (
+                  {ALL_SESSION_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>{type}</SelectItem>
                   ))}
                 </SelectContent>

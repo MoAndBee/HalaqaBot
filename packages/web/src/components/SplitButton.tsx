@@ -7,10 +7,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SESSION_TYPES, type SessionType } from '@/lib/session-types'
 
-export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار' | 'دعم' | 'مراجعة' | 'تعويض'
-
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'مراجعة']
+// Re-export SessionType for backwards compatibility
+export type { SessionType } from '@/lib/session-types'
 
 interface SplitButtonProps {
   onComplete: (sessionType: SessionType) => void

@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader } from '~/components/Loader'
+import { SESSION_TYPES_WITH_KEYS } from '@/lib/session-types'
 
 export default function ParticipationSummary() {
   const params = useParams<{ chatId: string; postId: string }>()
@@ -33,14 +34,6 @@ export default function ParticipationSummary() {
   const formattedDay = date.toLocaleDateString('ar-EG', {
     weekday: 'long',
   })
-
-  const sessionTypes = [
-    { key: 'tilawa', label: 'تلاوة' },
-    { key: 'tasmee', label: 'تسميع' },
-    { key: 'tatbeeq', label: 'تطبيق' },
-    { key: 'ikhtebar', label: 'اختبار' },
-    { key: 'muraja', label: 'مراجعة' },
-  ]
 
   return (
     <div className="p-3 sm:p-6 md:p-8 h-full flex flex-col">
@@ -124,7 +117,7 @@ export default function ParticipationSummary() {
             <span>حسب نوع المشاركة</span>
           </h3>
           {(() => {
-            const hasAnyData = sessionTypes.some(
+            const hasAnyData = SESSION_TYPES_WITH_KEYS.some(
               ({ key }) => summary.byType[key] && summary.byType[key].count > 0
             )
 
@@ -142,7 +135,7 @@ export default function ParticipationSummary() {
 
             return (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {sessionTypes.map(({ key }) => {
+                {SESSION_TYPES_WITH_KEYS.map(({ key }) => {
                   const typeData = summary.byType[key]
 
                   if (!typeData || typeData.count === 0) {

@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { SessionType } from './SplitButton'
+import { ALL_SESSION_TYPES, type SessionType } from '@/lib/session-types'
 
 interface DraggableUserProps {
   user: User
@@ -39,8 +39,6 @@ interface DraggableUserProps {
   totalUsers?: number
   isLocked?: boolean
 }
-
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'مراجعة', 'تعويض']
 
 export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers, isLocked }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
@@ -339,7 +337,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                     <SelectValue placeholder="اختر" />
                   </SelectTrigger>
                   <SelectContent dir="rtl">
-                    {SESSION_TYPES.map((type) => (
+                    {ALL_SESSION_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>{type}</SelectItem>
                     ))}
                   </SelectContent>
