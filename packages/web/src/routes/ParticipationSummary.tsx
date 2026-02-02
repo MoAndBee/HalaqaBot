@@ -39,6 +39,7 @@ export default function ParticipationSummary() {
     { key: 'tasmee', label: 'تسميع' },
     { key: 'tatbeeq', label: 'تطبيق' },
     { key: 'ikhtebar', label: 'اختبار' },
+    { key: 'muraja', label: 'مراجعة' },
   ]
 
   return (

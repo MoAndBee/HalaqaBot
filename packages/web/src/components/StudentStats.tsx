@@ -28,6 +28,7 @@ const SESSION_TYPE_COLORS: Record<string, string> = {
   'تسميع': 'bg-blue-500',
   'تطبيق': 'bg-purple-500',
   'اختبار': 'bg-orange-500',
+  'مراجعة': 'bg-teal-500',
   'تعويض': 'bg-yellow-500',
 }
 
@@ -82,7 +83,8 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
     'دعم': 3,
     'تلاوة': 4,
     'اختبار': 5,
-    'تعويض': 6,
+    'مراجعة': 6,
+    'تعويض': 7,
   }
 
   // Group participations by date (day level)

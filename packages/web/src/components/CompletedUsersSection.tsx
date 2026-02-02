@@ -48,7 +48,7 @@ interface CompletedUsersSectionProps {
   isLocked?: boolean
 }
 
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
+const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'مراجعة', 'تعويض']
 
 function CompletedUserCard({
   user,

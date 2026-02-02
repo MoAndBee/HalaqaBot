@@ -40,7 +40,7 @@ interface DraggableUserProps {
   isLocked?: boolean
 }
 
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'تعويض']
+const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم', 'مراجعة', 'تعويض']
 
 export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers, isLocked }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
