@@ -13,18 +13,8 @@ export type SessionType =
   | 'مراجعة'
   | 'تعويض'
 
-// Main session types (excluding تعويض which is a special case)
+// All session types
 export const SESSION_TYPES: SessionType[] = [
-  'تلاوة',
-  'تسميع',
-  'تطبيق',
-  'اختبار',
-  'دعم',
-  'مراجعة',
-]
-
-// All session types including تعويض (for editing dropdowns)
-export const ALL_SESSION_TYPES: SessionType[] = [
   'تلاوة',
   'تسميع',
   'تطبيق',

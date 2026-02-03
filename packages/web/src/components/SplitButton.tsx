@@ -71,12 +71,6 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
               {type}
             </DropdownMenuItem>
           ))}
-          <DropdownMenuItem
-            onClick={() => handleSelectType('تعويض')}
-            className="cursor-pointer text-base py-2"
-          >
-            تعويض
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

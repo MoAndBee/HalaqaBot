@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { ALL_SESSION_TYPES, type SessionType } from '@/lib/session-types'
+import { SESSION_TYPES, type SessionType } from '@/lib/session-types'
 
 interface CompletedUser {
   entryId?: string
@@ -255,7 +255,7 @@ function CompletedUserCard({
                   <SelectValue placeholder="اختر" />
                 </SelectTrigger>
                 <SelectContent dir="rtl">
-                  {ALL_SESSION_TYPES.map((type) => (
+                  {SESSION_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>{type}</SelectItem>
                   ))}
                 </SelectContent>
