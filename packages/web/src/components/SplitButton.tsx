@@ -7,10 +7,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SESSION_TYPES, type SessionType } from '@/lib/session-types'
 
-export type SessionType = 'تلاوة' | 'تسميع' | 'تطبيق' | 'اختبار' | 'دعم' | 'تعويض'
-
-const SESSION_TYPES: SessionType[] = ['تلاوة', 'تسميع', 'تطبيق', 'اختبار', 'دعم']
+// Re-export SessionType for backwards compatibility
+export type { SessionType } from '@/lib/session-types'
 
 interface SplitButtonProps {
   onComplete: (sessionType: SessionType) => void
@@ -71,12 +71,6 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
               {type}
             </DropdownMenuItem>
           ))}
-          <DropdownMenuItem
-            onClick={() => handleSelectType('تعويض')}
-            className="cursor-pointer text-base py-2"
-          >
-            تعويض
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

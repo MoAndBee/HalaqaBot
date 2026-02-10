@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader } from '~/components/Loader'
+import { SESSION_TYPE_COLORS, SESSION_TYPE_ORDER } from '@/lib/session-types'
 
 interface StudentStatsProps {
   userId: number
@@ -20,15 +21,6 @@ interface Participation {
   sessionNumber: number
   notes?: string | null
   compensatingForDates?: number[] | null
-}
-
-// Color mapping for session types
-const SESSION_TYPE_COLORS: Record<string, string> = {
-  'تلاوة': 'bg-green-500',
-  'تسميع': 'bg-blue-500',
-  'تطبيق': 'bg-purple-500',
-  'اختبار': 'bg-orange-500',
-  'تعويض': 'bg-yellow-500',
 }
 
 export function StudentStats({ userId, onBack }: StudentStatsProps) {
@@ -75,16 +67,6 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   // We want Sat=0, Sun=1, Mon=2, ..., Fri=6
   const adjustedStartingDay = (startingDayOfWeek + 1) % 7
 
-  // Define sort order for participation types (for visual consistency)
-  const typeOrder: Record<string, number> = {
-    'تسميع': 1,
-    'تطبيق': 2,
-    'دعم': 3,
-    'تلاوة': 4,
-    'اختبار': 5,
-    'تعويض': 6,
-  }
-
   // Group participations by date (day level)
   const participationsByDate: Record<string, Participation[]> = {}
   participations.forEach((p) => {
@@ -112,8 +94,8 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   // Sort participations within each day by type for visual consistency
   Object.keys(participationsByDate).forEach((dateKey) => {
     participationsByDate[dateKey].sort((a, b) => {
-      const orderA = typeOrder[a.sessionType] || 999
-      const orderB = typeOrder[b.sessionType] || 999
+      const orderA = SESSION_TYPE_ORDER[a.sessionType] || 999
+      const orderB = SESSION_TYPE_ORDER[b.sessionType] || 999
       return orderA - orderB
     })
   })
