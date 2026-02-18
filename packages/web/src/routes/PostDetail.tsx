@@ -168,6 +168,8 @@ export default function PostDetail() {
   const lockSession = useMutation(api.mutations.lockSession)
   const unlockSession = useMutation(api.mutations.unlockSession)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
+  const muteParticipantAction = useAction(api.actions.muteParticipant)
+  const unmuteParticipantAction = useAction(api.actions.unmuteParticipant)
 
   // Auto-assign supervisor on first page load if no supervisor is assigned (Option A)
   React.useEffect(() => {
@@ -666,6 +668,35 @@ export default function PostDetail() {
     }
   }
 
+  const handleMuteParticipant = async (userId: number) => {
+    try {
+      await muteParticipantAction({
+        chatId,
+        postId,
+        userId,
+        mutedBy: telegramUser?.id,
+      })
+      toast.success('تم كتم المشارك')
+    } catch (error) {
+      toast.error('فشل كتم المشارك')
+      console.error('Mute participant failed:', error)
+    }
+  }
+
+  const handleUnmuteParticipant = async (userId: number) => {
+    try {
+      await unmuteParticipantAction({
+        chatId,
+        postId,
+        userId,
+      })
+      toast.success('تم رفع الكتم')
+    } catch (error) {
+      toast.error('فشل رفع الكتم')
+      console.error('Unmute participant failed:', error)
+    }
+  }
+
   const handleLockSession = async () => {
     if (!data) return
 
@@ -912,6 +943,8 @@ export default function PostDetail() {
           onAddTurnAfter3={handleAddTurnAfter3}
           onEditNotes={handleOpenEditNotes}
           onSetCompensation={handleSetCompensationDates}
+          onMute={handleMuteParticipant}
+          onUnmute={handleUnmuteParticipant}
           isLocked={sessionInfo?.isLocked || false}
         />
       </div>

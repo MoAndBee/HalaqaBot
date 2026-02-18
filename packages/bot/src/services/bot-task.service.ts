@@ -69,6 +69,10 @@ export class BotTaskService {
     try {
       if (task.type === "send_participant_list") {
         await this.handleSendParticipantList(task);
+      } else if (task.type === "mute_participant") {
+        await this.handleMuteParticipant(task);
+      } else if (task.type === "unmute_participant") {
+        await this.handleUnmuteParticipant(task);
       } else {
         throw new Error(`Unknown task type: ${task.type}`);
       }
@@ -241,5 +245,71 @@ export class BotTaskService {
     });
 
     console.log(`✅ Sent participant list message ${sentMessage.message_id}`);
+  }
+
+  private async handleMuteParticipant(task: any) {
+    const { chatId, targetUserId } = task;
+
+    if (!targetUserId) {
+      throw new Error("mute_participant task missing targetUserId");
+    }
+
+    await this.bot.api.restrictChatMember(chatId, targetUserId, {
+      permissions: {
+        can_send_messages: false,
+        can_send_audios: false,
+        can_send_documents: false,
+        can_send_photos: false,
+        can_send_videos: false,
+        can_send_video_notes: false,
+        can_send_voice_notes: false,
+        can_send_polls: false,
+        can_send_other_messages: false,
+        can_add_web_page_previews: false,
+        can_change_info: false,
+        can_invite_users: false,
+        can_pin_messages: false,
+      },
+    });
+
+    await this.convex.mutation(api.mutations.updateBotTask, {
+      taskId: task._id,
+      status: "completed",
+    });
+
+    console.log(`✅ Muted participant ${targetUserId} in chat ${chatId}`);
+  }
+
+  private async handleUnmuteParticipant(task: any) {
+    const { chatId, targetUserId } = task;
+
+    if (!targetUserId) {
+      throw new Error("unmute_participant task missing targetUserId");
+    }
+
+    await this.bot.api.restrictChatMember(chatId, targetUserId, {
+      permissions: {
+        can_send_messages: true,
+        can_send_audios: true,
+        can_send_documents: true,
+        can_send_photos: true,
+        can_send_videos: true,
+        can_send_video_notes: true,
+        can_send_voice_notes: true,
+        can_send_polls: true,
+        can_send_other_messages: true,
+        can_add_web_page_previews: true,
+        can_change_info: false,
+        can_invite_users: true,
+        can_pin_messages: false,
+      },
+    });
+
+    await this.convex.mutation(api.mutations.updateBotTask, {
+      taskId: task._id,
+      status: "completed",
+    });
+
+    console.log(`✅ Unmuted participant ${targetUserId} in chat ${chatId}`);
   }
 }

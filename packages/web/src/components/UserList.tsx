@@ -42,6 +42,8 @@ interface UserListProps {
   onAddTurnAfter3: (userId: number, currentPosition: number | undefined) => Promise<void>
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
+  onMute?: (userId: number) => void
+  onUnmute?: (userId: number) => void
   isLocked: boolean
 }
 
@@ -60,6 +62,8 @@ export function UserList({
   onAddTurnAfter3,
   onEditNotes,
   onSetCompensation,
+  onMute,
+  onUnmute,
   isLocked
 }: UserListProps) {
   const [items, setItems] = useState(activeUsers)
@@ -355,6 +359,8 @@ export function UserList({
                     onMoveToPosition={handleMoveToPosition}
                     onEditNotes={onEditNotes}
                     onSetCompensation={onSetCompensation}
+                    onMute={onMute}
+                    onUnmute={onUnmute}
                     totalUsers={items.length}
                     isLocked={isLocked}
                   />

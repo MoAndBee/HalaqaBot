@@ -136,11 +136,12 @@ export default defineSchema({
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
 
   botTasks: defineTable({
-    type: v.string(), // "send_participant_list"
+    type: v.string(), // "send_participant_list" | "mute_participant" | "unmute_participant"
     chatId: v.number(),
     postId: v.number(),
     sessionNumber: v.optional(v.number()),
     flower: v.optional(v.string()), // flower emoji to use in formatting
+    targetUserId: v.optional(v.number()), // userId for mute/unmute tasks
     status: v.string(), // "pending", "processing", "completed", "failed"
     resultMessageId: v.optional(v.number()), // message ID after sending
     error: v.optional(v.string()), // error message if failed
@@ -149,6 +150,16 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_chat_post", ["chatId", "postId"]),
+
+  // Tracks users muted by admins in a group chat during live sessions
+  mutedParticipants: defineTable({
+    chatId: v.number(), // group chat ID where the user is muted
+    userId: v.number(), // Telegram user ID of the muted participant
+    mutedAt: v.number(), // timestamp in ms
+    mutedBy: v.optional(v.number()), // admin userId who performed the mute
+  })
+    .index("by_chat_user", ["chatId", "userId"])
+    .index("by_chat", ["chatId"]),
 
   // Channel administrators cache for authorization
   channelAdmins: defineTable({

@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
-import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash } from 'lucide-react'
+import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash, MicOff, Mic } from 'lucide-react'
 import type { User } from '@halakabot/db'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,11 +36,13 @@ interface DraggableUserProps {
   onMoveToPosition?: (entryId: string, position: number) => void
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
+  onMute?: (userId: number) => void
+  onUnmute?: (userId: number) => void
   totalUsers?: number
   isLocked?: boolean
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers, isLocked }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, onMute, onUnmute, totalUsers, isLocked }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
@@ -164,6 +166,18 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     setSelectedType(null)
   }
 
+  const handleMute = () => {
+    if (onMute) {
+      onMute(user.id)
+    }
+  }
+
+  const handleUnmute = () => {
+    if (onUnmute) {
+      onUnmute(user.id)
+    }
+  }
+
   const handleCopyId = async () => {
     try {
       await navigator.clipboard.writeText(user.id.toString())
@@ -241,6 +255,19 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 <DropdownMenuItem onClick={handleMoveToEnd} disabled={isLocked}>
                   <ArrowDown className="h-4 w-4 ml-2" />
                   نقل إلى آخر القائمة
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              {onUnmute && user.isMuted && (
+                <DropdownMenuItem onClick={handleUnmute}>
+                  <Mic className="h-4 w-4 ml-2" />
+                  رفع الكتم
+                </DropdownMenuItem>
+              )}
+              {onMute && !user.isMuted && (
+                <DropdownMenuItem onClick={handleMute} className="text-amber-600 focus:text-amber-600">
+                  <MicOff className="h-4 w-4 ml-2" />
+                  كتم المشارك
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -327,6 +354,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
             </>
           )}
         </div>
+
+        {!isEditing && user.isMuted && (
+          <div className="shrink-0" title="مكتوم">
+            <MicOff className="h-4 w-4 text-amber-500" />
+          </div>
+        )}
 
         {!isEditing && (
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">

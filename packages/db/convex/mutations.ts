@@ -1303,6 +1303,7 @@ export const createBotTask = mutation({
     postId: v.number(),
     sessionNumber: v.optional(v.number()),
     flower: v.optional(v.string()),
+    targetUserId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const taskId = await ctx.db.insert("botTasks", {
@@ -1311,6 +1312,7 @@ export const createBotTask = mutation({
       postId: args.postId,
       sessionNumber: args.sessionNumber,
       flower: args.flower,
+      targetUserId: args.targetUserId,
       status: "pending",
       createdAt: Date.now(),
     });
@@ -1598,5 +1600,84 @@ export const registerUser = mutation({
 
     console.log(`Manually registered user: ${trimmedName} with userId ${newUserId}`);
     return { userId: newUserId, name: trimmedName };
+  },
+});
+
+/**
+ * Record a participant as muted in the group chat.
+ * The bot will pick up the associated task and call restrictChatMember.
+ */
+export const muteParticipant = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    userId: v.number(),
+    mutedBy: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Check if already muted
+    const existing = await ctx.db
+      .query("mutedParticipants")
+      .withIndex("by_chat_user", (q) =>
+        q.eq("chatId", args.chatId).eq("userId", args.userId)
+      )
+      .first();
+
+    if (!existing) {
+      await ctx.db.insert("mutedParticipants", {
+        chatId: args.chatId,
+        userId: args.userId,
+        mutedAt: Date.now(),
+        mutedBy: args.mutedBy,
+      });
+    }
+
+    // Create a bot task to apply the Telegram restriction
+    const taskId = await ctx.db.insert("botTasks", {
+      type: "mute_participant",
+      chatId: args.chatId,
+      postId: args.postId,
+      targetUserId: args.userId,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+
+    return { taskId };
+  },
+});
+
+/**
+ * Remove the mute record for a participant and queue an unmute bot task.
+ */
+export const unmuteParticipant = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Remove from muted table
+    const existing = await ctx.db
+      .query("mutedParticipants")
+      .withIndex("by_chat_user", (q) =>
+        q.eq("chatId", args.chatId).eq("userId", args.userId)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+    }
+
+    // Create a bot task to lift the Telegram restriction
+    const taskId = await ctx.db.insert("botTasks", {
+      type: "unmute_participant",
+      chatId: args.chatId,
+      postId: args.postId,
+      targetUserId: args.userId,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+
+    return { taskId };
   },
 });

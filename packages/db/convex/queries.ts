@@ -100,6 +100,13 @@ export const getUserList = query({
       )
       .collect();
 
+    // Fetch muted participants for this chat
+    const mutedRecords = await ctx.db
+      .query("mutedParticipants")
+      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .collect();
+    const mutedUserIds = new Set(mutedRecords.map((m) => m.userId));
+
     // Join active users with users table
     const activeUsers = await Promise.all(
       queueEntries.map(async (entry) => {
@@ -122,6 +129,7 @@ export const getUserList = query({
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
           wasSkipped: entry.wasSkipped,
+          isMuted: mutedUserIds.has(entry.userId),
         };
       })
     );
@@ -734,9 +742,24 @@ export const getPendingBotTasks = query({
       postId: task.postId,
       sessionNumber: task.sessionNumber,
       flower: task.flower,
+      targetUserId: task.targetUserId,
       status: task.status,
       createdAt: task.createdAt,
     }));
+  },
+});
+
+export const getMutedParticipants = query({
+  args: {
+    chatId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const muted = await ctx.db
+      .query("mutedParticipants")
+      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .collect();
+
+    return muted.map((m) => m.userId);
   },
 });
 
