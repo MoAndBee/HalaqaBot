@@ -639,6 +639,33 @@ export const getUserParticipations = query({
   },
 });
 
+export const getMessagesForPost = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .order("asc")
+      .collect();
+
+    return messages.map((msg) => ({
+      messageId: msg.messageId,
+      userId: msg.userId,
+      firstName: msg.firstName,
+      lastName: msg.lastName,
+      username: msg.username,
+      messageText: msg.messageText,
+      createdAt: msg.createdAt,
+      isPost: msg.messageId === args.postId,
+    }));
+  },
+});
+
 export const getMessagesByUserId = query({
   args: {
     userId: v.number(),
