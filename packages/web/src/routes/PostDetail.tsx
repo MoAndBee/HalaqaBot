@@ -724,29 +724,6 @@ export default function PostDetail() {
     )
   }
 
-  const registeredUserIds = React.useMemo(() => {
-    const ids = new Set<number>()
-    data?.activeUsers.forEach((u: User) => ids.add(u.id))
-    data?.completedUsers.forEach((u: User) => ids.add(u.id))
-    return ids
-  }, [data?.activeUsers, data?.completedUsers])
-
-  const handleAddFromMessages = async (userId: number, sessionType: string | undefined) => {
-    try {
-      await addUserToList({
-        chatId,
-        postId,
-        userId,
-        sessionNumber: data?.currentSession,
-        sessionType,
-      })
-      toast.success('تم إضافة المستخدم!')
-    } catch (error: any) {
-      toast.error(error?.message || 'فشل إضافة المستخدم')
-      throw error
-    }
-  }
-
   // Count unique users (some users may have multiple participation types)
   const uniqueUserIds = new Set([
     ...data.activeUsers.map(u => u.id),
@@ -935,9 +912,6 @@ export default function PostDetail() {
             postId={postId}
             postDate={postDetails?.createdAt ? new Date(postDetails.createdAt) : undefined}
             onClose={() => setShowMessages(false)}
-            registeredUserIds={registeredUserIds}
-            onAddToQueue={handleAddFromMessages}
-            isLocked={sessionInfo?.isLocked || false}
           />
         ) : (
           <UserList

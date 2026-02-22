@@ -10,9 +10,6 @@ interface PostMessagesViewProps {
   postId: number
   postDate?: Date
   onClose: () => void
-  registeredUserIds?: Set<number>
-  onAddToQueue?: (userId: number, sessionType: string | undefined) => Promise<void>
-  isLocked?: boolean
 }
 
 function getInitials(firstName: string, lastName?: string) {
@@ -52,23 +49,8 @@ function avatarColor(userId: number) {
   return AVATAR_COLORS[userId % AVATAR_COLORS.length]
 }
 
-export function PostMessagesView({ chatId, postId, postDate, onClose, registeredUserIds, onAddToQueue, isLocked }: PostMessagesViewProps) {
+export function PostMessagesView({ chatId, postId, postDate, onClose }: PostMessagesViewProps) {
   const messages = useQuery(api.queries.getMessagesForPost, { chatId, postId })
-  const [loadingUsers, setLoadingUsers] = React.useState<Set<number>>(new Set())
-
-  const handleRegister = async (userId: number, sessionType: string | undefined) => {
-    if (!onAddToQueue || loadingUsers.has(userId)) return
-    setLoadingUsers(prev => new Set(prev).add(userId))
-    try {
-      await onAddToQueue(userId, sessionType)
-    } finally {
-      setLoadingUsers(prev => {
-        const next = new Set(prev)
-        next.delete(userId)
-        return next
-      })
-    }
-  }
 
   const comments = messages?.filter((m) => !m.isPost) ?? []
   const postMessage = messages?.find((m) => m.isPost)
@@ -152,28 +134,10 @@ export function PostMessagesView({ chatId, postId, postDate, onClose, registered
                   {/* Bubble */}
                   <div className="flex-1 min-w-0">
                     {!isSameUser && (
-                      <div className="flex items-center gap-1.5 mb-0.5 px-1">
+                      <div className="flex items-baseline gap-1.5 mb-0.5 px-1">
                         <span className="text-xs font-semibold text-foreground truncate">{senderName}</span>
                         {msg.username && (
                           <span className="text-[10px] text-muted-foreground flex-shrink-0">@{msg.username}</span>
-                        )}
-                        {onAddToQueue && !isLocked && (
-                          registeredUserIds?.has(msg.userId) ? (
-                            <span className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
-                              {senderName} ✔️
-                            </span>
-                          ) : loadingUsers.has(msg.userId) ? (
-                            <span className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                              ...
-                            </span>
-                          ) : (
-                            <button
-                              className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
-                              onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined)}
-                            >
-                              + دور
-                            </button>
-                          )
                         )}
                       </div>
                     )}
