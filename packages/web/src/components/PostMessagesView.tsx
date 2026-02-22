@@ -155,6 +155,52 @@ export function PostMessagesView({ chatId, postId, postDate, onClose }: PostMess
                         {formatTime(msg.createdAt)}
                       </span>
                     </div>
+
+                    {/* Metadata row */}
+                    <div className="flex flex-wrap items-center gap-1 mt-1 px-1">
+                      {/* Classification */}
+                      {msg.classification === null ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                          لم تُصنَّف
+                        </span>
+                      ) : (
+                        <>
+                          {msg.classification.activityType ? (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
+                              msg.classification.activityType === 'تسميع'
+                                ? 'bg-green-50 text-green-700 border-green-200'
+                                : 'bg-blue-50 text-blue-700 border-blue-200'
+                            }`}>
+                              {msg.classification.activityType}
+                            </span>
+                          ) : null}
+                          {msg.classification.containsName && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                              ✓ اسم
+                            </span>
+                          )}
+                        </>
+                      )}
+
+                      {/* User profile */}
+                      {msg.user === null ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                          غير مسجَّل
+                        </span>
+                      ) : msg.user.realName ? (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                          msg.user.realNameVerified
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-muted text-muted-foreground border-border'
+                        }`}>
+                          {msg.user.realNameVerified ? '✓ ' : '~ '}{msg.user.realName}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                          بدون اسم حقيقي
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
