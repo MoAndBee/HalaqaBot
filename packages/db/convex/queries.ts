@@ -653,16 +653,48 @@ export const getMessagesForPost = query({
       .order("asc")
       .collect();
 
-    return messages.map((msg) => ({
-      messageId: msg.messageId,
-      userId: msg.userId,
-      firstName: msg.firstName,
-      lastName: msg.lastName,
-      username: msg.username,
-      messageText: msg.messageText,
-      createdAt: msg.createdAt,
-      isPost: msg.messageId === args.postId,
-    }));
+    const enriched = await Promise.all(
+      messages.map(async (msg) => {
+        const [classification, user] = await Promise.all([
+          ctx.db
+            .query("messageClassifications")
+            .withIndex("by_chat_post_message", (q) =>
+              q.eq("chatId", args.chatId).eq("postId", args.postId).eq("messageId", msg.messageId)
+            )
+            .unique(),
+          ctx.db
+            .query("users")
+            .withIndex("by_user_id", (q) => q.eq("userId", msg.userId))
+            .unique(),
+        ]);
+
+        return {
+          messageId: msg.messageId,
+          userId: msg.userId,
+          firstName: msg.firstName,
+          lastName: msg.lastName,
+          username: msg.username,
+          messageText: msg.messageText,
+          createdAt: msg.createdAt,
+          isPost: msg.messageId === args.postId,
+          classification: classification
+            ? {
+                activityType: classification.activityType,
+                containsName: classification.containsName,
+              }
+            : null,
+          user: user
+            ? {
+                realName: user.realName,
+                realNameVerified: user.realNameVerified,
+                telegramName: user.telegramName,
+              }
+            : null,
+        };
+      })
+    );
+
+    return enriched;
   },
 });
 
