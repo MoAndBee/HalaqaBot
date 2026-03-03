@@ -486,6 +486,72 @@ export const getAllPosts = query({
   },
 });
 
+export const getPaginatedPosts = query({
+  args: {
+    page: v.number(),
+    pageSize: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Get users from both turnQueue and participationHistory
+    const queueUsers = await ctx.db.query("turnQueue").collect();
+    const completedUsers = await ctx.db.query("participationHistory").collect();
+    const allUsers = [...queueUsers, ...completedUsers];
+
+    const allMessages = await ctx.db.query("messageAuthors").collect();
+
+    // Create a map of post keys to earliest message timestamp
+    const postDatesMap = new Map<string, number>();
+    for (const msg of allMessages) {
+      const key = `${msg.chatId}-${msg.postId}`;
+      const existingDate = postDatesMap.get(key);
+      if (!existingDate || msg.createdAt < existingDate) {
+        postDatesMap.set(key, msg.createdAt);
+      }
+    }
+
+    const postsMap = new Map<
+      string,
+      { chatId: number; postId: number; userCount: number; createdAt: number; userIds: Set<number> }
+    >();
+
+    for (const user of allUsers) {
+      const key = `${user.chatId}-${user.postId}`;
+      if (!postsMap.has(key)) {
+        postsMap.set(key, {
+          chatId: user.chatId,
+          postId: user.postId,
+          userCount: 0,
+          createdAt: postDatesMap.get(key) ?? Date.now(),
+          userIds: new Set(),
+        });
+      }
+      postsMap.get(key)!.userIds.add(user.userId);
+    }
+
+    for (const post of postsMap.values()) {
+      post.userCount = post.userIds.size;
+    }
+
+    const allPosts = Array.from(postsMap.values())
+      .map(({ chatId, postId, userCount, createdAt }) => ({
+        chatId,
+        postId,
+        userCount,
+        createdAt,
+      }))
+      .sort((a, b) => {
+        if (a.chatId !== b.chatId) return a.chatId - b.chatId;
+        return b.postId - a.postId;
+      });
+
+    const totalCount = allPosts.length;
+    const start = args.page * args.pageSize;
+    const posts = allPosts.slice(start, start + args.pageSize);
+
+    return { posts, totalCount };
+  },
+});
+
 export const getPostDetails = query({
   args: {
     chatId: v.number(),
