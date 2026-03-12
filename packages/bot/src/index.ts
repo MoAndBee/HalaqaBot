@@ -47,6 +47,7 @@ bot.catch((err) => {
 console.log("Starting bot...");
 bot.start({
   allowed_updates: ["message", "message_reaction", "channel_post"],
+  drop_pending_updates: true,
   onStart: (botInfo) => {
     console.log(`Bot @${botInfo.username} is running!`);
     console.log("Listening for reactions and channel posts...");
