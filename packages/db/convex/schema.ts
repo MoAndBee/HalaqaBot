@@ -150,6 +150,15 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_chat_post", ["chatId", "postId"]),
 
+  // Unique posts (chatId + postId pairs) for efficient pagination
+  posts: defineTable({
+    chatId: v.number(),
+    postId: v.number(),
+    createdAt: v.number(), // earliest known timestamp for this post
+  })
+    .index("by_chat_post", ["chatId", "postId"])
+    .index("by_created_at", ["createdAt"]),
+
   // Channel administrators cache for authorization
   channelAdmins: defineTable({
     channelId: v.number(), // Telegram channel ID

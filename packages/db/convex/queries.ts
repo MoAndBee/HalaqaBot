@@ -1,5 +1,6 @@
-import { query } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 
 export const getMessageAuthor = query({
   args: {
@@ -423,6 +424,45 @@ export const getUnclassifiedMessages = query({
     return Array.from(uniqueMessages.values()).sort(
       (a, b) => a.messageId - b.messageId
     );
+  },
+});
+
+export const getPaginatedPosts = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("posts")
+      .withIndex("by_created_at")
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    const enriched = await Promise.all(
+      result.page.map(async (post) => {
+        const queueUsers = await ctx.db
+          .query("turnQueue")
+          .withIndex("by_chat_post", (q) =>
+            q.eq("chatId", post.chatId).eq("postId", post.postId)
+          )
+          .collect();
+        const completedUsers = await ctx.db
+          .query("participationHistory")
+          .withIndex("by_chat_post", (q) =>
+            q.eq("chatId", post.chatId).eq("postId", post.postId)
+          )
+          .collect();
+        const uniqueUsers = new Set(
+          [...queueUsers, ...completedUsers].map((u) => u.userId)
+        );
+        return {
+          chatId: post.chatId,
+          postId: post.postId,
+          createdAt: post.createdAt,
+          userCount: uniqueUsers.size,
+        };
+      })
+    );
+
+    return { ...result, page: enriched };
   },
 });
 
@@ -1038,5 +1078,16 @@ export const getSessionSupervisorName = query({
     const fullName = `${firstName} ${lastName}`.trim();
 
     return fullName || null;
+  },
+});
+
+
+// Internal: paginates through messageAuthors for the backfill action
+export const getMessageAuthorsBatch = internalQuery({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("messageAuthors")
+      .paginate({ numItems: 500, cursor: args.cursor });
   },
 });
