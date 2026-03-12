@@ -1029,9 +1029,10 @@ export const getAdminDisplayName = query({
 });
 
 /**
- * Get the supervisor display name for a session
- * Returns the name of the admin who is supervising the session
- * Returns null if no supervisor is assigned
+ * Get the supervisor display names for a session (comma-separated Arabic).
+ * Supports multiple supervisors via supervisorUserIds, falling back to the legacy
+ * supervisorUserId field for existing records.
+ * Returns null if no supervisor is assigned.
  */
 export const getSessionSupervisorName = query({
   args: {
@@ -1051,33 +1052,105 @@ export const getSessionSupervisorName = query({
       )
       .first();
 
-    if (!session || !session.supervisorUserId) {
+    if (!session) {
       return null;
     }
 
-    // Find the admin in channelAdmins table
-    const admin = await ctx.db
-      .query("channelAdmins")
-      .withIndex("by_channel_user", (q) =>
-        q.eq("channelId", args.channelId).eq("userId", session.supervisorUserId)
+    // Resolve effective supervisor IDs: prefer new array, fall back to legacy single value
+    let supervisorIds: number[] = [];
+    if (session.supervisorUserIds && session.supervisorUserIds.length > 0) {
+      supervisorIds = session.supervisorUserIds;
+    } else if (session.supervisorUserId) {
+      supervisorIds = [session.supervisorUserId];
+    }
+
+    if (supervisorIds.length === 0) {
+      return null;
+    }
+
+    // Look up each admin and resolve their display name
+    const names: string[] = [];
+    for (const userId of supervisorIds) {
+      const admin = await ctx.db
+        .query("channelAdmins")
+        .withIndex("by_channel_user", (q) =>
+          q.eq("channelId", args.channelId).eq("userId", userId)
+        )
+        .first();
+
+      if (!admin) {
+        console.log(`Supervisor ${userId} not found in channel ${args.channelId}`);
+        continue;
+      }
+
+      if (admin.preferredName) {
+        names.push(admin.preferredName);
+      } else {
+        const firstName = admin.firstName || "";
+        const lastName = admin.lastName || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        if (fullName) names.push(fullName);
+      }
+    }
+
+    return names.length > 0 ? names.join("، ") : null;
+  },
+});
+
+/**
+ * Get the list of supervisors for a session as {userId, name} pairs.
+ * Used by the UI to show each admin individually with a remove button.
+ */
+export const getSessionSupervisors = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    channelId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
       )
       .first();
 
-    if (!admin) {
-      console.log(`Supervisor ${session.supervisorUserId} not found in channel ${args.channelId}`);
-      return null;
+    if (!session) {
+      return [];
     }
 
-    // Use preferredName if set, otherwise construct from firstName + lastName
-    if (admin.preferredName) {
-      return admin.preferredName;
+    let supervisorIds: number[] = [];
+    if (session.supervisorUserIds && session.supervisorUserIds.length > 0) {
+      supervisorIds = session.supervisorUserIds;
+    } else if (session.supervisorUserId) {
+      supervisorIds = [session.supervisorUserId];
     }
 
-    const firstName = admin.firstName || "";
-    const lastName = admin.lastName || "";
-    const fullName = `${firstName} ${lastName}`.trim();
+    const result: { userId: number; name: string }[] = [];
+    for (const userId of supervisorIds) {
+      const admin = await ctx.db
+        .query("channelAdmins")
+        .withIndex("by_channel_user", (q) =>
+          q.eq("channelId", args.channelId).eq("userId", userId)
+        )
+        .first();
 
-    return fullName || null;
+      let name = `#${userId}`;
+      if (admin) {
+        if (admin.preferredName) {
+          name = admin.preferredName;
+        } else {
+          const fullName = `${admin.firstName || ""} ${admin.lastName || ""}`.trim();
+          if (fullName) name = fullName;
+        }
+      }
+      result.push({ userId, name });
+    }
+
+    return result;
   },
 });
 
