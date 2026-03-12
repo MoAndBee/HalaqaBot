@@ -479,10 +479,7 @@ export const getAllPosts = query({
         userCount,
         createdAt,
       }))
-      .sort((a, b) => {
-        if (a.chatId !== b.chatId) return a.chatId - b.chatId;
-        return b.postId - a.postId;
-      });
+      .sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 
