@@ -1090,3 +1090,23 @@ export const getMessageAuthorsBatch = internalQuery({
       .paginate({ numItems: 500, cursor: args.cursor });
   },
 });
+
+// Internal: paginates through turnQueue for the backfill action
+export const getTurnQueueBatch = internalQuery({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("turnQueue")
+      .paginate({ numItems: 500, cursor: args.cursor });
+  },
+});
+
+// Internal: paginates through participationHistory for the backfill action
+export const getParticipationHistoryBatch = internalQuery({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("participationHistory")
+      .paginate({ numItems: 500, cursor: args.cursor });
+  },
+});

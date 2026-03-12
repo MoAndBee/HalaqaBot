@@ -35,35 +35,57 @@ export const sendParticipantList = action({
 });
 
 /**
- * One-time backfill: populates the posts table from existing messageAuthors data.
- * Run this once from the Convex dashboard after deploying the schema change.
+ * One-time backfill: populates the posts table from turnQueue and participationHistory.
+ * Only creates post records for posts that have actual participants — informational
+ * channel posts (with no users) are excluded.
+ *
+ * Uses _creationTime (Convex's immutable system field) for reliable timestamps.
  */
 export const backfillPosts = action({
   args: {},
   handler: async (ctx) => {
-    let cursor: string | null = null;
-    let totalUpserted = 0;
+    // Collect unique chatId+postId pairs with earliest timestamp
+    const postMap = new Map<string, { chatId: number; postId: number; createdAt: number }>();
 
-    do {
-      const page: { page: { chatId: number; postId: number; createdAt: number }[]; isDone: boolean; continueCursor: string } =
-        await ctx.runQuery(internal.queries.getMessageAuthorsBatch, { cursor });
-
-      const postMap = new Map<string, { chatId: number; postId: number; createdAt: number }>();
-      for (const msg of page.page) {
-        const key = `${msg.chatId}-${msg.postId}`;
-        const existing = postMap.get(key);
-        if (!existing || msg.createdAt < existing.createdAt) {
-          postMap.set(key, { chatId: msg.chatId, postId: msg.postId, createdAt: msg.createdAt });
+    // Helper: paginate through a table and accumulate posts
+    async function collectPosts(
+      queryFn: (args: { cursor: string | null }) => Promise<{
+        page: { chatId: number; postId: number; _creationTime: number }[];
+        isDone: boolean;
+        continueCursor: string;
+      }>
+    ) {
+      let cursor: string | null = null;
+      do {
+        const page = await queryFn({ cursor });
+        for (const entry of page.page) {
+          const key = `${entry.chatId}-${entry.postId}`;
+          const timestamp = entry._creationTime;
+          const existing = postMap.get(key);
+          if (!existing || timestamp < existing.createdAt) {
+            postMap.set(key, { chatId: entry.chatId, postId: entry.postId, createdAt: timestamp });
+          }
         }
-      }
+        cursor = page.isDone ? null : page.continueCursor;
+      } while (cursor !== null);
+    }
 
-      for (const post of postMap.values()) {
-        await ctx.runMutation(internal.mutations.upsertPostRecord, post);
-        totalUpserted++;
-      }
+    // Scan turnQueue (active participants)
+    await collectPosts((args) =>
+      ctx.runQuery(internal.queries.getTurnQueueBatch, args)
+    );
 
-      cursor = page.isDone ? null : page.continueCursor;
-    } while (cursor !== null);
+    // Scan participationHistory (completed participants)
+    await collectPosts((args) =>
+      ctx.runQuery(internal.queries.getParticipationHistoryBatch, args)
+    );
+
+    // Upsert only posts that have real participants
+    let totalUpserted = 0;
+    for (const post of postMap.values()) {
+      await ctx.runMutation(internal.mutations.upsertPostRecord, post);
+      totalUpserted++;
+    }
 
     return { totalUpserted };
   },
