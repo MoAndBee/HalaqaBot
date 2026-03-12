@@ -34,114 +34,37 @@ export const sendParticipantList = action({
   },
 });
 
-type BatchPage = {
-  page: { chatId: number; postId: number; createdAt: number }[];
-  isDone: boolean;
-  continueCursor: string;
-};
-
 /**
- * Paginates through a table using the given internal query and upserts all
- * unique chatId+postId pairs into the posts table.
- */
-async function backfillFromTable(
-  ctx: { runQuery: (fn: any, args: any) => Promise<any>; runMutation: (fn: any, args: any) => Promise<any> },
-  queryFn: any,
-  tableName: string
-): Promise<number> {
-  let cursor: string | null = null;
-  let count = 0;
-
-  do {
-    const page: BatchPage = await ctx.runQuery(queryFn, { cursor });
-
-    const postMap = new Map<string, { chatId: number; postId: number; createdAt: number }>();
-    for (const row of page.page) {
-      const key = `${row.chatId}-${row.postId}`;
-      const existing = postMap.get(key);
-      if (!existing || row.createdAt < existing.createdAt) {
-        postMap.set(key, { chatId: row.chatId, postId: row.postId, createdAt: row.createdAt });
-      }
-    }
-
-    for (const post of postMap.values()) {
-      await ctx.runMutation(internal.mutations.upsertPostRecord, post);
-      count++;
-    }
-
-    cursor = page.isDone ? null : page.continueCursor;
-  } while (cursor !== null);
-
-  console.log(`backfillPosts: upserted ${count} records from ${tableName}`);
-  return count;
-}
-
-/**
- * One-time backfill: populates the posts table from all four source tables
- * (messageAuthors, userLists, turnQueue, participationHistory).
+ * One-time backfill: populates the posts table from existing messageAuthors data.
  * Run this once from the Convex dashboard after deploying the schema change.
- * Safe to re-run — uses upsert logic so no duplicates will be created.
  */
 export const backfillPosts = action({
   args: {},
   handler: async (ctx) => {
-    const counts = await Promise.all([
-      backfillFromTable(ctx, internal.queries.getMessageAuthorsBatch, "messageAuthors"),
-      backfillFromTable(ctx, internal.queries.getUserListsBatch, "userLists"),
-      backfillFromTable(ctx, internal.queries.getTurnQueueBatch, "turnQueue"),
-      backfillFromTable(ctx, internal.queries.getParticipationHistoryBatch, "participationHistory"),
-    ]);
-
-    return {
-      messageAuthors: counts[0],
-      userLists: counts[1],
-      turnQueue: counts[2],
-      participationHistory: counts[3],
-      totalUpserted: counts.reduce((a, b) => a + b, 0),
-    };
-  },
-});
-
-/**
- * One-time cleanup: removes duplicate entries from the posts table, keeping
- * only the record with the earliest createdAt for each chatId+postId pair.
- * Run this from the Convex dashboard if duplicates were created by a prior
- * bad backfill run.
- */
-export const cleanupDuplicatePosts = action({
-  args: {},
-  handler: async (ctx) => {
     let cursor: string | null = null;
-    const seen = new Map<string, { id: string; createdAt: number }>();
-    const toDelete: string[] = [];
+    let totalUpserted = 0;
 
     do {
-      const page: { page: { _id: string; chatId: number; postId: number; createdAt: number }[]; isDone: boolean; continueCursor: string } =
-        await ctx.runQuery(internal.queries.getPostsBatch, { cursor });
+      const page: { page: { chatId: number; postId: number; createdAt: number }[]; isDone: boolean; continueCursor: string } =
+        await ctx.runQuery(internal.queries.getMessageAuthorsBatch, { cursor });
 
-      for (const post of page.page) {
-        const key = `${post.chatId}-${post.postId}`;
-        const existing = seen.get(key);
-        if (!existing) {
-          seen.set(key, { id: post._id, createdAt: post.createdAt });
-        } else if (post.createdAt < existing.createdAt) {
-          // This record is earlier — keep it, schedule old one for deletion
-          toDelete.push(existing.id);
-          seen.set(key, { id: post._id, createdAt: post.createdAt });
-        } else {
-          // This record is a later duplicate — schedule it for deletion
-          toDelete.push(post._id);
+      const postMap = new Map<string, { chatId: number; postId: number; createdAt: number }>();
+      for (const msg of page.page) {
+        const key = `${msg.chatId}-${msg.postId}`;
+        const existing = postMap.get(key);
+        if (!existing || msg.createdAt < existing.createdAt) {
+          postMap.set(key, { chatId: msg.chatId, postId: msg.postId, createdAt: msg.createdAt });
         }
+      }
+
+      for (const post of postMap.values()) {
+        await ctx.runMutation(internal.mutations.upsertPostRecord, post);
+        totalUpserted++;
       }
 
       cursor = page.isDone ? null : page.continueCursor;
     } while (cursor !== null);
 
-    for (const id of toDelete) {
-      await ctx.runMutation(internal.mutations.deletePostRecord, { id: id as any });
-    }
-
-    console.log(`cleanupDuplicatePosts: deleted ${toDelete.length} duplicate records`);
-    return { deleted: toDelete.length };
+    return { totalUpserted };
   },
 });
