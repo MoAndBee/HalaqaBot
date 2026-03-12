@@ -131,10 +131,10 @@ export const addMessageAuthor = mutation({
       });
     }
 
-    // Track this post for efficient pagination
-    // Use the existing record's original createdAt when available, otherwise now
-    const postCreatedAt = existing ? existing.createdAt : now;
-    await upsertPost(ctx, args.chatId, args.postId, postCreatedAt);
+    // Note: we intentionally do NOT call upsertPost here.
+    // Posts should only be created when users are added to sessions (via addUserToQueue),
+    // not for every message. Otherwise informational channel posts (with no participants)
+    // pollute the posts table.
 
     // Also upsert to users table (only if user ID is valid)
     if (args.user.id !== 0) {
