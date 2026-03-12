@@ -105,7 +105,8 @@ export const addMessageAuthor = mutation({
 
     const now = Date.now();
     if (existing) {
-      // Update existing record
+      // Update existing record — preserve original createdAt so the backfill
+      // (and any timestamp-based logic) always sees the first-seen time.
       await ctx.db.patch(existing._id, {
         userId: args.user.id,
         firstName: args.user.first_name,
@@ -113,7 +114,6 @@ export const addMessageAuthor = mutation({
         username: args.user.username,
         messageText: args.messageText,
         channelId: args.channelId,
-        createdAt: now,
       });
     } else {
       // Insert new record
@@ -132,7 +132,9 @@ export const addMessageAuthor = mutation({
     }
 
     // Track this post for efficient pagination
-    await upsertPost(ctx, args.chatId, args.postId, now);
+    // Use the existing record's original createdAt when available, otherwise now
+    const postCreatedAt = existing ? existing.createdAt : now;
+    await upsertPost(ctx, args.chatId, args.postId, postCreatedAt);
 
     // Also upsert to users table (only if user ID is valid)
     if (args.user.id !== 0) {

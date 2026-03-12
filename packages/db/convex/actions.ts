@@ -37,6 +37,9 @@ export const sendParticipantList = action({
 /**
  * One-time backfill: populates the posts table from existing messageAuthors data.
  * Run this once from the Convex dashboard after deploying the schema change.
+ *
+ * Uses _creationTime (Convex's immutable system field) instead of createdAt,
+ * because createdAt on messageAuthors gets overwritten on updates and is unreliable.
  */
 export const backfillPosts = action({
   args: {},
@@ -45,15 +48,20 @@ export const backfillPosts = action({
     let totalUpserted = 0;
 
     do {
-      const page: { page: { chatId: number; postId: number; createdAt: number }[]; isDone: boolean; continueCursor: string } =
-        await ctx.runQuery(internal.queries.getMessageAuthorsBatch, { cursor });
+      const page: {
+        page: { chatId: number; postId: number; createdAt: number; _creationTime: number }[];
+        isDone: boolean;
+        continueCursor: string;
+      } = await ctx.runQuery(internal.queries.getMessageAuthorsBatch, { cursor });
 
       const postMap = new Map<string, { chatId: number; postId: number; createdAt: number }>();
       for (const msg of page.page) {
         const key = `${msg.chatId}-${msg.postId}`;
+        // Use _creationTime (immutable) instead of createdAt (overwritten on updates)
+        const timestamp = msg._creationTime;
         const existing = postMap.get(key);
-        if (!existing || msg.createdAt < existing.createdAt) {
-          postMap.set(key, { chatId: msg.chatId, postId: msg.postId, createdAt: msg.createdAt });
+        if (!existing || timestamp < existing.createdAt) {
+          postMap.set(key, { chatId: msg.chatId, postId: msg.postId, createdAt: timestamp });
         }
       }
 
