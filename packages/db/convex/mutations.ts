@@ -1132,6 +1132,7 @@ export const startNewSession = mutation({
       teacherName: args.teacherName,
       supervisorName: args.supervisorName, // deprecated, kept for backward compatibility
       supervisorUserId: args.supervisorUserId,
+      supervisorUserIds: [args.supervisorUserId],
       createdAt: Date.now(),
     });
 
