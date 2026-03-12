@@ -4,7 +4,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen, MessageSquare } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
@@ -32,8 +32,8 @@ import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import { UnlockSessionModal } from '~/components/UnlockSessionModal'
-import { ShowMessagesModal } from '~/components/ShowMessagesModal'
 import { PostMessagesView } from '~/components/PostMessagesView'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { SessionType } from '~/components/SplitButton'
 
 function formatUserList(users: User[], isDone: boolean = false): string {
@@ -102,8 +102,7 @@ export default function PostDetail() {
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
-  const [isShowMessagesModalOpen, setIsShowMessagesModalOpen] = React.useState(false)
-  const [showMessages, setShowMessages] = React.useState(false)
+  const [activeTab, setActiveTab] = React.useState<'turns' | 'messages'>('turns')
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
     currentNotes?: string | null
@@ -853,11 +852,6 @@ export default function PostDetail() {
                   إرسال قائمة الأسماء
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setIsShowMessagesModalOpen(true)}>
-                  <MessageSquare className="h-4 w-4 ml-2" />
-                  إظهار الرسائل
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <span className="ml-2">{selectedFlower}</span>
@@ -928,18 +922,13 @@ export default function PostDetail() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto">
-        {showMessages ? (
-          <PostMessagesView
-            chatId={chatId}
-            postId={postId}
-            postDate={postDetails?.createdAt ? new Date(postDetails.createdAt) : undefined}
-            onClose={() => setShowMessages(false)}
-            registeredUserIds={registeredUserIds}
-            onAddToQueue={handleAddFromMessages}
-            isLocked={sessionInfo?.isLocked || false}
-          />
-        ) : (
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'turns' | 'messages')} className="flex-1 min-h-0 flex flex-col">
+        <TabsList className="w-full mb-2" dir="rtl">
+          <TabsTrigger value="turns" className="flex-1">الأدوار</TabsTrigger>
+          <TabsTrigger value="messages" className="flex-1">الرسائل</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="turns" className="flex-1 min-h-0 overflow-auto mt-0">
           <UserList
             chatId={chatId}
             postId={postId}
@@ -957,8 +946,18 @@ export default function PostDetail() {
             onSetCompensation={handleSetCompensationDates}
             isLocked={sessionInfo?.isLocked || false}
           />
-        )}
-      </div>
+        </TabsContent>
+
+        <TabsContent value="messages" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <PostMessagesView
+            chatId={chatId}
+            postId={postId}
+            registeredUserIds={registeredUserIds}
+            onAddToQueue={handleAddFromMessages}
+            isLocked={sessionInfo?.isLocked || false}
+          />
+        </TabsContent>
+      </Tabs>
 
       <AddUserModal
         isOpen={isAddUserModalOpen}
@@ -1004,11 +1003,6 @@ export default function PostDetail() {
         sessionNumber={selectedSession ?? data.currentSession}
       />
 
-      <ShowMessagesModal
-        isOpen={isShowMessagesModalOpen}
-        onClose={() => setIsShowMessagesModalOpen(false)}
-        onUnlock={() => setShowMessages(true)}
-      />
     </div>
   )
 }

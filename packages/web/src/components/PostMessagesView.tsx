@@ -1,15 +1,12 @@
 import React from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
-import { X, MessageSquare } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { MessageSquare } from 'lucide-react'
 import { Loader } from '~/components/Loader'
 
 interface PostMessagesViewProps {
   chatId: number
   postId: number
-  postDate?: Date
-  onClose: () => void
   registeredUserIds?: Set<number>
   onAddToQueue?: (userId: number, sessionType: string | undefined) => Promise<void>
   isLocked?: boolean
@@ -28,15 +25,6 @@ function formatTime(ts: number) {
   })
 }
 
-function formatDate(ts: number) {
-  return new Date(ts).toLocaleDateString('ar-EG', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
-
 const AVATAR_COLORS = [
   'bg-blue-500',
   'bg-green-500',
@@ -52,9 +40,16 @@ function avatarColor(userId: number) {
   return AVATAR_COLORS[userId % AVATAR_COLORS.length]
 }
 
-export function PostMessagesView({ chatId, postId, postDate, onClose, registeredUserIds, onAddToQueue, isLocked }: PostMessagesViewProps) {
+export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQueue, isLocked }: PostMessagesViewProps) {
   const messages = useQuery(api.queries.getMessagesForPost, { chatId, postId })
   const [loadingUsers, setLoadingUsers] = React.useState<Set<number>>(new Set())
+  const bottomRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (messages !== undefined) {
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+    }
+  }, [messages])
 
   const handleRegister = async (userId: number, sessionType: string | undefined) => {
     if (!onAddToQueue || loadingUsers.has(userId)) return
@@ -75,22 +70,6 @@ export function PostMessagesView({ chatId, postId, postDate, onClose, registered
 
   return (
     <div className="flex flex-col h-full" dir="rtl">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-background sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <p className="font-semibold text-sm">رسائل المنشور</p>
-            {postDate && (
-              <p className="text-xs text-muted-foreground">{formatDate(postDate.getTime())}</p>
-            )}
-          </div>
-        </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
       {/* Messages list */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {messages === undefined ? (
@@ -243,6 +222,7 @@ export function PostMessagesView({ chatId, postId, postDate, onClose, registered
             })}
           </>
         )}
+        <div ref={bottomRef} />
       </div>
 
       {/* Footer count */}
