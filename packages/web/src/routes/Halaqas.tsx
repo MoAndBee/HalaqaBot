@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Loader } from '~/components/Loader'
 import { PostsList } from '~/components/PostsList'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
 export default function Halaqas() {
   const posts = useQuery(api.queries.getAllPosts)
