@@ -1,6 +1,6 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 /**
  * Creates a bot task to send the participant list as a message to the post
@@ -31,5 +31,40 @@ export const sendParticipantList = action({
     });
 
     return { success: true, taskId: result.taskId };
+  },
+});
+
+/**
+ * One-time backfill: populates the posts table from existing messageAuthors data.
+ * Run this once from the Convex dashboard after deploying the schema change.
+ */
+export const backfillPosts = action({
+  args: {},
+  handler: async (ctx) => {
+    let cursor: string | null = null;
+    let totalUpserted = 0;
+
+    do {
+      const page: { page: { chatId: number; postId: number; createdAt: number }[]; isDone: boolean; continueCursor: string } =
+        await ctx.runQuery(internal.queries.getMessageAuthorsBatch, { cursor });
+
+      const postMap = new Map<string, { chatId: number; postId: number; createdAt: number }>();
+      for (const msg of page.page) {
+        const key = `${msg.chatId}-${msg.postId}`;
+        const existing = postMap.get(key);
+        if (!existing || msg.createdAt < existing.createdAt) {
+          postMap.set(key, { chatId: msg.chatId, postId: msg.postId, createdAt: msg.createdAt });
+        }
+      }
+
+      for (const post of postMap.values()) {
+        await ctx.runMutation(internal.mutations.upsertPostRecord, post);
+        totalUpserted++;
+      }
+
+      cursor = page.isDone ? null : page.continueCursor;
+    } while (cursor !== null);
+
+    return { totalUpserted };
   },
 });

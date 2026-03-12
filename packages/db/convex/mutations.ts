@@ -1,7 +1,29 @@
-import { mutation } from "./_generated/server";
+import { mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
+
+/**
+ * Upserts a post record. Inserts if new, or updates createdAt if an earlier
+ * timestamp is found (so the post always reflects the earliest known activity).
+ */
+async function upsertPost(
+  ctx: GenericMutationCtx<DataModel>,
+  chatId: number,
+  postId: number,
+  createdAt: number
+): Promise<void> {
+  const existing = await ctx.db
+    .query("posts")
+    .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
+    .first();
+
+  if (!existing) {
+    await ctx.db.insert("posts", { chatId, postId, createdAt });
+  } else if (createdAt < existing.createdAt) {
+    await ctx.db.patch(existing._id, { createdAt });
+  }
+}
 
 /**
  * Helper function to check if a session is locked
@@ -81,6 +103,7 @@ export const addMessageAuthor = mutation({
       )
       .first();
 
+    const now = Date.now();
     if (existing) {
       // Update existing record
       await ctx.db.patch(existing._id, {
@@ -90,7 +113,7 @@ export const addMessageAuthor = mutation({
         username: args.user.username,
         messageText: args.messageText,
         channelId: args.channelId,
-        createdAt: Date.now(),
+        createdAt: now,
       });
     } else {
       // Insert new record
@@ -104,9 +127,12 @@ export const addMessageAuthor = mutation({
         username: args.user.username,
         messageText: args.messageText,
         channelId: args.channelId,
-        createdAt: Date.now(),
+        createdAt: now,
       });
     }
+
+    // Track this post for efficient pagination
+    await upsertPost(ctx, args.chatId, args.postId, now);
 
     // Also upsert to users table (only if user ID is valid)
     if (args.user.id !== 0) {
@@ -207,6 +233,7 @@ export const addUserToList = mutation({
         ? Math.max(...queueUsers.map((u) => u.position))
         : 0;
 
+    const addedAt = Date.now();
     await ctx.db.insert("turnQueue", {
       chatId: args.chatId,
       postId: args.postId,
@@ -214,12 +241,15 @@ export const addUserToList = mutation({
       userId: args.userId,
       position: maxPosition + 1,
       channelId: args.channelId,
-      createdAt: Date.now(),
+      createdAt: addedAt,
       carriedOver: false, // This is a new addition, not carried over
       sessionType: args.sessionType,
       isCompensation: args.isCompensation,
       compensatingForDates: args.compensatingForDates,
     });
+
+    // Track this post for efficient pagination
+    await upsertPost(ctx, args.chatId, args.postId, addedAt);
 
     // Ensure the session exists in the sessions table
     const existingSession = await ctx.db
@@ -1598,5 +1628,17 @@ export const registerUser = mutation({
 
     console.log(`Manually registered user: ${trimmedName} with userId ${newUserId}`);
     return { userId: newUserId, name: trimmedName };
+  },
+});
+
+// Internal: upsert a single post record, used by the backfill action
+export const upsertPostRecord = internalMutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    createdAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await upsertPost(ctx, args.chatId, args.postId, args.createdAt);
   },
 });
