@@ -1642,11 +1642,3 @@ export const upsertPostRecord = internalMutation({
     await upsertPost(ctx, args.chatId, args.postId, args.createdAt);
   },
 });
-
-// Internal: delete a post record by ID, used by the duplicate cleanup action
-export const deletePostRecord = internalMutation({
-  args: { id: v.id("posts") },
-  handler: async (ctx, args) => {
-    await ctx.db.delete(args.id);
-  },
-});
