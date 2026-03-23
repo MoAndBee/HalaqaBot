@@ -1145,12 +1145,14 @@ export const startNewSession = mutation({
         )
         .collect();
 
-      // Sort by position
-      previousQueueEntries.sort((a, b) => a.position - b.position);
+      // Sort by position, excluding participants marked as skipped (🗣️)
+      const entriesToCarryOver = previousQueueEntries
+        .filter((entry) => !entry.wasSkipped)
+        .sort((a, b) => a.position - b.position);
 
       // Copy to new session in turnQueue
-      for (let i = 0; i < previousQueueEntries.length; i++) {
-        const entry = previousQueueEntries[i];
+      for (let i = 0; i < entriesToCarryOver.length; i++) {
+        const entry = entriesToCarryOver[i];
         await ctx.db.insert("turnQueue", {
           chatId: args.chatId,
           postId: args.postId,

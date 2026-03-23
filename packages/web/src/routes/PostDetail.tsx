@@ -548,11 +548,11 @@ export default function PostDetail() {
     // Wait for keyboard to dismiss
     await new Promise(resolve => setTimeout(resolve, 300))
 
-    const incompleteCount = data.activeUsers.length
+    const carryOverCount = data.activeUsers.filter(user => !user.wasSkipped).length
 
-    if (incompleteCount > 0) {
+    if (carryOverCount > 0) {
       const confirmed = window.confirm(
-        `يوجد ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الحلقة الحالية.\n\nهل تريد نقلهم إلى الحلقة الجديدة؟`
+        `يوجد ${carryOverCount.toLocaleString('ar-EG')} ${carryOverCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الحلقة الحالية.\n\nهل تريد نقلهم إلى الحلقة الجديدة؟`
       )
 
       try {
@@ -566,7 +566,7 @@ export default function PostDetail() {
         setSelectedSession(result.newSessionNumber)
 
         if (confirmed) {
-          toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')} ونقل ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك' : 'مشتركين'}!`)
+          toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')} ونقل ${carryOverCount.toLocaleString('ar-EG')} ${carryOverCount === 1 ? 'مشترك' : 'مشتركين'}!`)
         } else {
           toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')}!`)
         }
