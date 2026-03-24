@@ -37,11 +37,12 @@ interface DraggableUserProps {
   onMoveToPosition?: (entryId: string, position: number) => void
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
+  onUnskip?: (entryId: string) => void
   totalUsers?: number
   isLocked?: boolean
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, totalUsers, isLocked }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, onUnskip, totalUsers, isLocked }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
@@ -322,7 +323,17 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               )}
               {user.wasSkipped && (
                 <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-                  🗣️
+                  {onUnskip && user.entryId && !isLocked ? (
+                    <button
+                      onClick={() => onUnskip(user.entryId!)}
+                      title="إزالة علامة التخطي"
+                      className="hover:opacity-70 transition-opacity"
+                    >
+                      🗣️
+                    </button>
+                  ) : (
+                    <>🗣️</>
+                  )}
                 </div>
               )}
             </>
