@@ -5,7 +5,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen, MessageSquare, Hash, X } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
@@ -656,30 +656,6 @@ export default function PostDetail() {
     }
   }
 
-  const handleTakeOver = async () => {
-    if (!data || !telegramUser) return
-
-    const currentSession = selectedSession ?? data.currentSession
-
-    const confirmed = await tgConfirm('هل تريد تسلّم هذه الحلقة؟ سيتم إضافة اسمك إلى قائمة المشرفات.')
-
-    if (!confirmed) return
-
-    try {
-      await addSessionSupervisor({
-        chatId,
-        postId,
-        sessionNumber: currentSession,
-        supervisorUserId: telegramUser.id,
-      })
-
-      toast.success('تم تسلّم الحلقة بنجاح!')
-    } catch (error) {
-      toast.error('فشل تسلّم الحلقة')
-      console.error('Take over session failed:', error)
-    }
-  }
-
   const handleAddMeAsSupervisor = async () => {
     if (!data || !telegramUser) return
 
@@ -960,13 +936,6 @@ export default function PostDetail() {
                     >
                       <Pencil className="h-4 w-4 ml-2" />
                       تعديل الاسم المفضل
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleTakeOver}
-                      disabled={sessionInfo?.isLocked}
-                    >
-                      <UserCog className="h-4 w-4 ml-2" />
-                      تسلم الحلقة
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleAddMeAsSupervisor}
