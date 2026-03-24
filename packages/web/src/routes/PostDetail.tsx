@@ -835,23 +835,6 @@ export default function PostDetail() {
                   })}
                 </h1>
               )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(postId.toString()); toast.success('تم نسخ معرف المنشور') }}>
-                    <Copy className="h-4 w-4 ml-2" />
-                    نسخ معرف المنشور ({postId})
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(chatId.toString()); toast.success('تم نسخ معرف المحادثة') }}>
-                    <Copy className="h-4 w-4 ml-2" />
-                    نسخ معرف المحادثة ({chatId})
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </div>
           <div className="flex flex-col gap-2">
@@ -919,6 +902,14 @@ export default function PostDetail() {
                   تسجيل مستخدم جديد
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(postId.toString()); toast.success('تم نسخ معرف المنشور') }}>
+                  <Copy className="h-4 w-4 ml-2" />
+                  نسخ معرف المنشور
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(chatId.toString()); toast.success('تم نسخ معرف المحادثة') }}>
+                  <Copy className="h-4 w-4 ml-2" />
+                  نسخ معرف المحادثة
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyTelegramNames}>
                   <Copy className="h-4 w-4 ml-2" />
                   نسخ قائمة الأسماء
