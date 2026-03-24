@@ -24,6 +24,17 @@ export function registerMessageHandler(
       postId = message.message_id;
       channelId = message.sender_chat?.id;
       messageType = "channel post";
+
+      // Auto-register turn registration posts by detecting the opening phrase
+      const text = message.text || message.caption || "";
+      if (text.startsWith("حللتم أهلا")) {
+        console.log("📋 Turn registration post detected - auto-registering post");
+        await convex.mutation(api.mutations.registerPost, {
+          chatId: ctx.chat!.id,
+          postId: message.message_id,
+          createdAt: message.date * 1000,
+        });
+      }
     }
     // Case 2: This is a direct reply to an automatic forward (comment on post)
     else if (message.reply_to_message?.is_automatic_forward) {
