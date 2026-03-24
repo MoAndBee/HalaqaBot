@@ -986,7 +986,7 @@ export default function PostDetail() {
                     <div key={s.userId} className="flex items-center gap-1">
                       <button
                         onClick={() => handleRemoveSupervisor(s.userId)}
-                        disabled={sessionInfo?.isLocked}
+                        disabled={sessionInfo?.isLocked || supervisors.length <= 1}
                         className="text-muted-foreground hover:text-destructive disabled:opacity-40 transition-colors p-0.5 rounded"
                         title="إزالة المشرفة"
                       >
