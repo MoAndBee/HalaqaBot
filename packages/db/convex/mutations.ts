@@ -839,6 +839,23 @@ export const skipUserTurn = mutation({
   },
 });
 
+export const unskipUserTurn = mutation({
+  args: {
+    entryId: v.id("turnQueue"),
+  },
+  handler: async (ctx, args) => {
+    const currentEntry = await ctx.db.get(args.entryId);
+
+    if (!currentEntry) {
+      throw new Error(`Entry not found`);
+    }
+
+    await checkSessionLock(ctx, currentEntry.chatId, currentEntry.postId, currentEntry.sessionNumber);
+
+    await ctx.db.patch(args.entryId, { wasSkipped: false });
+  },
+});
+
 export const updateSessionType = mutation({
   args: {
     entryId: v.id("participationHistory"),

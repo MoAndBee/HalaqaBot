@@ -37,6 +37,7 @@ interface UserListProps {
   onDeleteCompleted: (entryId: string) => Promise<void>
   onComplete: (entryId: string, sessionType: SessionType) => Promise<void>
   onSkip: (entryId: string) => Promise<void>
+  onUnskip: (entryId: string) => Promise<void>
   onUpdateSessionType: (entryId: string, sessionType: SessionType) => Promise<void>
   onUpdateDisplayName: (userId: number, displayName: string) => Promise<void>
   onAddTurnAfter3: (userId: number, currentPosition: number | undefined) => Promise<void>
@@ -55,6 +56,7 @@ export function UserList({
   onDeleteCompleted,
   onComplete,
   onSkip,
+  onUnskip,
   onUpdateSessionType,
   onUpdateDisplayName,
   onAddTurnAfter3,
@@ -186,6 +188,21 @@ export function UserList({
     } catch (error) {
       console.error('Failed to skip turn:', error)
       setError('فشل تخطي الدور. الرجاء المحاولة مرة أخرى.')
+      setTimeout(() => setError(null), 3000)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleUnskip = async (entryId: string) => {
+    setIsProcessing(true)
+    setError(null)
+
+    try {
+      await onUnskip(entryId)
+    } catch (error) {
+      console.error('Failed to unskip turn:', error)
+      setError('فشل إزالة علامة التخطي. الرجاء المحاولة مرة أخرى.')
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsProcessing(false)
@@ -355,6 +372,7 @@ export function UserList({
                     onMoveToPosition={handleMoveToPosition}
                     onEditNotes={onEditNotes}
                     onSetCompensation={onSetCompensation}
+                    onUnskip={handleUnskip}
                     totalUsers={items.length}
                     isLocked={isLocked}
                   />

@@ -158,6 +158,7 @@ export default function PostDetail() {
   const removeCompletedUser = useMutation(api.mutations.removeCompletedUser)
   const completeUserTurn = useMutation(api.mutations.completeUserTurn)
   const skipUserTurn = useMutation(api.mutations.skipUserTurn)
+  const unskipUserTurn = useMutation(api.mutations.unskipUserTurn)
   const updateSessionType = useMutation(api.mutations.updateSessionType)
   const updateTurnQueueSessionType = useMutation(api.mutations.updateTurnQueueSessionType)
   const updateUserRealName = useMutation(api.mutations.updateUserRealName)
@@ -249,6 +250,10 @@ export default function PostDetail() {
 
   const handleSkip = async (entryId: string) => {
     await skipUserTurn({ entryId })
+  }
+
+  const handleUnskip = async (entryId: string) => {
+    await unskipUserTurn({ entryId })
   }
 
   const handleUpdateSessionType = async (entryId: string, sessionType: SessionType) => {
@@ -995,6 +1000,7 @@ export default function PostDetail() {
             onDeleteCompleted={handleDeleteCompleted}
             onComplete={handleComplete}
             onSkip={handleSkip}
+            onUnskip={handleUnskip}
             onUpdateSessionType={handleUpdateSessionType}
             onUpdateDisplayName={handleUpdateDisplayName}
             onAddTurnAfter3={handleAddTurnAfter3}
