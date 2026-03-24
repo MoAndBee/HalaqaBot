@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { tgConfirm } from '@/lib/utils'
 import { ChevronDown, CheckCircle, MoreVertical, Pencil, Tag, Plus, Trash2, Check, X, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -103,8 +104,8 @@ function CompletedUserCard({
     setIsEditingName(false)
   }
 
-  const handleDelete = () => {
-    if (onDelete && user.entryId && window.confirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
+  const handleDelete = async () => {
+    if (onDelete && user.entryId && await tgConfirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
       onDelete(user.entryId)
     }
   }

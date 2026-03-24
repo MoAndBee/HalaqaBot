@@ -1,4 +1,5 @@
 import React from 'react'
+import { tgConfirm } from '@/lib/utils'
 import { Link, useParams } from 'wouter'
 import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
@@ -551,7 +552,7 @@ export default function PostDetail() {
     const carryOverCount = data.activeUsers.filter(user => !user.wasSkipped).length
 
     if (carryOverCount > 0) {
-      const confirmed = window.confirm(
+      const confirmed = await tgConfirm(
         `يوجد ${carryOverCount.toLocaleString('ar-EG')} ${carryOverCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الحلقة الحالية.\n\nهل تريد نقلهم إلى الحلقة الجديدة؟`
       )
 
@@ -661,7 +662,7 @@ export default function PostDetail() {
 
     const currentSession = selectedSession ?? data.currentSession
 
-    const confirmed = window.confirm('هل تريد تسلّم هذه الحلقة؟ سيتم إضافة اسمك إلى قائمة المشرفات.')
+    const confirmed = await tgConfirm('هل تريد تسلّم هذه الحلقة؟ سيتم إضافة اسمك إلى قائمة المشرفات.')
 
     if (!confirmed) return
 
@@ -685,7 +686,7 @@ export default function PostDetail() {
 
     const currentSession = selectedSession ?? data.currentSession
 
-    const confirmed = window.confirm('هل تريد إضافة نفسك كمشرفة لهذه الحلقة؟')
+    const confirmed = await tgConfirm('هل تريد إضافة نفسك كمشرفة لهذه الحلقة؟')
 
     if (!confirmed) return
 
@@ -731,7 +732,7 @@ export default function PostDetail() {
     const currentSession = selectedSession ?? data.currentSession
 
     // Ask for confirmation before locking
-    const confirmed = window.confirm(
+    const confirmed = await tgConfirm(
       `هل أنت متأكد من إغلاق الحلقة رقم ${currentSession.toLocaleString('ar-EG')}؟\n\n` +
       'بعد الإغلاق، لن تتمكن من تعديل أي بيانات في هذه الحلقة إلا بعد فتحها بكلمة المرور.'
     )
