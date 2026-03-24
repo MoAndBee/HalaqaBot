@@ -875,11 +875,11 @@ export default function PostDetail() {
                   <Hash className="h-4 w-4 ml-2" />
                   نسخ معرف المنشور
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(chatId.toString()); toast.success('تم نسخ معرف المحادثة') }}>
                   <MessageSquare className="h-4 w-4 ml-2" />
                   نسخ معرف المحادثة
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleCopyTelegramNames}>
                   <Copy className="h-4 w-4 ml-2" />
                   نسخ قائمة الأسماء
