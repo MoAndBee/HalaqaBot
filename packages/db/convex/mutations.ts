@@ -1635,7 +1635,7 @@ export const removeSessionSupervisor = mutation({
     const currentIds = getEffectiveSupervisorIds(session);
 
     if (currentIds.length <= 1) {
-      throw new Error("يجب أن يكون هناك مشرفة واحدة على الأقل");
+      throw new Error("At least one supervisor must remain");
     }
 
     const updatedIds = currentIds.filter((id) => id !== args.supervisorUserId);
