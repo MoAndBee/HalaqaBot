@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { tgConfirm } from '@/lib/utils'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
-import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash } from 'lucide-react'
+import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash, MicOff } from 'lucide-react'
 import type { User } from '@halakabot/db'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -142,6 +142,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     }
   }
 
+  const handleUnskip = () => {
+    if (onUnskip && user.entryId) {
+      onUnskip(user.entryId)
+    }
+  }
+
   const handleEditTypeClick = () => {
     setSelectedType((user.sessionType as SessionType) || null)
     setIsEditingType(true)
@@ -218,6 +224,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 <DropdownMenuItem onClick={handleEditNotes} disabled={isLocked}>
                   <StickyNote className="h-4 w-4 ml-2" />
                   إضافة ملاحظات
+                </DropdownMenuItem>
+              )}
+              {onUnskip && user.wasSkipped && user.entryId && (
+                <DropdownMenuItem onClick={handleUnskip} disabled={isLocked}>
+                  <MicOff className="h-4 w-4 ml-2" />
+                  إزالة علامة التخطي
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -323,17 +335,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               )}
               {user.wasSkipped && (
                 <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-                  {onUnskip && user.entryId && !isLocked ? (
-                    <button
-                      onClick={() => onUnskip(user.entryId!)}
-                      title="إزالة علامة التخطي"
-                      className="hover:opacity-70 transition-opacity"
-                    >
-                      🗣️
-                    </button>
-                  ) : (
-                    <>🗣️</>
-                  )}
+                  🗣️
                 </div>
               )}
             </>
