@@ -5,7 +5,7 @@ FROM oven/bun:1 AS base
 WORKDIR /app
 
 # Copy root package.json and workspace configuration
-COPY package.json ./
+COPY package.json bun.lock ./
 COPY packages/bot/package.json ./packages/bot/
 COPY packages/db/package.json ./packages/db/
 
