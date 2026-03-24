@@ -708,6 +708,9 @@ export default function PostDetail() {
   const handleRemoveSupervisor = async (userId: number) => {
     if (!data) return
 
+    const confirmed = await tgConfirm('هل تريد إزالة هذه المشرفة؟')
+    if (!confirmed) return
+
     const currentSession = selectedSession ?? data.currentSession
 
     try {
