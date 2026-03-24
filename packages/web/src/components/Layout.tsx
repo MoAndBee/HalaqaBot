@@ -11,7 +11,7 @@ export default function Layout({ children }: LayoutProps) {
   const { theme, toggleTheme } = useTheme()
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground" dir="rtl">
+    <div className="h-screen flex flex-col bg-background text-foreground" dir="rtl">
       <div className="fixed top-4 left-4 z-50">
         <Button
           variant="outline"
