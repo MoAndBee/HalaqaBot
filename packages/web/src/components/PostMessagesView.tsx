@@ -8,7 +8,6 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 interface PostMessagesViewProps {
   chatId: number
   postId: number
-  registeredUserIds?: Set<number>
   onAddToQueue?: (userId: number, sessionType: string | undefined) => Promise<void>
   isLocked?: boolean
 }
@@ -41,7 +40,7 @@ function avatarColor(userId: number) {
   return AVATAR_COLORS[userId % AVATAR_COLORS.length]
 }
 
-export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQueue, isLocked }: PostMessagesViewProps) {
+export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: PostMessagesViewProps) {
   const messages = useQuery(api.queries.getMessagesForPost, { chatId, postId })
   const [loadingUsers, setLoadingUsers] = React.useState<Set<number>>(new Set())
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -162,11 +161,7 @@ export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQue
                           <span className="text-[10px] text-muted-foreground flex-shrink-0">@{msg.username}</span>
                         )}
                         {onAddToQueue && !isLocked && (
-                          registeredUserIds?.has(msg.userId) ? (
-                            <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
-                              {senderName} ✔️
-                            </span>
-                          ) : loadingUsers.has(msg.userId) ? (
+                          loadingUsers.has(msg.userId) ? (
                             <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
                               ...
                             </span>
