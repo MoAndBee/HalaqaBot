@@ -8,6 +8,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/bot/package.json ./packages/bot/
 COPY packages/db/package.json ./packages/db/
+COPY packages/web/package.json ./packages/web/
 
 # Install dependencies (this will handle workspace dependencies)
 RUN bun install --frozen-lockfile
