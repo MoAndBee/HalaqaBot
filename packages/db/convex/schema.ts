@@ -126,7 +126,8 @@ export default defineSchema({
     sessionNumber: v.number(),
     teacherName: v.string(), // Name of the teacher for this session
     supervisorName: v.optional(v.string()), // DEPRECATED: Use supervisorUserId instead
-    supervisorUserId: v.optional(v.number()), // Telegram user ID of the admin supervising this session
+    supervisorUserId: v.optional(v.number()), // DEPRECATED: Use supervisorUserIds instead
+    supervisorUserIds: v.optional(v.array(v.number())), // Telegram user IDs of all admins supervising this session
     isLocked: v.optional(v.boolean()), // Whether this session is locked from editing
     lockedAt: v.optional(v.number()), // Timestamp when session was locked
     lockedBy: v.optional(v.string()), // Identifier of admin who locked the session

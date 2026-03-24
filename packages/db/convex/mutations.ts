@@ -1132,6 +1132,7 @@ export const startNewSession = mutation({
       teacherName: args.teacherName,
       supervisorName: args.supervisorName, // deprecated, kept for backward compatibility
       supervisorUserId: args.supervisorUserId,
+      supervisorUserIds: [args.supervisorUserId],
       createdAt: Date.now(),
     });
 
@@ -1478,6 +1479,19 @@ export const updateAdminPreferredName = mutation({
   },
 });
 
+/**
+ * Helper: get current supervisor IDs for a session, migrating from the old single-value field.
+ */
+function getEffectiveSupervisorIds(session: { supervisorUserIds?: number[]; supervisorUserId?: number }): number[] {
+  if (session.supervisorUserIds && session.supervisorUserIds.length > 0) {
+    return session.supervisorUserIds;
+  }
+  if (session.supervisorUserId) {
+    return [session.supervisorUserId];
+  }
+  return [];
+}
+
 export const assignSessionSupervisor = mutation({
   args: {
     chatId: v.number(),
@@ -1506,26 +1520,131 @@ export const assignSessionSupervisor = mutation({
         postId: args.postId,
         sessionNumber: args.sessionNumber,
         teacherName: "", // Default empty teacher name (required field)
-        supervisorUserId: args.supervisorUserId,
+        supervisorUserId: args.supervisorUserId, // keep for backward compat
+        supervisorUserIds: [args.supervisorUserId],
         createdAt: Date.now(),
       });
       console.log(`Created session and assigned supervisor ${args.supervisorUserId}`);
       return { created: true };
     }
 
+    const currentIds = getEffectiveSupervisorIds(session);
+
     // Only assign if no supervisor is currently set
-    if (session.supervisorUserId) {
-      console.log(`Session already has supervisor ${session.supervisorUserId}`);
+    if (currentIds.length > 0) {
+      console.log(`Session already has supervisors: ${currentIds.join(", ")}`);
       return { created: false, alreadyAssigned: true };
     }
 
     // Assign the supervisor
     await ctx.db.patch(session._id, {
       supervisorUserId: args.supervisorUserId,
+      supervisorUserIds: [args.supervisorUserId],
     });
 
     console.log(`Assigned supervisor ${args.supervisorUserId} to session`);
     return { created: false, alreadyAssigned: false };
+  },
+});
+
+/**
+ * Add the current admin as an additional supervisor (used by تسلم الحلقة and أضفني كمشرفة).
+ * Does nothing if the user is already in the list.
+ */
+export const addSessionSupervisor = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    supervisorUserId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Check if session is locked before any modifications
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      // Create session with this supervisor
+      await ctx.db.insert("sessions", {
+        chatId: args.chatId,
+        postId: args.postId,
+        sessionNumber: args.sessionNumber,
+        teacherName: "",
+        supervisorUserId: args.supervisorUserId,
+        supervisorUserIds: [args.supervisorUserId],
+        createdAt: Date.now(),
+      });
+      console.log(`Created session with supervisor ${args.supervisorUserId}`);
+      return { added: true };
+    }
+
+    const currentIds = getEffectiveSupervisorIds(session);
+
+    // Already in list – nothing to do
+    if (currentIds.includes(args.supervisorUserId)) {
+      console.log(`Supervisor ${args.supervisorUserId} already in list`);
+      return { added: false, alreadyPresent: true };
+    }
+
+    const updatedIds = [...currentIds, args.supervisorUserId];
+    await ctx.db.patch(session._id, {
+      supervisorUserIds: updatedIds,
+    });
+
+    console.log(`Added supervisor ${args.supervisorUserId} to session. All: ${updatedIds.join(", ")}`);
+    return { added: true };
+  },
+});
+
+/**
+ * Remove a supervisor from the list. Throws if removing would leave zero supervisors.
+ */
+export const removeSessionSupervisor = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    supervisorUserId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Check if session is locked before any modifications
+    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    const currentIds = getEffectiveSupervisorIds(session);
+
+    if (currentIds.length <= 1) {
+      throw new Error("At least one supervisor must remain");
+    }
+
+    const updatedIds = currentIds.filter((id) => id !== args.supervisorUserId);
+    await ctx.db.patch(session._id, {
+      supervisorUserIds: updatedIds,
+    });
+
+    console.log(`Removed supervisor ${args.supervisorUserId}. Remaining: ${updatedIds.join(", ")}`);
+    return { removed: true };
   },
 });
 
@@ -1558,21 +1677,28 @@ export const takeOverSession = mutation({
         sessionNumber: args.sessionNumber,
         teacherName: "", // Default empty teacher name (required field)
         supervisorUserId: args.newSupervisorUserId,
+        supervisorUserIds: [args.newSupervisorUserId],
         createdAt: Date.now(),
       });
       console.log(`Created session with supervisor ${args.newSupervisorUserId}`);
       return { created: true };
     }
 
-    const previousSupervisor = session.supervisorUserId;
+    const currentIds = getEffectiveSupervisorIds(session);
 
-    // Update the supervisor (allows taking over even if already assigned)
+    // Already in list – nothing to do
+    if (currentIds.includes(args.newSupervisorUserId)) {
+      console.log(`Supervisor ${args.newSupervisorUserId} already in list`);
+      return { added: false, alreadyPresent: true };
+    }
+
+    const updatedIds = [...currentIds, args.newSupervisorUserId];
     await ctx.db.patch(session._id, {
-      supervisorUserId: args.newSupervisorUserId,
+      supervisorUserIds: updatedIds,
     });
 
-    console.log(`Session taken over: ${previousSupervisor} → ${args.newSupervisorUserId}`);
-    return { created: false, previousSupervisor };
+    console.log(`Session taken over: added ${args.newSupervisorUserId}. All supervisors: ${updatedIds.join(", ")}`);
+    return { created: false, added: true };
   },
 });
 
