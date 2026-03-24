@@ -5,7 +5,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen, MessageSquare, X } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen, MessageSquare, Hash, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
@@ -903,11 +903,12 @@ export default function PostDetail() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(postId.toString()); toast.success('تم نسخ معرف المنشور') }}>
-                  <Copy className="h-4 w-4 ml-2" />
+                  <Hash className="h-4 w-4 ml-2" />
                   نسخ معرف المنشور
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(chatId.toString()); toast.success('تم نسخ معرف المحادثة') }}>
-                  <Copy className="h-4 w-4 ml-2" />
+                  <MessageSquare className="h-4 w-4 ml-2" />
                   نسخ معرف المحادثة
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyTelegramNames}>
