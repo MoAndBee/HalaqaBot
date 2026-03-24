@@ -3,6 +3,7 @@ import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
 import { MessageSquare } from 'lucide-react'
 import { Loader } from '~/components/Loader'
+import { useVirtualizer } from '@tanstack/react-virtual'
 
 interface PostMessagesViewProps {
   chatId: number
@@ -43,13 +44,25 @@ function avatarColor(userId: number) {
 export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQueue, isLocked }: PostMessagesViewProps) {
   const messages = useQuery(api.queries.getMessagesForPost, { chatId, postId })
   const [loadingUsers, setLoadingUsers] = React.useState<Set<number>>(new Set())
-  const bottomRef = React.useRef<HTMLDivElement>(null)
+  const scrollRef = React.useRef<HTMLDivElement>(null)
 
+  const comments = messages?.filter((m) => !m.isPost) ?? []
+  const postMessage = messages?.find((m) => m.isPost)
+
+  const virtualizer = useVirtualizer({
+    count: comments.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 72,
+    overscan: 8,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  })
+
+  // Scroll to bottom when messages first load
   React.useEffect(() => {
-    if (messages !== undefined) {
-      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+    if (messages !== undefined && comments.length > 0) {
+      virtualizer.scrollToIndex(comments.length - 1, { align: 'end', behavior: 'auto' })
     }
-  }, [messages])
+  }, [messages !== undefined]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRegister = async (userId: number, sessionType: string | undefined) => {
     if (!onAddToQueue || loadingUsers.has(userId)) return
@@ -65,13 +78,9 @@ export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQue
     }
   }
 
-  const comments = messages?.filter((m) => !m.isPost) ?? []
-  const postMessage = messages?.find((m) => m.isPost)
-
   return (
     <div className="flex flex-col h-full" dir="rtl">
-      {/* Messages list */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">
         {messages === undefined ? (
           <div className="flex justify-center pt-8">
             <Loader />
@@ -83,7 +92,7 @@ export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQue
           </div>
         ) : (
           <>
-            {/* Original channel post */}
+            {/* Original channel post (not virtualized — always at top) */}
             {postMessage && (
               <div className="mx-auto max-w-[90%] mb-4">
                 <div className="bg-muted/60 border border-border rounded-2xl rounded-tl-sm px-4 py-3 text-sm">
@@ -107,122 +116,138 @@ export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQue
               </div>
             )}
 
-            {/* Comment messages */}
-            {comments.map((msg, index) => {
-              const prev = comments[index - 1]
-              const isSameUser = prev?.userId === msg.userId
-              const senderName = `${msg.firstName}${msg.lastName ? ` ${msg.lastName}` : ''}`
+            {/* Virtualized comment messages */}
+            <div
+              style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}
+            >
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const msg = comments[virtualItem.index]
+                const prev = comments[virtualItem.index - 1]
+                const isSameUser = prev?.userId === msg.userId
+                const senderName = `${msg.firstName}${msg.lastName ? ` ${msg.lastName}` : ''}`
 
-              return (
-                <div key={msg.messageId} className={`flex items-end gap-2 ${isSameUser ? 'mt-0.5' : 'mt-3'}`}>
-                  {/* Avatar */}
-                  <div className="flex-shrink-0 w-8 h-8">
-                    {!isSameUser ? (
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.userId)}`}
-                      >
-                        {getInitials(msg.firstName, msg.lastName)}
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8" />
-                    )}
-                  </div>
-
-                  {/* Bubble */}
-                  <div className="flex-1 min-w-0">
-                    {!isSameUser && (
-                      <div className="flex items-center gap-1.5 mb-0.5 px-1">
-                        <span className="text-xs font-semibold text-foreground truncate">{senderName}</span>
-                        {msg.username && (
-                          <span className="text-[10px] text-muted-foreground flex-shrink-0">@{msg.username}</span>
-                        )}
-                        {onAddToQueue && !isLocked && (
-                          registeredUserIds?.has(msg.userId) ? (
-                            <span className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
-                              {senderName} ✔️
-                            </span>
-                          ) : loadingUsers.has(msg.userId) ? (
-                            <span className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                              ...
-                            </span>
-                          ) : (
-                            <button
-                              className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
-                              onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined)}
-                            >
-                              + دور
-                            </button>
-                          )
-                        )}
-                      </div>
-                    )}
-                    <div className="flex items-end gap-1">
-                      <div
-                        className="bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 text-sm max-w-[80%] break-words"
-                      >
-                        {msg.messageText ? (
-                          <p className="whitespace-pre-wrap leading-relaxed">{msg.messageText}</p>
-                        ) : (
-                          <p className="text-muted-foreground italic text-xs">وسائط بدون نص</p>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-muted-foreground flex-shrink-0 pb-1">
-                        {formatTime(msg.createdAt)}
-                      </span>
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      transform: `translateY(${virtualItem.start}px)`,
+                    }}
+                    className={`flex items-end gap-2 pb-1 ${isSameUser ? 'mt-0.5' : 'mt-3'}`}
+                  >
+                    {/* Avatar */}
+                    <div className="flex-shrink-0 w-8 h-8">
+                      {!isSameUser ? (
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.userId)}`}
+                        >
+                          {getInitials(msg.firstName, msg.lastName)}
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8" />
+                      )}
                     </div>
 
-                    {/* Metadata row */}
-                    <div className="flex flex-wrap items-center gap-1 mt-1 px-1">
-                      {/* Classification */}
-                      {msg.classification === null ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                          لم تُصنَّف
-                        </span>
-                      ) : (
-                        <>
-                          {msg.classification.activityType ? (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
-                              msg.classification.activityType === 'تسميع'
-                                ? 'bg-green-50 text-green-700 border-green-200'
-                                : 'bg-blue-50 text-blue-700 border-blue-200'
-                            }`}>
-                              {msg.classification.activityType}
-                            </span>
-                          ) : null}
-                          {msg.classification.containsName && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                              ✓ اسم
-                            </span>
+                    {/* Bubble */}
+                    <div className="flex-1 min-w-0">
+                      {!isSameUser && (
+                        <div className="flex items-center gap-1.5 mb-0.5 px-1">
+                          <span className="text-xs font-semibold text-foreground truncate">{senderName}</span>
+                          {msg.username && (
+                            <span className="text-[10px] text-muted-foreground flex-shrink-0">@{msg.username}</span>
                           )}
-                        </>
+                          {onAddToQueue && !isLocked && (
+                            registeredUserIds?.has(msg.userId) ? (
+                              <span className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
+                                {senderName} ✔️
+                              </span>
+                            ) : loadingUsers.has(msg.userId) ? (
+                              <span className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                                ...
+                              </span>
+                            ) : (
+                              <button
+                                className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
+                                onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined)}
+                              >
+                                + دور
+                              </button>
+                            )
+                          )}
+                        </div>
                       )}
+                      <div className="flex items-end gap-1">
+                        <div
+                          className="bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 text-sm max-w-[80%] break-words"
+                        >
+                          {msg.messageText ? (
+                            <p className="whitespace-pre-wrap leading-relaxed">{msg.messageText}</p>
+                          ) : (
+                            <p className="text-muted-foreground italic text-xs">وسائط بدون نص</p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0 pb-1">
+                          {formatTime(msg.createdAt)}
+                        </span>
+                      </div>
 
-                      {/* User profile */}
-                      {msg.user === null ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                          غير مسجَّل
-                        </span>
-                      ) : msg.user.realName ? (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                          msg.user.realNameVerified
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-muted text-muted-foreground border-border'
-                        }`}>
-                          {msg.user.realNameVerified ? '✓ ' : '~ '}{msg.user.realName}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                          بدون اسم حقيقي
-                        </span>
-                      )}
+                      {/* Metadata row */}
+                      <div className="flex flex-wrap items-center gap-1 mt-1 px-1">
+                        {/* Classification */}
+                        {msg.classification === null ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                            لم تُصنَّف
+                          </span>
+                        ) : (
+                          <>
+                            {msg.classification.activityType ? (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
+                                msg.classification.activityType === 'تسميع'
+                                  ? 'bg-green-50 text-green-700 border-green-200'
+                                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                              }`}>
+                                {msg.classification.activityType}
+                              </span>
+                            ) : null}
+                            {msg.classification.containsName && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                ✓ اسم
+                              </span>
+                            )}
+                          </>
+                        )}
+
+                        {/* User profile */}
+                        {msg.user === null ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                            غير مسجَّل
+                          </span>
+                        ) : msg.user.realName ? (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                            msg.user.realNameVerified
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-muted text-muted-foreground border-border'
+                          }`}>
+                            {msg.user.realNameVerified ? '✓ ' : '~ '}{msg.user.realName}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                            بدون اسم حقيقي
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </>
         )}
-        <div ref={bottomRef} />
       </div>
 
       {/* Footer count */}

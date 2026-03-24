@@ -824,18 +824,35 @@ export default function PostDetail() {
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
-            {postDetails?.createdAt && (
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground">
-                {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </h1>
-            )}
-            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
-            <p className="text-muted-foreground text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
+            <div className="flex items-center gap-1">
+              {postDetails?.createdAt && (
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground">
+                  {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </h1>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-muted-foreground">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(postId.toString()); toast.success('تم نسخ معرف المنشور') }}>
+                    <Copy className="h-4 w-4 ml-2" />
+                    نسخ معرف المنشور ({postId})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(chatId.toString()); toast.success('تم نسخ معرف المحادثة') }}>
+                    <Copy className="h-4 w-4 ml-2" />
+                    نسخ معرف المحادثة ({chatId})
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
