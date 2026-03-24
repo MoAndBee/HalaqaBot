@@ -138,7 +138,7 @@ export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQue
                       right: 0,
                       transform: `translateY(${virtualItem.start}px)`,
                     }}
-                    className={`flex items-end gap-2 pb-1 ${isSameUser ? 'mt-0.5' : 'mt-3'}`}
+                    className={`flex items-start gap-2 pb-1 ${isSameUser ? 'mt-1' : 'mt-3'}`}
                   >
                     {/* Avatar */}
                     <div className="flex-shrink-0 w-8 h-8">
@@ -153,51 +153,46 @@ export function PostMessagesView({ chatId, postId, registeredUserIds, onAddToQue
                       )}
                     </div>
 
-                    {/* Bubble */}
-                    <div className="flex-1 min-w-0">
-                      {!isSameUser && (
-                        <div className="flex items-center gap-1.5 mb-0.5 px-1">
-                          <span className="text-xs font-semibold text-foreground truncate">{senderName}</span>
-                          {msg.username && (
-                            <span className="text-[10px] text-muted-foreground flex-shrink-0">@{msg.username}</span>
-                          )}
-                          {onAddToQueue && !isLocked && (
-                            registeredUserIds?.has(msg.userId) ? (
-                              <span className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
-                                {senderName} ✔️
-                              </span>
-                            ) : loadingUsers.has(msg.userId) ? (
-                              <span className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                                ...
-                              </span>
-                            ) : (
-                              <button
-                                className="mr-auto flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
-                                onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined)}
-                              >
-                                + دور
-                              </button>
-                            )
-                          )}
-                        </div>
-                      )}
-                      <div className="flex items-end gap-1">
-                        <div
-                          className="bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 text-sm max-w-[80%] break-words"
-                        >
-                          {msg.messageText ? (
-                            <p className="whitespace-pre-wrap leading-relaxed">{msg.messageText}</p>
+                    {/* Card */}
+                    <div className="flex-1 min-w-0 bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 text-sm">
+                      {/* Header: name + actions + timestamp */}
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="text-xs font-semibold text-foreground truncate">{senderName}</span>
+                        {msg.username && (
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0">@{msg.username}</span>
+                        )}
+                        {onAddToQueue && !isLocked && (
+                          registeredUserIds?.has(msg.userId) ? (
+                            <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
+                              {senderName} ✔️
+                            </span>
+                          ) : loadingUsers.has(msg.userId) ? (
+                            <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                              ...
+                            </span>
                           ) : (
-                            <p className="text-muted-foreground italic text-xs">وسائط بدون نص</p>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-muted-foreground flex-shrink-0 pb-1">
+                            <button
+                              className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
+                              onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined)}
+                            >
+                              + دور
+                            </button>
+                          )
+                        )}
+                        <span className="mr-auto text-[10px] text-muted-foreground flex-shrink-0">
                           {formatTime(msg.createdAt)}
                         </span>
                       </div>
 
-                      {/* Metadata row */}
-                      <div className="flex flex-wrap items-center gap-1 mt-1 px-1">
+                      {/* Message text */}
+                      {msg.messageText ? (
+                        <p className="whitespace-pre-wrap leading-relaxed break-words">{msg.messageText}</p>
+                      ) : (
+                        <p className="text-muted-foreground italic text-xs">وسائط بدون نص</p>
+                      )}
+
+                      {/* Metadata badges */}
+                      <div className="flex flex-wrap items-center gap-1 mt-2">
                         {/* Classification */}
                         {msg.classification === null ? (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
