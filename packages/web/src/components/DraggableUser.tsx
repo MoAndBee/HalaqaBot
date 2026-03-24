@@ -1,4 +1,5 @@
 import { useSortable } from '@dnd-kit/sortable'
+import { tgConfirm } from '@/lib/utils'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
 import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash } from 'lucide-react'
@@ -76,8 +77,8 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     setIsEditing(true)
   }
 
-  const handleDeleteClick = () => {
-    if (window.confirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
+  const handleDeleteClick = async () => {
+    if (await tgConfirm(`هل تريد حذف ${user.realName || user.telegramName}؟`)) {
       if (user.entryId) {
         onDelete(user.entryId)
       }

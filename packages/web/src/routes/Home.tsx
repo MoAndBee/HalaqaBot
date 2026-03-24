@@ -1,6 +1,7 @@
 import { Link } from 'wouter'
 import { Card, CardContent } from '@/components/ui/card'
 import { BookOpen, Users } from 'lucide-react'
+import pkg from '../../package.json'
 
 export default function Home() {
   return (
@@ -28,6 +29,8 @@ export default function Home() {
           </Card>
         </Link>
       </div>
+
+      <p className="mt-auto text-xs text-muted-foreground">v{pkg.version}</p>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot } from "grammy"; // trigger redeploy
 import { loadConfig } from "./config/environment";
 import { ConvexHttpClient, ConvexClient } from "@halakabot/db";
 import { MessageService } from "./services/message.service";

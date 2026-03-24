@@ -1,10 +1,11 @@
 import React from 'react'
+import { tgConfirm } from '@/lib/utils'
 import { Link, useParams } from 'wouter'
 import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen, MessageSquare, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
@@ -137,9 +138,14 @@ export default function PostDetail() {
     api.queries.getSessionInfo,
     data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession } : 'skip'
   )
-  // Fetch supervisor name for the current session
+  // Fetch supervisor name for the current session (comma-separated if multiple)
   const supervisorName = useQuery(
     api.queries.getSessionSupervisorName,
+    data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession, channelId: CHANNEL_ID } : 'skip'
+  )
+  // Fetch individual supervisors list for the manage-admins UI
+  const supervisors = useQuery(
+    api.queries.getSessionSupervisors,
     data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession, channelId: CHANNEL_ID } : 'skip'
   )
   // Fetch current admin's display name (for editing their preferred name)
@@ -165,6 +171,8 @@ export default function PostDetail() {
   const updateAdminPreferredName = useMutation(api.mutations.updateAdminPreferredName)
   const registerUser = useMutation(api.mutations.registerUser)
   const assignSessionSupervisor = useMutation(api.mutations.assignSessionSupervisor)
+  const addSessionSupervisor = useMutation(api.mutations.addSessionSupervisor)
+  const removeSessionSupervisor = useMutation(api.mutations.removeSessionSupervisor)
   const takeOverSession = useMutation(api.mutations.takeOverSession)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
@@ -453,6 +461,9 @@ export default function PostDetail() {
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
+    if (supervisorName) {
+      fullMessage += `المشرفة: ${supervisorName}\n`
+    }
     fullMessage += '\n'
 
     if (activeList) {
@@ -537,11 +548,11 @@ export default function PostDetail() {
     // Wait for keyboard to dismiss
     await new Promise(resolve => setTimeout(resolve, 300))
 
-    const incompleteCount = data.activeUsers.length
+    const carryOverCount = data.activeUsers.filter(user => !user.wasSkipped).length
 
-    if (incompleteCount > 0) {
-      const confirmed = window.confirm(
-        `يوجد ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الحلقة الحالية.\n\nهل تريد نقلهم إلى الحلقة الجديدة؟`
+    if (carryOverCount > 0) {
+      const confirmed = await tgConfirm(
+        `يوجد ${carryOverCount.toLocaleString('ar-EG')} ${carryOverCount === 1 ? 'مشترك لم ينته' : 'مشتركين لم ينتهوا'} في الحلقة الحالية.\n\nهل تريد نقلهم إلى الحلقة الجديدة؟`
       )
 
       try {
@@ -555,7 +566,7 @@ export default function PostDetail() {
         setSelectedSession(result.newSessionNumber)
 
         if (confirmed) {
-          toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')} ونقل ${incompleteCount.toLocaleString('ar-EG')} ${incompleteCount === 1 ? 'مشترك' : 'مشتركين'}!`)
+          toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')} ونقل ${carryOverCount.toLocaleString('ar-EG')} ${carryOverCount === 1 ? 'مشترك' : 'مشتركين'}!`)
         } else {
           toast.success(`تم بدء الحلقة رقم ${result.newSessionNumber.toLocaleString('ar-EG')}!`)
         }
@@ -650,16 +661,16 @@ export default function PostDetail() {
 
     const currentSession = selectedSession ?? data.currentSession
 
-    const confirmed = window.confirm('هل تريد تسلّم هذه الحلقة؟ سيتم تغيير اسم المشرفة إلى اسمك.')
+    const confirmed = await tgConfirm('هل تريد تسلّم هذه الحلقة؟ سيتم إضافة اسمك إلى قائمة المشرفات.')
 
     if (!confirmed) return
 
     try {
-      await takeOverSession({
+      await addSessionSupervisor({
         chatId,
         postId,
         sessionNumber: currentSession,
-        newSupervisorUserId: telegramUser.id,
+        supervisorUserId: telegramUser.id,
       })
 
       toast.success('تم تسلّم الحلقة بنجاح!')
@@ -669,13 +680,61 @@ export default function PostDetail() {
     }
   }
 
+  const handleAddMeAsSupervisor = async () => {
+    if (!data || !telegramUser) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    const confirmed = await tgConfirm('هل تريد إضافة نفسك كمشرفة لهذه الحلقة؟')
+
+    if (!confirmed) return
+
+    try {
+      await addSessionSupervisor({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        supervisorUserId: telegramUser.id,
+      })
+
+      toast.success('تمت إضافتك كمشرفة!')
+    } catch (error) {
+      toast.error('فشل إضافتك كمشرفة')
+      console.error('Add me as supervisor failed:', error)
+    }
+  }
+
+  const handleRemoveSupervisor = async (userId: number) => {
+    if (!data) return
+
+    const confirmed = await tgConfirm('هل تريد إزالة هذه المشرفة؟')
+    if (!confirmed) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    try {
+      await removeSessionSupervisor({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        supervisorUserId: userId,
+      })
+
+      toast.success('تمت إزالة المشرفة!')
+    } catch (error: any) {
+      // Server throws a human-readable Arabic error when only one supervisor remains
+      toast.error(error?.message || 'فشل إزالة المشرفة')
+      console.error('Remove supervisor failed:', error)
+    }
+  }
+
   const handleLockSession = async () => {
     if (!data) return
 
     const currentSession = selectedSession ?? data.currentSession
 
     // Ask for confirmation before locking
-    const confirmed = window.confirm(
+    const confirmed = await tgConfirm(
       `هل أنت متأكد من إغلاق الحلقة رقم ${currentSession.toLocaleString('ar-EG')}؟\n\n` +
       'بعد الإغلاق، لن تتمكن من تعديل أي بيانات في هذه الحلقة إلا بعد فتحها بكلمة المرور.'
     )
@@ -884,33 +943,59 @@ export default function PostDetail() {
               </Link>
             </div>
             </div>
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground" dir="rtl">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={handleEditSupervisorName}
-                    disabled={sessionInfo?.isLocked}
-                  >
-                    <Pencil className="h-4 w-4 ml-2" />
-                    تعديل الاسم المفضل
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleTakeOver}
-                    disabled={sessionInfo?.isLocked}
-                  >
-                    <UserCog className="h-4 w-4 ml-2" />
-                    تسلم الحلقة
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <span className="flex-1">
-                اسم المشرفة: {supervisorName || 'لم يتم تعيين مشرفة'}
-              </span>
+            <div className="flex flex-col gap-1 text-xs sm:text-sm text-muted-foreground" dir="rtl">
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={handleEditSupervisorName}
+                      disabled={sessionInfo?.isLocked}
+                    >
+                      <Pencil className="h-4 w-4 ml-2" />
+                      تعديل الاسم المفضل
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleTakeOver}
+                      disabled={sessionInfo?.isLocked}
+                    >
+                      <UserCog className="h-4 w-4 ml-2" />
+                      تسلم الحلقة
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleAddMeAsSupervisor}
+                      disabled={sessionInfo?.isLocked}
+                    >
+                      <UserPlus className="h-4 w-4 ml-2" />
+                      أضفني كمشرفة
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <span className="font-medium">المشرفات:</span>
+              </div>
+              {supervisors && supervisors.length > 0 ? (
+                <div className="flex flex-col gap-0.5 pr-8">
+                  {supervisors.map((s) => (
+                    <div key={s.userId} className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleRemoveSupervisor(s.userId)}
+                        disabled={sessionInfo?.isLocked || supervisors.length <= 1}
+                        className="text-muted-foreground hover:text-destructive disabled:opacity-40 transition-colors p-0.5 rounded"
+                        title="إزالة المشرفة"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      <span>{s.name}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="pr-8 text-muted-foreground/60">لم يتم تعيين مشرفة</span>
+              )}
             </div>
             {sessionInfo?.isLocked && (
               <div className="flex items-center gap-1.5 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-right">

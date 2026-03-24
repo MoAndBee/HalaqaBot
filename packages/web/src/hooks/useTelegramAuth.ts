@@ -28,14 +28,20 @@ export interface AuthState {
   webApp: TelegramWebApp | null
 }
 
+// Dev bypass: set VITE_DEV_USER_ID in .env.local to skip Telegram auth entirely
+const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID
+  ? Number(import.meta.env.VITE_DEV_USER_ID)
+  : null
+
 export function useTelegramAuth(channelId: number): AuthState {
   const [user, setUser] = useState<TelegramUser | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(!DEV_USER_ID)
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null)
 
   // Step 1: Extract user from Telegram Web App
   useEffect(() => {
+    if (DEV_USER_ID) return  // skip in dev mode
     const tg = window.Telegram?.WebApp
 
     if (!tg) {
@@ -98,10 +104,10 @@ export function useTelegramAuth(channelId: number): AuthState {
     })
   }, [])
 
-  // Step 2: Check authorization against backend
+  // Step 2: Check authorization against backend (skipped in dev mode)
   const authCheck = useQuery(
     api.queries.isUserAuthorized,
-    user ? { userId: user.id, channelId } : 'skip'
+    DEV_USER_ID || !user ? 'skip' : { userId: user.id, channelId }
   )
 
   // Step 3: Update state when auth check completes
@@ -110,6 +116,17 @@ export function useTelegramAuth(channelId: number): AuthState {
       setIsLoading(false)
     }
   }, [authCheck])
+
+  if (DEV_USER_ID) {
+    return {
+      user: { id: DEV_USER_ID, firstName: 'Dev', lastName: 'User' },
+      isAuthorized: true,
+      isLoading: false,
+      isCheckingAuth: false,
+      error: null,
+      webApp: null,
+    }
+  }
 
   return {
     user,
