@@ -774,13 +774,6 @@ export default function PostDetail() {
     }
   }
 
-  const registeredUserIds = React.useMemo(() => {
-    const ids = new Set<number>()
-    data?.activeUsers.forEach((u: User) => ids.add(u.id))
-    data?.completedUsers.forEach((u: User) => ids.add(u.id))
-    return ids
-  }, [data?.activeUsers, data?.completedUsers])
-
   const handleAddFromMessages = async (userId: number, sessionType: string | undefined) => {
     try {
       await addUserToList({
@@ -1046,7 +1039,6 @@ export default function PostDetail() {
           <PostMessagesView
             chatId={chatId}
             postId={postId}
-            registeredUserIds={registeredUserIds}
             onAddToQueue={handleAddFromMessages}
             isLocked={sessionInfo?.isLocked || false}
           />
