@@ -5,7 +5,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen, MessageSquare, X } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, UserCog, Lock, LockOpen, MessageSquare, Hash, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
@@ -33,8 +33,8 @@ import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import { UnlockSessionModal } from '~/components/UnlockSessionModal'
-import { ShowMessagesModal } from '~/components/ShowMessagesModal'
 import { PostMessagesView } from '~/components/PostMessagesView'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { SessionType } from '~/components/SplitButton'
 
 function formatUserList(users: User[], isDone: boolean = false): string {
@@ -103,8 +103,7 @@ export default function PostDetail() {
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
-  const [isShowMessagesModalOpen, setIsShowMessagesModalOpen] = React.useState(false)
-  const [showMessages, setShowMessages] = React.useState(false)
+  const [activeTab, setActiveTab] = React.useState<'turns' | 'messages'>('turns')
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
     currentNotes?: string | null
@@ -825,18 +824,18 @@ export default function PostDetail() {
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
-            {postDetails?.createdAt && (
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground">
-                {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </h1>
-            )}
-            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 sm:mt-1">معرف المنشور: {postId}</p>
-            <p className="text-muted-foreground text-xs sm:text-sm">معرف المحادثة: {chatId}</p>
+            <div className="flex items-center gap-1">
+              {postDetails?.createdAt && (
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-foreground">
+                  {new Date(postDetails.createdAt).toLocaleDateString('ar-EG', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </h1>
+              )}
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -903,6 +902,15 @@ export default function PostDetail() {
                   تسجيل مستخدم جديد
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(postId.toString()); toast.success('تم نسخ معرف المنشور') }}>
+                  <Hash className="h-4 w-4 ml-2" />
+                  نسخ معرف المنشور
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(chatId.toString()); toast.success('تم نسخ معرف المحادثة') }}>
+                  <MessageSquare className="h-4 w-4 ml-2" />
+                  نسخ معرف المحادثة
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopyTelegramNames}>
                   <Copy className="h-4 w-4 ml-2" />
                   نسخ قائمة الأسماء
@@ -910,11 +918,6 @@ export default function PostDetail() {
                 <DropdownMenuItem onClick={handleSendParticipantList}>
                   <Send className="h-4 w-4 ml-2" />
                   إرسال قائمة الأسماء
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setIsShowMessagesModalOpen(true)}>
-                  <MessageSquare className="h-4 w-4 ml-2" />
-                  إظهار الرسائل
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuSub>
@@ -1013,18 +1016,13 @@ export default function PostDetail() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto">
-        {showMessages ? (
-          <PostMessagesView
-            chatId={chatId}
-            postId={postId}
-            postDate={postDetails?.createdAt ? new Date(postDetails.createdAt) : undefined}
-            onClose={() => setShowMessages(false)}
-            registeredUserIds={registeredUserIds}
-            onAddToQueue={handleAddFromMessages}
-            isLocked={sessionInfo?.isLocked || false}
-          />
-        ) : (
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'turns' | 'messages')} className="flex-1 min-h-0 flex flex-col">
+        <TabsList className="w-full mb-2" dir="rtl">
+          <TabsTrigger value="turns" className="flex-1">الأدوار</TabsTrigger>
+          <TabsTrigger value="messages" className="flex-1">الرسائل</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="turns" className="flex-1 min-h-0 overflow-auto mt-0">
           <UserList
             chatId={chatId}
             postId={postId}
@@ -1042,8 +1040,18 @@ export default function PostDetail() {
             onSetCompensation={handleSetCompensationDates}
             isLocked={sessionInfo?.isLocked || false}
           />
-        )}
-      </div>
+        </TabsContent>
+
+        <TabsContent value="messages" className="flex-1 min-h-0 overflow-hidden mt-0">
+          <PostMessagesView
+            chatId={chatId}
+            postId={postId}
+            registeredUserIds={registeredUserIds}
+            onAddToQueue={handleAddFromMessages}
+            isLocked={sessionInfo?.isLocked || false}
+          />
+        </TabsContent>
+      </Tabs>
 
       <AddUserModal
         isOpen={isAddUserModalOpen}
@@ -1089,11 +1097,6 @@ export default function PostDetail() {
         sessionNumber={selectedSession ?? data.currentSession}
       />
 
-      <ShowMessagesModal
-        isOpen={isShowMessagesModalOpen}
-        onClose={() => setIsShowMessagesModalOpen(false)}
-        onUnlock={() => setShowMessages(true)}
-      />
     </div>
   )
 }
