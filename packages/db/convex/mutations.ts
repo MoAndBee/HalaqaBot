@@ -26,6 +26,21 @@ async function upsertPost(
 }
 
 /**
+ * Registers a post in the posts table without requiring a user to be added.
+ * Used for auto-detecting turn registration posts from channel post content.
+ */
+export const registerPost = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    createdAt: v.number(),
+  },
+  handler: async (ctx, { chatId, postId, createdAt }) => {
+    await upsertPost(ctx, chatId, postId, createdAt);
+  },
+});
+
+/**
  * Helper function to check if a session is locked
  * Throws an error if the session is locked
  */
