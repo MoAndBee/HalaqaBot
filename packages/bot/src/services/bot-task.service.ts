@@ -69,6 +69,8 @@ export class BotTaskService {
     try {
       if (task.type === "send_participant_list") {
         await this.handleSendParticipantList(task);
+      } else if (task.type === "react_to_message") {
+        await this.handleReactToMessage(task);
       } else {
         throw new Error(`Unknown task type: ${task.type}`);
       }
@@ -82,6 +84,21 @@ export class BotTaskService {
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
+  }
+
+  private async handleReactToMessage(task: any) {
+    const { chatId, messageId } = task;
+
+    await this.bot.api.setMessageReaction(chatId, messageId, [
+      { type: "emoji", emoji: "❤" },
+    ]);
+
+    await this.convex.mutation(api.mutations.updateBotTask, {
+      taskId: task._id,
+      status: "completed",
+    });
+
+    console.log(`✅ Reacted to message ${messageId} in chat ${chatId}`);
   }
 
   private async handleSendParticipantList(task: any) {
