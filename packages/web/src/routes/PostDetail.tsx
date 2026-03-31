@@ -756,7 +756,7 @@ export default function PostDetail() {
     }
   }
 
-  const handleAddFromMessages = async (userId: number, sessionType: string | undefined, messageId: number) => {
+  const handleAddFromMessages = async (userId: number, sessionType: string | undefined, messageId: number | undefined) => {
     try {
       await addUserToList({
         chatId,
@@ -766,7 +766,9 @@ export default function PostDetail() {
         sessionType,
       })
       toast.success('تم إضافة المستخدم!')
-      reactToMessage({ chatId, postId, messageId }).catch(() => {})
+      if (messageId !== undefined) {
+        reactToMessage({ chatId, postId, messageId }).catch(() => {})
+      }
     } catch (error: any) {
       toast.error(error?.message || 'فشل إضافة المستخدم')
       throw error
