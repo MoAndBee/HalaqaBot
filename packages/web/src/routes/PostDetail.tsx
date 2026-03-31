@@ -180,6 +180,7 @@ export default function PostDetail() {
   const lockSession = useMutation(api.mutations.lockSession)
   const unlockSession = useMutation(api.mutations.unlockSession)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
+  const reactToMessage = useAction(api.actions.reactToMessage)
 
   // Auto-assign supervisor on first page load if no supervisor is assigned (Option A)
   React.useEffect(() => {
@@ -755,7 +756,7 @@ export default function PostDetail() {
     }
   }
 
-  const handleAddFromMessages = async (userId: number, sessionType: string | undefined) => {
+  const handleAddFromMessages = async (userId: number, sessionType: string | undefined, messageId: number) => {
     try {
       await addUserToList({
         chatId,
@@ -765,6 +766,7 @@ export default function PostDetail() {
         sessionType,
       })
       toast.success('تم إضافة المستخدم!')
+      reactToMessage({ chatId, postId, messageId }).catch(() => {})
     } catch (error: any) {
       toast.error(error?.message || 'فشل إضافة المستخدم')
       throw error

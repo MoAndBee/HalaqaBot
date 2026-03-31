@@ -8,7 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 interface PostMessagesViewProps {
   chatId: number
   postId: number
-  onAddToQueue?: (userId: number, sessionType: string | undefined) => Promise<void>
+  onAddToQueue?: (userId: number, sessionType: string | undefined, messageId: number) => Promise<void>
   isLocked?: boolean
 }
 
@@ -63,11 +63,11 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
     }
   }, [messages !== undefined]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleRegister = async (userId: number, sessionType: string | undefined) => {
+  const handleRegister = async (userId: number, sessionType: string | undefined, messageId: number) => {
     if (!onAddToQueue || loadingUsers.has(userId)) return
     setLoadingUsers(prev => new Set(prev).add(userId))
     try {
-      await onAddToQueue(userId, sessionType)
+      await onAddToQueue(userId, sessionType, messageId)
     } finally {
       setLoadingUsers(prev => {
         const next = new Set(prev)
@@ -168,7 +168,7 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
                           ) : (
                             <button
                               className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
-                              onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined)}
+                              onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined, msg.messageId)}
                             >
                               + دور
                             </button>

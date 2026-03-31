@@ -137,9 +137,10 @@ export default defineSchema({
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
 
   botTasks: defineTable({
-    type: v.string(), // "send_participant_list"
+    type: v.string(), // "send_participant_list" | "react_to_message"
     chatId: v.number(),
     postId: v.number(),
+    messageId: v.optional(v.number()), // target message ID for react_to_message tasks
     sessionNumber: v.optional(v.number()),
     flower: v.optional(v.string()), // flower emoji to use in formatting
     status: v.string(), // "pending", "processing", "completed", "failed"
