@@ -71,7 +71,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
           })
           .join('، ')
         activityLabel = ` (تعويض: ${formattedDates})`
-      } else if (user.sessionType === 'تلاوة' || user.sessionType === 'تسميع') {
+      } else if (user.sessionType === 'تلاوة' || user.sessionType === 'تسميع' || user.sessionType === 'مراجعة') {
         activityLabel = ` (${user.sessionType})`
       }
       const skipLabel = !isDone && user.wasSkipped
