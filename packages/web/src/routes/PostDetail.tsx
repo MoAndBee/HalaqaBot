@@ -5,7 +5,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
@@ -33,6 +33,7 @@ import { EditNotesModal } from '~/components/EditNotesModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import { UnlockSessionModal } from '~/components/UnlockSessionModal'
+import { BulkSessionTypeModal } from '~/components/BulkSessionTypeModal'
 import { PostMessagesView } from '~/components/PostMessagesView'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { SessionType } from '~/components/SplitButton'
@@ -103,6 +104,7 @@ export default function PostDetail() {
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
+  const [isBulkSessionTypeModalOpen, setIsBulkSessionTypeModalOpen] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState<'turns' | 'messages'>('turns')
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
@@ -177,6 +179,7 @@ export default function PostDetail() {
   const takeOverSession = useMutation(api.mutations.takeOverSession)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
   const updateParticipationCompensation = useMutation(api.mutations.updateParticipationCompensation)
+  const bulkUpdateTurnQueueSessionType = useMutation(api.mutations.bulkUpdateTurnQueueSessionType)
   const lockSession = useMutation(api.mutations.lockSession)
   const unlockSession = useMutation(api.mutations.unlockSession)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
@@ -755,6 +758,17 @@ export default function PostDetail() {
     }
   }
 
+  const handleBulkUpdateSessionType = async (entryIds: string[], sessionType: SessionType) => {
+    try {
+      await bulkUpdateTurnQueueSessionType({ entryIds: entryIds as any[], sessionType })
+      toast.success(`تم تحديث نوع المشاركة لـ ${entryIds.length.toLocaleString('ar-EG')} مشترك`)
+    } catch (error) {
+      toast.error('فشل تحديث نوع المشاركة')
+      console.error('Bulk update session type failed:', error)
+      throw error
+    }
+  }
+
   const handleAddFromMessages = async (userId: number, sessionType: string | undefined) => {
     try {
       await addUserToList({
@@ -849,6 +863,13 @@ export default function PostDetail() {
                 >
                   <Pencil className="h-4 w-4 ml-2" />
                   تعديل اسم المعلمة
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsBulkSessionTypeModalOpen(true)}
+                  disabled={sessionInfo?.isLocked || !data?.activeUsers?.length}
+                >
+                  <Tags className="h-4 w-4 ml-2" />
+                  تعديل نوع المشاركة للكل
                 </DropdownMenuItem>
                 {sessionInfo?.isLocked ? (
                   <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
@@ -1062,6 +1083,13 @@ export default function PostDetail() {
         onClose={() => setIsUnlockModalOpen(false)}
         onUnlock={handleUnlockSession}
         sessionNumber={selectedSession ?? data.currentSession}
+      />
+
+      <BulkSessionTypeModal
+        isOpen={isBulkSessionTypeModalOpen}
+        onClose={() => setIsBulkSessionTypeModalOpen(false)}
+        onConfirm={handleBulkUpdateSessionType}
+        activeUsers={data.activeUsers}
       />
 
     </div>
