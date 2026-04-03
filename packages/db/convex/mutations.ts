@@ -918,6 +918,35 @@ export const updateTurnQueueSessionType = mutation({
   },
 });
 
+export const bulkUpdateTurnQueueSessionType = mutation({
+  args: {
+    entryIds: v.array(v.id("turnQueue")),
+    sessionType: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (args.sessionType === 'تعويض') {
+      throw new Error('لا يمكن تعيين نوع التعويض بشكل جماعي');
+    }
+
+    for (const entryId of args.entryIds) {
+      const entry = await ctx.db.get(entryId);
+      if (!entry) continue;
+
+      await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
+
+      const isChangingFromCompensation = entry.isCompensation && args.sessionType !== 'تعويض';
+
+      await ctx.db.patch(entryId, {
+        sessionType: args.sessionType,
+        ...(isChangingFromCompensation && {
+          isCompensation: false,
+          compensatingForDates: undefined,
+        }),
+      });
+    }
+  },
+});
+
 export const updateUserRealName = mutation({
   args: {
     userId: v.number(),
