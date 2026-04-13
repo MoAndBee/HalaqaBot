@@ -1,17 +1,20 @@
 import type { Bot } from "grammy";
 import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
+import type { Config } from "../config/environment";
 
 export class BotTaskService {
   private bot: Bot;
   private convex: ConvexHttpClient;
   private reactiveClient: ConvexClient;
+  private config: Config;
   private isProcessing = false;
   private unsubscribe: (() => void) | null = null;
 
-  constructor(bot: Bot, convex: ConvexHttpClient, reactiveClient: ConvexClient) {
+  constructor(bot: Bot, convex: ConvexHttpClient, reactiveClient: ConvexClient, config: Config) {
     this.bot = bot;
     this.convex = convex;
     this.reactiveClient = reactiveClient;
+    this.config = config;
   }
 
   /**
@@ -90,7 +93,7 @@ export class BotTaskService {
     const { chatId, messageId } = task;
 
     await this.bot.api.setMessageReaction(chatId, messageId, [
-      { type: "emoji", emoji: "❤" },
+      { type: "emoji", emoji: this.config.autoReactionEmoji },
     ]);
 
     await this.convex.mutation(api.mutations.updateBotTask, {
