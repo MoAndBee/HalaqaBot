@@ -8,7 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 interface PostMessagesViewProps {
   chatId: number
   postId: number
-  onAddToQueue?: (userId: number, sessionType: string | undefined) => Promise<void>
+  onAddToQueue?: (userId: number, sessionType: string | undefined, messageId: number | undefined) => Promise<void>
   isLocked?: boolean
 }
 
@@ -40,10 +40,23 @@ function avatarColor(userId: number) {
   return AVATAR_COLORS[userId % AVATAR_COLORS.length]
 }
 
+const AUTO_REACT_STORAGE_KEY = 'halaqa:auto-react'
+
 export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: PostMessagesViewProps) {
   const messages = useQuery(api.queries.getMessagesForPost, { chatId, postId })
   const [loadingUsers, setLoadingUsers] = React.useState<Set<number>>(new Set())
+  const [autoReact, setAutoReact] = React.useState<boolean>(
+    () => localStorage.getItem(AUTO_REACT_STORAGE_KEY) === 'true'
+  )
   const scrollRef = React.useRef<HTMLDivElement>(null)
+
+  const handleAutoReactToggle = () => {
+    setAutoReact(prev => {
+      const next = !prev
+      localStorage.setItem(AUTO_REACT_STORAGE_KEY, String(next))
+      return next
+    })
+  }
 
   const comments = messages?.filter((m) => !m.isPost) ?? []
   const postMessage = messages?.find((m) => m.isPost)
@@ -63,11 +76,11 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
     }
   }, [messages !== undefined]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleRegister = async (userId: number, sessionType: string | undefined) => {
+  const handleRegister = async (userId: number, sessionType: string | undefined, messageId: number) => {
     if (!onAddToQueue || loadingUsers.has(userId)) return
     setLoadingUsers(prev => new Set(prev).add(userId))
     try {
-      await onAddToQueue(userId, sessionType)
+      await onAddToQueue(userId, sessionType, autoReact ? messageId : undefined)
     } finally {
       setLoadingUsers(prev => {
         const next = new Set(prev)
@@ -79,6 +92,26 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
 
   return (
     <div className="flex flex-col h-full" dir="rtl">
+      {/* Sticky toggle bar */}
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b bg-background text-sm">
+        <span className="text-muted-foreground">تفاعل بقلب (❤️) عند إضافة دور</span>
+        <button
+          dir="ltr"
+          onClick={handleAutoReactToggle}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+            autoReact ? 'bg-rose-500' : 'bg-muted'
+          }`}
+          role="switch"
+          aria-checked={autoReact}
+        >
+          <span
+            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+              autoReact ? 'translate-x-5' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">
         {messages === undefined ? (
           <div className="flex justify-center pt-8">
@@ -168,7 +201,7 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
                           ) : (
                             <button
                               className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
-                              onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined)}
+                              onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined, msg.messageId)}
                             >
                               + دور
                             </button>

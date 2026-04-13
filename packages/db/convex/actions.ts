@@ -35,6 +35,27 @@ export const sendParticipantList = action({
 });
 
 /**
+ * Creates a bot task to react to a specific message with a heart emoji
+ */
+export const reactToMessage = action({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    messageId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.runMutation(api.mutations.createBotTask, {
+      type: "react_to_message",
+      chatId: args.chatId,
+      postId: args.postId,
+      messageId: args.messageId,
+    });
+
+    return { success: true, taskId: result.taskId };
+  },
+});
+
+/**
  * One-time backfill: populates the posts table from turnQueue and participationHistory.
  * Only creates post records for posts that have actual participants — informational
  * channel posts (with no users) are excluded.

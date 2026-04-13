@@ -35,7 +35,7 @@ registerMessageHandler(bot, messageService, classificationService, convex);
 registerWebAppHandler(bot, convex, config);
 
 // Start bot task service with reactive subscriptions
-const botTaskService = new BotTaskService(bot, convex, reactiveConvex);
+const botTaskService = new BotTaskService(bot, convex, reactiveConvex, config);
 botTaskService.start();
 
 // Handle errors

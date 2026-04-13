@@ -1,17 +1,20 @@
 import type { Bot } from "grammy";
 import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
+import type { Config } from "../config/environment";
 
 export class BotTaskService {
   private bot: Bot;
   private convex: ConvexHttpClient;
   private reactiveClient: ConvexClient;
+  private config: Config;
   private isProcessing = false;
   private unsubscribe: (() => void) | null = null;
 
-  constructor(bot: Bot, convex: ConvexHttpClient, reactiveClient: ConvexClient) {
+  constructor(bot: Bot, convex: ConvexHttpClient, reactiveClient: ConvexClient, config: Config) {
     this.bot = bot;
     this.convex = convex;
     this.reactiveClient = reactiveClient;
+    this.config = config;
   }
 
   /**
@@ -69,6 +72,8 @@ export class BotTaskService {
     try {
       if (task.type === "send_participant_list") {
         await this.handleSendParticipantList(task);
+      } else if (task.type === "react_to_message") {
+        await this.handleReactToMessage(task);
       } else {
         throw new Error(`Unknown task type: ${task.type}`);
       }
@@ -82,6 +87,21 @@ export class BotTaskService {
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
+  }
+
+  private async handleReactToMessage(task: any) {
+    const { chatId, messageId } = task;
+
+    await this.bot.api.setMessageReaction(chatId, messageId, [
+      { type: "emoji", emoji: this.config.autoReactionEmoji },
+    ]);
+
+    await this.convex.mutation(api.mutations.updateBotTask, {
+      taskId: task._id,
+      status: "completed",
+    });
+
+    console.log(`✅ Reacted to message ${messageId} in chat ${chatId}`);
   }
 
   private async handleSendParticipantList(task: any) {
