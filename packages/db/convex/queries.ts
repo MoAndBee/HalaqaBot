@@ -828,6 +828,7 @@ export const getPendingBotTasks = query({
       type: task.type,
       chatId: task.chatId,
       postId: task.postId,
+      messageId: task.messageId,
       sessionNumber: task.sessionNumber,
       flower: task.flower,
       status: task.status,
