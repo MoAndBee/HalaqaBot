@@ -84,7 +84,7 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
     .join('\n')
 }
 
-const FLOWER_OPTIONS = ['🌸', '🌺', '🌼', '🌻', '❤️', '💛', '💜'] as const
+const FLOWER_OPTIONS = ['🌸', '🌺', '🌼', '🌻', '❤️', '💛', '💜', '🎉', '👏'] as const
 const DEFAULT_FLOWER = '🌸'
 const FLOWER_STORAGE_KEY = 'halaqa-selected-flower'
 
