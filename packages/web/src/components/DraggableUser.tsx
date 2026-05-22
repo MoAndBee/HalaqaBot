@@ -24,10 +24,12 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { SESSION_TYPES, type SessionType } from '@/lib/session-types'
+import { RepeatParticipationIndicator, type RepeatParticipation } from './RepeatParticipationIndicator'
 
 interface DraggableUserProps {
   user: User
   index: number
+  repeats?: RepeatParticipation[]
   onDelete: (entryId: string) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onUpdateSessionType?: (entryId: string, sessionType: SessionType) => void
@@ -42,7 +44,7 @@ interface DraggableUserProps {
   isLocked?: boolean
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, onUnskip, totalUsers, isLocked }: DraggableUserProps) {
+export function DraggableUser({ user, index, repeats, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, onUnskip, totalUsers, isLocked }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
@@ -300,6 +302,9 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
             <>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-medium text-sm sm:text-base">{primaryName}</span>
+                {repeats && repeats.length > 0 && (
+                  <RepeatParticipationIndicator repeats={repeats} />
+                )}
                 {user.carriedOver && (
                   <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-700/50 text-xs">
                     من الحلقة السابقة

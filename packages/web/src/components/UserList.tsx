@@ -18,6 +18,7 @@ import type { User } from '@halakabot/db'
 import { DraggableUser } from './DraggableUser'
 import { TurnControls } from './TurnControls'
 import { CompletedUsersSection } from './CompletedUsersSection'
+import type { RepeatParticipation } from './RepeatParticipationIndicator'
 import type { SessionType } from './SplitButton'
 
 interface CompletedUser extends User {
@@ -32,6 +33,7 @@ interface UserListProps {
   postId: number
   activeUsers: (User & { displayName?: string; carriedOver?: boolean })[]
   completedUsers: CompletedUser[]
+  repeatParticipations?: Record<string, RepeatParticipation[]>
   onReorder: (entryId: string, newPosition: number) => Promise<void>
   onDelete: (entryId: string) => Promise<void>
   onDeleteCompleted: (entryId: string) => Promise<void>
@@ -51,6 +53,7 @@ export function UserList({
   postId: _postId,
   activeUsers,
   completedUsers,
+  repeatParticipations,
   onReorder,
   onDelete,
   onDeleteCompleted,
@@ -340,6 +343,7 @@ export function UserList({
       <div className="p-4">
         <CompletedUsersSection
           users={completedUsers}
+          repeatParticipations={repeatParticipations}
           onUpdateSessionType={handleUpdateSessionType}
           onUpdateDisplayName={handleUpdateDisplayName}
           onDelete={handleDeleteCompleted}
@@ -363,6 +367,7 @@ export function UserList({
                     key={user.entryId || user.id}
                     user={user}
                     index={index}
+                    repeats={repeatParticipations?.[String(user.id)]}
                     onDelete={handleDelete}
                     onUpdateDisplayName={handleUpdateDisplayName}
                     onUpdateSessionType={handleUpdateSessionType}

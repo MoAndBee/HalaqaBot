@@ -173,6 +173,118 @@ export const getUserList = query({
   },
 });
 
+// Returns, for each user in the current session, any prior participations in
+// OTHER sessions of the same post (same chatId + postId, different sessionNumber)
+// that share the user's current sessionType. Used to surface a warning when
+// someone has already done the same participation type in a different halaqa of
+// the same post.
+export const getRepeatParticipationsInPost = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Pull every (userId, sessionType) currently in this session from both the
+    // active queue and the completed history.
+    const [queueEntries, completedEntries] = await Promise.all([
+      ctx.db
+        .query("turnQueue")
+        .withIndex("by_chat_post_session", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", args.sessionNumber)
+        )
+        .collect(),
+      ctx.db
+        .query("participationHistory")
+        .withIndex("by_chat_post_session", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", args.sessionNumber)
+        )
+        .collect(),
+    ]);
+
+    // Collect (userId, sessionType) pairs in this session — skip queue entries
+    // that don't yet have a sessionType set.
+    const currentPairs: Array<{ userId: number; sessionType: string }> = [];
+    for (const e of queueEntries) {
+      if (e.sessionType) currentPairs.push({ userId: e.userId, sessionType: e.sessionType });
+    }
+    for (const e of completedEntries) {
+      currentPairs.push({ userId: e.userId, sessionType: e.sessionType });
+    }
+
+    if (currentPairs.length === 0) {
+      return { repeats: {} as Record<string, Array<{ sessionNumber: number; teacherName: string; sessionType: string }>> };
+    }
+
+    // All completed participations in this post, across every session.
+    const allPostHistory = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    // Index history by `${userId}:${sessionType}` for fast lookup, excluding
+    // entries from the current session.
+    const historyByKey = new Map<string, typeof allPostHistory>();
+    for (const h of allPostHistory) {
+      if (h.sessionNumber === args.sessionNumber) continue;
+      const key = `${h.userId}:${h.sessionType}`;
+      const list = historyByKey.get(key);
+      if (list) list.push(h);
+      else historyByKey.set(key, [h]);
+    }
+
+    // Cache session metadata lookups within this post.
+    const sessionMetaCache = new Map<number, { teacherName: string } | null>();
+    const getTeacherName = async (sessionNumber: number): Promise<string> => {
+      if (sessionMetaCache.has(sessionNumber)) {
+        return sessionMetaCache.get(sessionNumber)?.teacherName ?? "";
+      }
+      const meta = await ctx.db
+        .query("sessions")
+        .withIndex("by_chat_post_session", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", sessionNumber)
+        )
+        .first();
+      sessionMetaCache.set(sessionNumber, meta ? { teacherName: meta.teacherName } : null);
+      return meta?.teacherName ?? "";
+    };
+
+    // Build the repeats map: userId -> list of prior halaqa matches.
+    // Deduplicate by sessionNumber+sessionType (a user may have multiple history
+    // rows in the same prior session, but for the warning we only need one).
+    const repeats: Record<string, Array<{ sessionNumber: number; teacherName: string; sessionType: string }>> = {};
+    const seenPairs = new Set<string>();
+
+    for (const { userId, sessionType } of currentPairs) {
+      const matches = historyByKey.get(`${userId}:${sessionType}`);
+      if (!matches || matches.length === 0) continue;
+
+      const userKey = String(userId);
+      if (!repeats[userKey]) repeats[userKey] = [];
+
+      for (const m of matches) {
+        const dedupeKey = `${userId}:${m.sessionNumber}:${m.sessionType}`;
+        if (seenPairs.has(dedupeKey)) continue;
+        seenPairs.add(dedupeKey);
+
+        const teacherName = await getTeacherName(m.sessionNumber);
+        repeats[userKey].push({
+          sessionNumber: m.sessionNumber,
+          teacherName,
+          sessionType: m.sessionType,
+        });
+      }
+
+      // Stable ordering by session number.
+      repeats[userKey].sort((a, b) => a.sessionNumber - b.sessionNumber);
+    }
+
+    return { repeats };
+  },
+});
+
 export const getAvailableSessions = query({
   args: {
     chatId: v.number(),
