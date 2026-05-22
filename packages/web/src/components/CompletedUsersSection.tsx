@@ -24,12 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { SESSION_TYPES, type SessionType } from '@/lib/session-types'
 import type { RepeatInfo } from './UserList'
@@ -79,6 +73,7 @@ function CompletedUserCard({
   const [isEditingName, setIsEditingName] = useState(false)
   const [selectedType, setSelectedType] = useState<SessionType | null>(null)
   const [editedName, setEditedName] = useState(user.realName || '')
+  const [showRepeatInfo, setShowRepeatInfo] = useState(false)
 
   const handleEditTypeClick = () => {
     setSelectedType((user.sessionType as SessionType) || null)
@@ -246,29 +241,29 @@ function CompletedUserCard({
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-foreground text-xs sm:text-sm font-medium">{primaryName}</span>
                 {repeatInfo && repeatInfo.length > 0 && (
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge variant="outline" className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700/50 text-xs cursor-default select-none">
-                          !
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs text-xs" dir="rtl">
-                        <p className="font-semibold mb-1">شاركت اليوم في:</p>
-                        {repeatInfo.map((r, i) => (
-                          <p key={i}>
-                            {r.teacherName ? `حلقة ${r.teacherName}` : `حلقة #${r.sessionNumber}`}
-                            {' — '}
-                            {new Date(r.completedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        ))}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Badge
+                    variant="outline"
+                    className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700/50 text-xs cursor-pointer select-none"
+                    onClick={() => setShowRepeatInfo(v => !v)}
+                  >
+                    !
+                  </Badge>
                 )}
               </div>
               {secondaryText && (
                 <div className="text-muted-foreground text-xs truncate">{secondaryText}</div>
+              )}
+              {showRepeatInfo && repeatInfo && repeatInfo.length > 0 && (
+                <div className="mt-1 text-xs text-orange-700 dark:text-orange-400 space-y-0.5">
+                  <span className="font-semibold">شاركت اليوم في: </span>
+                  {repeatInfo.map((r, i) => (
+                    <span key={i} className="block">
+                      {r.teacherName ? `حلقة ${r.teacherName}` : `حلقة #${r.sessionNumber}`}
+                      {' — '}
+                      {new Date(r.completedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  ))}
+                </div>
               )}
               {user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0 && (
                 <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
