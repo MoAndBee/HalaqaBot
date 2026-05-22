@@ -23,11 +23,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { SESSION_TYPES, type SessionType } from '@/lib/session-types'
 import type { RepeatInfo } from './UserList'
@@ -309,25 +308,23 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-medium text-sm sm:text-base">{primaryName}</span>
                 {repeatInfo && repeatInfo.length > 0 && (
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge variant="outline" className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700/50 text-xs cursor-default select-none">
-                          !
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs text-xs" dir="rtl">
-                        <p className="font-semibold mb-1">شاركت اليوم في:</p>
-                        {repeatInfo.map((r, i) => (
-                          <p key={i}>
-                            {r.teacherName ? `حلقة ${r.teacherName}` : `حلقة #${r.sessionNumber}`}
-                            {' — '}
-                            {new Date(r.completedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        ))}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Badge variant="outline" className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700/50 text-xs cursor-pointer select-none">
+                        !
+                      </Badge>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" className="w-auto text-xs" dir="rtl">
+                      <p className="font-semibold mb-1">شاركت اليوم في:</p>
+                      {repeatInfo.map((r, i) => (
+                        <p key={i}>
+                          {r.teacherName ? `حلقة ${r.teacherName}` : `حلقة #${r.sessionNumber}`}
+                          {' — '}
+                          {new Date(r.completedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
                 )}
                 {user.carriedOver && (
                   <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-300 dark:border-amber-700/50 text-xs">
