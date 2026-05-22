@@ -27,6 +27,8 @@ interface CompletedUser extends User {
   position: number
 }
 
+export type RepeatInfo = { postId: number; sessionNumber: number; completedAt: number; teacherName: string | null }
+
 interface UserListProps {
   chatId: number
   postId: number
@@ -44,6 +46,7 @@ interface UserListProps {
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
   isLocked: boolean
+  repeatParticipants?: Record<string, RepeatInfo[]>
 }
 
 export function UserList({
@@ -62,7 +65,8 @@ export function UserList({
   onAddTurnAfter3,
   onEditNotes,
   onSetCompensation,
-  isLocked
+  isLocked,
+  repeatParticipants = {},
 }: UserListProps) {
   const [items, setItems] = useState(activeUsers)
   const [isReordering, setIsReordering] = useState(false)
@@ -345,6 +349,7 @@ export function UserList({
           onDelete={handleDeleteCompleted}
           onAddTurnAfter3={onAddTurnAfter3}
           isLocked={isLocked}
+          repeatParticipants={repeatParticipants}
         />
 
         {items.length > 0 ? (
@@ -375,6 +380,7 @@ export function UserList({
                     onUnskip={handleUnskip}
                     totalUsers={items.length}
                     isLocked={isLocked}
+                    repeatInfo={user.entryId ? (repeatParticipants[user.entryId] ?? null) : null}
                   />
                 ))}
               </div>

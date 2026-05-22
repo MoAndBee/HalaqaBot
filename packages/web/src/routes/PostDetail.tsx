@@ -150,6 +150,12 @@ export default function PostDetail() {
     api.queries.getSessionSupervisors,
     data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession, channelId: CHANNEL_ID } : 'skip'
   )
+  const repeatParticipants = useQuery(
+    api.queries.getSameDayRepeatParticipants,
+    data?.currentSession && sessionInfo?.createdAt
+      ? { chatId, postId, sessionNumber: data.currentSession, dayTimestamp: sessionInfo.createdAt }
+      : 'skip'
+  )
   // Fetch current admin's display name (for editing their preferred name)
   const currentAdminName = useQuery(
     api.queries.getAdminDisplayName,
@@ -1032,6 +1038,7 @@ export default function PostDetail() {
             onEditNotes={handleOpenEditNotes}
             onSetCompensation={handleSetCompensationDates}
             isLocked={sessionInfo?.isLocked || false}
+            repeatParticipants={repeatParticipants ?? {}}
           />
         </TabsContent>
 

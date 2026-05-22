@@ -24,8 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { SESSION_TYPES, type SessionType } from '@/lib/session-types'
+import type { RepeatInfo } from './UserList'
 
 interface CompletedUser {
   entryId?: string
@@ -47,6 +54,7 @@ interface CompletedUsersSectionProps {
   onDelete?: (entryId: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
   isLocked?: boolean
+  repeatParticipants?: Record<string, RepeatInfo[]>
 }
 
 function CompletedUserCard({
@@ -56,6 +64,7 @@ function CompletedUserCard({
   onDelete,
   onAddTurnAfter3,
   isLocked,
+  repeatInfo,
 }: {
   user: CompletedUser
   index: number
@@ -64,6 +73,7 @@ function CompletedUserCard({
   onDelete?: (entryId: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
   isLocked?: boolean
+  repeatInfo?: RepeatInfo[] | null
 }) {
   const [isEditingType, setIsEditingType] = useState(false)
   const [isEditingName, setIsEditingName] = useState(false)
@@ -233,7 +243,30 @@ function CompletedUserCard({
             </div>
           ) : (
             <>
-              <div className="text-foreground text-xs sm:text-sm font-medium truncate">{primaryName}</div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-foreground text-xs sm:text-sm font-medium">{primaryName}</span>
+                {repeatInfo && repeatInfo.length > 0 && (
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="outline" className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700/50 text-xs cursor-default select-none">
+                          !
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs" dir="rtl">
+                        <p className="font-semibold mb-1">شاركت اليوم في:</p>
+                        {repeatInfo.map((r, i) => (
+                          <p key={i}>
+                            {r.teacherName ? `حلقة ${r.teacherName}` : `حلقة #${r.sessionNumber}`}
+                            {' — '}
+                            {new Date(r.completedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        ))}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
               {secondaryText && (
                 <div className="text-muted-foreground text-xs truncate">{secondaryText}</div>
               )}
@@ -290,6 +323,7 @@ export function CompletedUsersSection({
   onDelete,
   onAddTurnAfter3,
   isLocked,
+  repeatParticipants = {},
 }: CompletedUsersSectionProps) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -323,6 +357,7 @@ export function CompletedUsersSection({
             onDelete={onDelete}
             onAddTurnAfter3={onAddTurnAfter3}
             isLocked={isLocked}
+            repeatInfo={user.entryId ? (repeatParticipants[user.entryId] ?? null) : null}
           />
         ))}
       </CollapsibleContent>

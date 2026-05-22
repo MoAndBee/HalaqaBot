@@ -1155,6 +1155,90 @@ export const getSessionSupervisors = query({
   },
 });
 
+export const getSameDayRepeatParticipants = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    dayTimestamp: v.number(), // any timestamp within the day (e.g. session createdAt)
+  },
+  handler: async (ctx, args) => {
+    const date = new Date(args.dayTimestamp);
+    const startOfDay = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    const endOfDay = startOfDay + 24 * 60 * 60 * 1000 - 1;
+
+    const [queueEntries, historyEntries] = await Promise.all([
+      ctx.db
+        .query("turnQueue")
+        .withIndex("by_chat_post_session", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", args.sessionNumber)
+        )
+        .collect(),
+      ctx.db
+        .query("participationHistory")
+        .withIndex("by_chat_post_session", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId).eq("sessionNumber", args.sessionNumber)
+        )
+        .collect(),
+    ]);
+
+    const allEntries = [
+      ...queueEntries.map(e => ({ entryId: e._id.toString(), userId: e.userId, sessionType: e.sessionType ?? null })),
+      ...historyEntries.map(e => ({ entryId: e._id.toString(), userId: e.userId, sessionType: e.sessionType ?? null })),
+    ];
+
+    if (allEntries.length === 0) return {} as Record<string, { postId: number; sessionNumber: number; completedAt: number; teacherName: string | null }[]>;
+
+    type RepeatEntry = { postId: number; sessionNumber: number; completedAt: number; teacherName: string | null };
+    const cache = new Map<string, RepeatEntry[]>();
+    const result: Record<string, RepeatEntry[]> = {};
+
+    for (const entry of allEntries) {
+      if (!entry.sessionType) continue;
+
+      const cacheKey = `${entry.userId}:${entry.sessionType}`;
+
+      if (!cache.has(cacheKey)) {
+        const participations = await ctx.db
+          .query("participationHistory")
+          .withIndex("by_user", (q) => q.eq("userId", entry.userId))
+          .collect();
+
+        const sameDayElsewhere = participations.filter(p => {
+          const isCurrent = p.chatId === args.chatId && p.postId === args.postId && p.sessionNumber === args.sessionNumber;
+          return !isCurrent && p.sessionType === entry.sessionType && p.completedAt >= startOfDay && p.completedAt <= endOfDay;
+        });
+
+        const enriched: RepeatEntry[] = await Promise.all(
+          sameDayElsewhere.map(async (p) => {
+            const session = await ctx.db
+              .query("sessions")
+              .withIndex("by_chat_post_session", (q) =>
+                q.eq("chatId", p.chatId).eq("postId", p.postId).eq("sessionNumber", p.sessionNumber)
+              )
+              .first();
+            return {
+              postId: p.postId,
+              sessionNumber: p.sessionNumber,
+              completedAt: p.completedAt,
+              teacherName: session?.teacherName ?? null,
+            };
+          })
+        );
+
+        cache.set(cacheKey, enriched);
+      }
+
+      const repeats = cache.get(cacheKey)!;
+      if (repeats.length > 0) {
+        result[entry.entryId] = repeats;
+      }
+    }
+
+    return result;
+  },
+});
+
 // Internal: paginates through messageAuthors for the backfill action
 export const getMessageAuthorsBatch = internalQuery({
   args: { cursor: v.union(v.string(), v.null()) },
