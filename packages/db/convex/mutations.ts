@@ -447,6 +447,7 @@ export const setLastListMessage = mutation({
     messageId: v.number(),
     sessionNumber: v.optional(v.number()),
     channelId: v.optional(v.number()),
+    registrationClosedImageMessageId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -461,6 +462,7 @@ export const setLastListMessage = mutation({
         messageId: args.messageId,
         sessionNumber: args.sessionNumber,
         channelId: args.channelId,
+        registrationClosedImageMessageId: args.registrationClosedImageMessageId,
         updatedAt: Date.now(),
       });
     } else {
@@ -470,6 +472,7 @@ export const setLastListMessage = mutation({
         messageId: args.messageId,
         sessionNumber: args.sessionNumber,
         channelId: args.channelId,
+        registrationClosedImageMessageId: args.registrationClosedImageMessageId,
         updatedAt: Date.now(),
       });
     }

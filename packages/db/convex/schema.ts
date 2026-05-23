@@ -89,6 +89,7 @@ export default defineSchema({
     messageId: v.number(),
     sessionNumber: v.optional(v.number()), // session number to track which halaqa this message is for
     channelId: v.optional(v.number()),
+    registrationClosedImageMessageId: v.optional(v.number()), // message ID of the closed-registration image sent right after the list, if any
     updatedAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post", ["chatId", "postId"])

@@ -255,6 +255,7 @@ export const getLastListMessage = query({
       postId: record.postId,
       sessionNumber: record.sessionNumber,
       channelId: record.channelId,
+      registrationClosedImageMessageId: record.registrationClosedImageMessageId,
       updatedAt: record.updatedAt,
     };
   },

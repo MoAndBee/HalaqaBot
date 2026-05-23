@@ -247,6 +247,16 @@ export class BotTaskService {
         console.error('Failed to delete old message:', error);
         // Continue anyway - old message might already be deleted
       }
+
+      // Also delete the old registration-closed image that followed it, if any
+      if (lastListMessage.registrationClosedImageMessageId) {
+        try {
+          await this.bot.api.deleteMessage(chatId, lastListMessage.registrationClosedImageMessageId);
+          console.log(`Deleted previous registration-closed image for session ${sessionNumber}`);
+        } catch (error) {
+          console.error('Failed to delete old registration-closed image:', error);
+        }
+      }
     } else if (lastListMessage) {
       console.log(`Keeping previous message (session ${lastListMessage.sessionNumber}) as new message is for different session (${sessionNumber})`);
     }
@@ -257,9 +267,11 @@ export class BotTaskService {
     });
 
     // If registration is closed for this session, follow up with the closed-registration image
+    let registrationClosedImageMessageId: number | undefined;
     if (currentSession?.registrationClosed) {
       try {
-        await this.bot.api.sendPhoto(chatId, new InputFile(REGISTRATION_CLOSED_IMAGE_PATH));
+        const photoMessage = await this.bot.api.sendPhoto(chatId, new InputFile(REGISTRATION_CLOSED_IMAGE_PATH));
+        registrationClosedImageMessageId = photoMessage.message_id;
       } catch (error) {
         console.error("Failed to send registration-closed image:", error);
       }
@@ -271,6 +283,7 @@ export class BotTaskService {
       postId,
       messageId: sentMessage.message_id,
       sessionNumber,
+      registrationClosedImageMessageId,
     });
 
     // Mark task as completed
