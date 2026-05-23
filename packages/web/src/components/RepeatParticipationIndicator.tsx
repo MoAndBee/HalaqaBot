@@ -38,7 +38,7 @@ export function RepeatParticipationIndicator({ repeats }: RepeatParticipationInd
         onClick={(e) => e.stopPropagation()}
       >
         <div className="font-medium text-foreground mb-1">
-          شارك من قبل بنفس النوع في:
+          مشاركة مكررة:
         </div>
         <ul className="space-y-1 text-muted-foreground">
           {repeats.map((r) => (
