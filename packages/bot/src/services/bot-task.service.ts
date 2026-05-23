@@ -85,6 +85,8 @@ export class BotTaskService {
         await this.handleSendParticipantList(task);
       } else if (task.type === "react_to_message") {
         await this.handleReactToMessage(task);
+      } else if (task.type === "delete_message") {
+        await this.handleDeleteMessage(task);
       } else {
         throw new Error(`Unknown task type: ${task.type}`);
       }
@@ -113,6 +115,23 @@ export class BotTaskService {
     });
 
     console.log(`✅ Reacted to message ${messageId} in chat ${chatId}`);
+  }
+
+  private async handleDeleteMessage(task: any) {
+    const { chatId, messageId } = task;
+
+    try {
+      await this.bot.api.deleteMessage(chatId, messageId);
+      console.log(`✅ Deleted message ${messageId} in chat ${chatId}`);
+    } catch (error) {
+      // Telegram returns an error if the message is already gone — treat as success
+      console.error(`Failed to delete message ${messageId} in chat ${chatId}:`, error);
+    }
+
+    await this.convex.mutation(api.mutations.updateBotTask, {
+      taskId: task._id,
+      status: "completed",
+    });
   }
 
   private async handleSendParticipantList(task: any) {

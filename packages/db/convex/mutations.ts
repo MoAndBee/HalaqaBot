@@ -1416,9 +1416,39 @@ export const setSessionRegistrationClosed = mutation({
       throw new Error("Session not found");
     }
 
+    const wasClosed = session.registrationClosed === true;
+    const willBeClosed = args.registrationClosed;
+
     await ctx.db.patch(session._id, {
-      registrationClosed: args.registrationClosed,
+      registrationClosed: willBeClosed,
     });
+
+    // When transitioning from closed -> open, delete the closed-registration
+    // image that's still in the chat (if any) and clear its tracked message ID.
+    if (wasClosed && !willBeClosed) {
+      const lastListMessage = await ctx.db
+        .query("lastListMessages")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .first();
+
+      if (lastListMessage?.registrationClosedImageMessageId) {
+        await ctx.db.insert("botTasks", {
+          type: "delete_message",
+          chatId: args.chatId,
+          postId: args.postId,
+          messageId: lastListMessage.registrationClosedImageMessageId,
+          status: "pending",
+          createdAt: Date.now(),
+        });
+
+        await ctx.db.patch(lastListMessage._id, {
+          registrationClosedImageMessageId: undefined,
+          updatedAt: Date.now(),
+        });
+      }
+    }
 
     return { success: true };
   },
