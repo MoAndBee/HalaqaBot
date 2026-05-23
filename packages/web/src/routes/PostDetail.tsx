@@ -896,6 +896,7 @@ export default function PostDetail() {
                   <Tags className="h-4 w-4 ml-2" />
                   تعديل نوع المشاركة للكل
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {sessionInfo?.isLocked ? (
                   <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
                     <LockOpen className="h-4 w-4 ml-2" />
