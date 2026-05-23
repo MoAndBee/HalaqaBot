@@ -773,6 +773,24 @@ export default function PostDetail() {
         sessionNumber: currentSession,
         registrationClosed: nextValue,
       })
+
+      // When closing registration, also (re)send the list so the closed-registration
+      // image is pushed to the chat immediately — same as clicking إرسال قائمة الأسماء.
+      if (nextValue) {
+        try {
+          await sendParticipantList({
+            chatId,
+            postId,
+            sessionNumber: currentSession,
+            flower: selectedFlower,
+          })
+        } catch (sendError) {
+          console.error('Auto-send list after closing registration failed:', sendError)
+          toast.error('تم إغلاق تسجيل الأدوار، لكن فشل إرسال القائمة')
+          return
+        }
+      }
+
       toast.success(nextValue ? 'تم إغلاق تسجيل الأدوار' : 'تم فتح تسجيل الأدوار')
     } catch (error: any) {
       toast.error(error?.message || 'فشل تحديث حالة التسجيل')
