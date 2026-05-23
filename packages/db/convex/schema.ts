@@ -131,6 +131,7 @@ export default defineSchema({
     isLocked: v.optional(v.boolean()), // Whether this session is locked from editing
     lockedAt: v.optional(v.number()), // Timestamp when session was locked
     lockedBy: v.optional(v.string()), // Identifier of admin who locked the session
+    registrationClosed: v.optional(v.boolean()), // Whether new turn registrations are closed
     createdAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post", ["chatId", "postId"])

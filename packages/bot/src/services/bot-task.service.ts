@@ -1,6 +1,17 @@
 import type { Bot } from "grammy";
+import { InputFile } from "grammy";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
 import type { Config } from "../config/environment";
+
+const REGISTRATION_CLOSED_IMAGE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "assets",
+  "registration-closed.png"
+);
 
 export class BotTaskService {
   private bot: Bot;
@@ -244,6 +255,15 @@ export class BotTaskService {
     const sentMessage = await this.bot.api.sendMessage(chatId, messageText, {
       reply_to_message_id: postId,
     });
+
+    // If registration is closed for this session, follow up with the closed-registration image
+    if (currentSession?.registrationClosed) {
+      try {
+        await this.bot.api.sendPhoto(chatId, new InputFile(REGISTRATION_CLOSED_IMAGE_PATH));
+      } catch (error) {
+        console.error("Failed to send registration-closed image:", error);
+      }
+    }
 
     // Store the new message ID with session number
     await this.convex.mutation(api.mutations.setLastListMessage, {

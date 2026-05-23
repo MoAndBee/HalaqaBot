@@ -1392,6 +1392,35 @@ export const unlockSession = mutation({
   },
 });
 
+export const setSessionRegistrationClosed = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    registrationClosed: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    await ctx.db.patch(session._id, {
+      registrationClosed: args.registrationClosed,
+    });
+
+    return { success: true };
+  },
+});
+
 export const createBotTask = mutation({
   args: {
     type: v.string(),

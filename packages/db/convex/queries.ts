@@ -200,6 +200,7 @@ export const getAvailableSessions = query({
       teacherName: session.teacherName,
       supervisorName: session.supervisorName,
       createdAt: session.createdAt,
+      registrationClosed: session.registrationClosed,
     }));
   },
 });
@@ -228,6 +229,7 @@ export const getSessionInfo = query({
       isLocked: sessionMeta.isLocked,
       lockedAt: sessionMeta.lockedAt,
       lockedBy: sessionMeta.lockedBy,
+      registrationClosed: sessionMeta.registrationClosed,
     };
   },
 });
