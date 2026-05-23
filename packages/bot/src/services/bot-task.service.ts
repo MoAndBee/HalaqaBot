@@ -10,7 +10,7 @@ const REGISTRATION_CLOSED_IMAGE_PATH = path.join(
   "..",
   "..",
   "assets",
-  "registration-closed.png"
+  "registration-closed.jpeg"
 );
 
 export class BotTaskService {
