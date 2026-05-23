@@ -1,6 +1,17 @@
 import type { Bot } from "grammy";
+import { InputFile } from "grammy";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
 import type { Config } from "../config/environment";
+
+const REGISTRATION_CLOSED_IMAGE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "assets",
+  "registration-closed.jpeg"
+);
 
 export class BotTaskService {
   private bot: Bot;
@@ -74,6 +85,8 @@ export class BotTaskService {
         await this.handleSendParticipantList(task);
       } else if (task.type === "react_to_message") {
         await this.handleReactToMessage(task);
+      } else if (task.type === "delete_message") {
+        await this.handleDeleteMessage(task);
       } else {
         throw new Error(`Unknown task type: ${task.type}`);
       }
@@ -102,6 +115,23 @@ export class BotTaskService {
     });
 
     console.log(`✅ Reacted to message ${messageId} in chat ${chatId}`);
+  }
+
+  private async handleDeleteMessage(task: any) {
+    const { chatId, messageId } = task;
+
+    try {
+      await this.bot.api.deleteMessage(chatId, messageId);
+      console.log(`✅ Deleted message ${messageId} in chat ${chatId}`);
+    } catch (error) {
+      // Telegram returns an error if the message is already gone — treat as success
+      console.error(`Failed to delete message ${messageId} in chat ${chatId}:`, error);
+    }
+
+    await this.convex.mutation(api.mutations.updateBotTask, {
+      taskId: task._id,
+      status: "completed",
+    });
   }
 
   private async handleSendParticipantList(task: any) {
@@ -236,6 +266,16 @@ export class BotTaskService {
         console.error('Failed to delete old message:', error);
         // Continue anyway - old message might already be deleted
       }
+
+      // Also delete the old registration-closed image that followed it, if any
+      if (lastListMessage.registrationClosedImageMessageId) {
+        try {
+          await this.bot.api.deleteMessage(chatId, lastListMessage.registrationClosedImageMessageId);
+          console.log(`Deleted previous registration-closed image for session ${sessionNumber}`);
+        } catch (error) {
+          console.error('Failed to delete old registration-closed image:', error);
+        }
+      }
     } else if (lastListMessage) {
       console.log(`Keeping previous message (session ${lastListMessage.sessionNumber}) as new message is for different session (${sessionNumber})`);
     }
@@ -245,12 +285,24 @@ export class BotTaskService {
       reply_to_message_id: postId,
     });
 
+    // If registration is closed for this session, follow up with the closed-registration image
+    let registrationClosedImageMessageId: number | undefined;
+    if (currentSession?.registrationClosed) {
+      try {
+        const photoMessage = await this.bot.api.sendPhoto(chatId, new InputFile(REGISTRATION_CLOSED_IMAGE_PATH));
+        registrationClosedImageMessageId = photoMessage.message_id;
+      } catch (error) {
+        console.error("Failed to send registration-closed image:", error);
+      }
+    }
+
     // Store the new message ID with session number
     await this.convex.mutation(api.mutations.setLastListMessage, {
       chatId,
       postId,
       messageId: sentMessage.message_id,
       sessionNumber,
+      registrationClosedImageMessageId,
     });
 
     // Mark task as completed

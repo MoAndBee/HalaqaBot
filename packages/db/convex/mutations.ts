@@ -447,6 +447,7 @@ export const setLastListMessage = mutation({
     messageId: v.number(),
     sessionNumber: v.optional(v.number()),
     channelId: v.optional(v.number()),
+    registrationClosedImageMessageId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -461,6 +462,7 @@ export const setLastListMessage = mutation({
         messageId: args.messageId,
         sessionNumber: args.sessionNumber,
         channelId: args.channelId,
+        registrationClosedImageMessageId: args.registrationClosedImageMessageId,
         updatedAt: Date.now(),
       });
     } else {
@@ -470,6 +472,7 @@ export const setLastListMessage = mutation({
         messageId: args.messageId,
         sessionNumber: args.sessionNumber,
         channelId: args.channelId,
+        registrationClosedImageMessageId: args.registrationClosedImageMessageId,
         updatedAt: Date.now(),
       });
     }
@@ -1387,6 +1390,65 @@ export const unlockSession = mutation({
       lockedAt: undefined,
       lockedBy: undefined,
     });
+
+    return { success: true };
+  },
+});
+
+export const setSessionRegistrationClosed = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    registrationClosed: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    if (!session) {
+      throw new Error("Session not found");
+    }
+
+    const wasClosed = session.registrationClosed === true;
+    const willBeClosed = args.registrationClosed;
+
+    await ctx.db.patch(session._id, {
+      registrationClosed: willBeClosed,
+    });
+
+    // When transitioning from closed -> open, delete the closed-registration
+    // image that's still in the chat (if any) and clear its tracked message ID.
+    if (wasClosed && !willBeClosed) {
+      const lastListMessage = await ctx.db
+        .query("lastListMessages")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", args.postId)
+        )
+        .first();
+
+      if (lastListMessage?.registrationClosedImageMessageId) {
+        await ctx.db.insert("botTasks", {
+          type: "delete_message",
+          chatId: args.chatId,
+          postId: args.postId,
+          messageId: lastListMessage.registrationClosedImageMessageId,
+          status: "pending",
+          createdAt: Date.now(),
+        });
+
+        await ctx.db.patch(lastListMessage._id, {
+          registrationClosedImageMessageId: undefined,
+          updatedAt: Date.now(),
+        });
+      }
+    }
 
     return { success: true };
   },

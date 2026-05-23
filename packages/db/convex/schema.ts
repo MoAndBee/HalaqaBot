@@ -89,6 +89,7 @@ export default defineSchema({
     messageId: v.number(),
     sessionNumber: v.optional(v.number()), // session number to track which halaqa this message is for
     channelId: v.optional(v.number()),
+    registrationClosedImageMessageId: v.optional(v.number()), // message ID of the closed-registration image sent right after the list, if any
     updatedAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post", ["chatId", "postId"])
@@ -131,13 +132,14 @@ export default defineSchema({
     isLocked: v.optional(v.boolean()), // Whether this session is locked from editing
     lockedAt: v.optional(v.number()), // Timestamp when session was locked
     lockedBy: v.optional(v.string()), // Identifier of admin who locked the session
+    registrationClosed: v.optional(v.boolean()), // Whether new turn registrations are closed
     createdAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
 
   botTasks: defineTable({
-    type: v.string(), // "send_participant_list" | "react_to_message"
+    type: v.string(), // "send_participant_list" | "react_to_message" | "delete_message"
     chatId: v.number(),
     postId: v.number(),
     messageId: v.optional(v.number()), // target message ID for react_to_message tasks

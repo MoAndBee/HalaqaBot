@@ -5,7 +5,7 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags, DoorClosed, DoorOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
 import {
@@ -182,6 +182,7 @@ export default function PostDetail() {
   const bulkUpdateTurnQueueSessionType = useMutation(api.mutations.bulkUpdateTurnQueueSessionType)
   const lockSession = useMutation(api.mutations.lockSession)
   const unlockSession = useMutation(api.mutations.unlockSession)
+  const setSessionRegistrationClosed = useMutation(api.mutations.setSessionRegistrationClosed)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
   const reactToMessage = useAction(api.actions.reactToMessage)
 
@@ -759,6 +760,44 @@ export default function PostDetail() {
     }
   }
 
+  const handleToggleRegistrationClosed = async () => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+    const nextValue = !sessionInfo?.registrationClosed
+
+    try {
+      await setSessionRegistrationClosed({
+        chatId,
+        postId,
+        sessionNumber: currentSession,
+        registrationClosed: nextValue,
+      })
+
+      // When closing registration, also (re)send the list so the closed-registration
+      // image is pushed to the chat immediately — same as clicking إرسال قائمة الأسماء.
+      if (nextValue) {
+        try {
+          await sendParticipantList({
+            chatId,
+            postId,
+            sessionNumber: currentSession,
+            flower: selectedFlower,
+          })
+        } catch (sendError) {
+          console.error('Auto-send list after closing registration failed:', sendError)
+          toast.error('تم إغلاق تسجيل الأدوار، لكن فشل إرسال القائمة')
+          return
+        }
+      }
+
+      toast.success(nextValue ? 'تم إغلاق تسجيل الأدوار' : 'تم فتح تسجيل الأدوار')
+    } catch (error: any) {
+      toast.error(error?.message || 'فشل تحديث حالة التسجيل')
+      console.error('Toggle registration closed failed:', error)
+    }
+  }
+
   const handleBulkUpdateSessionType = async (entryIds: string[], sessionType: SessionType) => {
     try {
       await bulkUpdateTurnQueueSessionType({ entryIds: entryIds as any[], sessionType })
@@ -875,6 +914,7 @@ export default function PostDetail() {
                   <Tags className="h-4 w-4 ml-2" />
                   تعديل نوع المشاركة للكل
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {sessionInfo?.isLocked ? (
                   <DropdownMenuItem onClick={() => setIsUnlockModalOpen(true)}>
                     <LockOpen className="h-4 w-4 ml-2" />
@@ -886,6 +926,22 @@ export default function PostDetail() {
                     إنهاء الحلقة
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem
+                  onClick={handleToggleRegistrationClosed}
+                  disabled={sessionInfo?.isLocked}
+                >
+                  {sessionInfo?.registrationClosed ? (
+                    <>
+                      <DoorOpen className="h-4 w-4 ml-2" />
+                      فتح تسجيل الأدوار
+                    </>
+                  ) : (
+                    <>
+                      <DoorClosed className="h-4 w-4 ml-2" />
+                      إغلاق تسجيل الأدوار
+                    </>
+                  )}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setIsAddUserModalOpen(true)}
