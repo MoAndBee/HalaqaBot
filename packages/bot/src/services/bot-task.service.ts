@@ -289,7 +289,9 @@ export class BotTaskService {
     let registrationClosedImageMessageId: number | undefined;
     if (currentSession?.registrationClosed) {
       try {
-        const photoMessage = await this.bot.api.sendPhoto(chatId, new InputFile(REGISTRATION_CLOSED_IMAGE_PATH));
+        const photoMessage = await this.bot.api.sendPhoto(chatId, new InputFile(REGISTRATION_CLOSED_IMAGE_PATH), {
+          reply_to_message_id: postId,
+        });
         registrationClosedImageMessageId = photoMessage.message_id;
       } catch (error) {
         console.error("Failed to send registration-closed image:", error);
