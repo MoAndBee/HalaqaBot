@@ -198,12 +198,18 @@ export class BotTaskService {
         month: 'long',
         day: 'numeric',
       });
+      const hijriDate = new Intl.DateTimeFormat('ar-EG-u-ca-islamic-umalqura', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(date) + 'هـ';
 
       // Create flower border
       const flowerBorder = `ه${flower}`.repeat(7);
 
       let message = `${flowerBorder}\n`;
-      message += `${formattedDate}`;
+      message += `${formattedDate}\n`;
+      message += `${hijriDate}`;
 
       if (teacherName) {
         message += `\nالمعلمة: ${teacherName}`;

@@ -1,5 +1,5 @@
 import React from 'react'
-import { tgConfirm } from '@/lib/utils'
+import { tgConfirm, formatHijriDate } from '@/lib/utils'
 import { Link, useParams } from 'wouter'
 import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
@@ -468,6 +468,7 @@ export default function PostDetail() {
     })
 
     let fullMessage = `${formattedDate}\n`
+    fullMessage += `${formatHijriDate(date)}\n`
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
@@ -508,6 +509,7 @@ export default function PostDetail() {
 
     let fullMessage = `${flowerBorder}\n`
     fullMessage += `${formattedDate}\n`
+    fullMessage += `${formatHijriDate(date)}\n`
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
