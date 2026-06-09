@@ -11,7 +11,7 @@ export function formatHijriDate(date: Date): string {
     month: 'long',
     year: 'numeric',
   }).format(date)
-  return `${hijri}هـ`
+  return hijri
 }
 
 export function tgConfirm(message: string): Promise<boolean> {

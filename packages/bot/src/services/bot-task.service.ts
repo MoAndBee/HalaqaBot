@@ -202,7 +202,7 @@ export class BotTaskService {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
-      }).format(date) + 'هـ';
+      }).format(date);
 
       // Create flower border
       const flowerBorder = `ه${flower}`.repeat(7);
