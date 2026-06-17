@@ -134,6 +134,10 @@ export default function PostDetail() {
   }
 
   const data = useQuery(api.queries.getUserList, { chatId, postId, sessionNumber: selectedSession })
+  const repeatParticipations = useQuery(
+    api.queries.getRepeatParticipationsInPost,
+    data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession } : 'skip'
+  )
   const availableSessions = useQuery(api.queries.getAvailableSessions, { chatId, postId })
   const postDetails = useQuery(api.queries.getPostDetails, { chatId, postId })
   const sessionInfo = useQuery(
@@ -1078,6 +1082,7 @@ export default function PostDetail() {
             postId={postId}
             activeUsers={data.activeUsers}
             completedUsers={data.completedUsers}
+            repeatParticipations={repeatParticipations?.repeats}
             onReorder={handleReorder}
             onDelete={handleDelete}
             onDeleteCompleted={handleDeleteCompleted}

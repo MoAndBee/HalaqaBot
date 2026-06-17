@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { SESSION_TYPES, type SessionType } from '@/lib/session-types'
+import { RepeatParticipationIndicator, type RepeatParticipation } from './RepeatParticipationIndicator'
 
 interface CompletedUser {
   entryId?: string
@@ -42,6 +43,7 @@ interface CompletedUser {
 
 interface CompletedUsersSectionProps {
   users: CompletedUser[]
+  repeatParticipations?: Record<string, RepeatParticipation[]>
   onUpdateSessionType: (entryId: string, sessionType: SessionType) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onDelete?: (entryId: string) => void
@@ -51,6 +53,7 @@ interface CompletedUsersSectionProps {
 
 function CompletedUserCard({
   user,
+  repeats,
   onUpdateSessionType,
   onUpdateDisplayName,
   onDelete,
@@ -59,6 +62,7 @@ function CompletedUserCard({
 }: {
   user: CompletedUser
   index: number
+  repeats?: RepeatParticipation[]
   onUpdateSessionType: (entryId: string, sessionType: SessionType) => void
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onDelete?: (entryId: string) => void
@@ -233,7 +237,12 @@ function CompletedUserCard({
             </div>
           ) : (
             <>
-              <div className="text-foreground text-xs sm:text-sm font-medium truncate">{primaryName}</div>
+              <div className="flex items-center gap-1.5">
+                <div className="text-foreground text-xs sm:text-sm font-medium truncate">{primaryName}</div>
+                {repeats && repeats.length > 0 && (
+                  <RepeatParticipationIndicator repeats={repeats} />
+                )}
+              </div>
               {secondaryText && (
                 <div className="text-muted-foreground text-xs truncate">{secondaryText}</div>
               )}
@@ -285,6 +294,7 @@ function CompletedUserCard({
 
 export function CompletedUsersSection({
   users,
+  repeatParticipations,
   onUpdateSessionType,
   onUpdateDisplayName,
   onDelete,
@@ -318,6 +328,7 @@ export function CompletedUsersSection({
             key={user.entryId || user.id}
             user={user}
             index={index}
+            repeats={repeatParticipations?.[String(user.id)]}
             onUpdateSessionType={onUpdateSessionType}
             onUpdateDisplayName={onUpdateDisplayName}
             onDelete={onDelete}
