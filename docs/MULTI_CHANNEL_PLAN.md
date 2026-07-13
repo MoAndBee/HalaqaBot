@@ -70,6 +70,23 @@ globally with no channel filter — this is the core data-separation gap.
 - Remove the three hardcoded constants; flow ids from registry → bot and from
   picker → web context.
 
+## Deploy checklist (before/at merge)
+
+The `channels` registry gates the whole web app (`getMyChannels` returns 0 ->
+unauthorized), so it must not be empty for the existing channel after deploy.
+
+1. **Deploy Convex first** (`packages/db`: `bun run deploy`) so the new
+   `channels` table, indexes, and queries exist before the new frontend calls
+   them. The updated `getPaginatedPosts` now requires `chatId`, so the backend
+   and the new web build must go out together — don't leave the old frontend
+   pointed at the new backend.
+2. **Seed the existing channel** so admins aren't locked out until the next
+   channel post triggers auto-discovery:
+   `bunx convex run migrations/seedChannels:seedChannels`
+   (derives channelId -> chatId pairs from historical `messageAuthors`).
+3. **Deploy the web build and the bot.** From then on, new channels register
+   themselves from traffic and the admin-sync loop picks them up.
+
 ## Effort estimate
 
 ~4–5 days total. Risk is concentrated in Phase 2 (global `getAllPosts` scoping
