@@ -7,7 +7,7 @@ import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
 import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags, DoorClosed, DoorOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
+import { useTelegramAuthContext, useSelectedChannel } from '~/contexts/TelegramAuthContext'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,9 +93,9 @@ export default function PostDetail() {
   const chatId = Number(params.chatId)
   const postId = Number(params.postId)
 
-  // Get current admin user from Telegram auth
+  // Get current admin user and selected channel from Telegram auth
   const { user: telegramUser } = useTelegramAuthContext()
-  const CHANNEL_ID = -1002081068866 // TODO: Move to config/environment
+  const { channelId: CHANNEL_ID } = useSelectedChannel()
 
   const [selectedSession, setSelectedSession] = React.useState<number | undefined>(undefined)
   const [selectedFlower, setSelectedFlower] = React.useState<string>(DEFAULT_FLOWER)

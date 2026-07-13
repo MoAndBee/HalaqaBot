@@ -5,6 +5,7 @@ import { TelegramAuthProvider, useTelegramAuthContext } from './contexts/Telegra
 import { LoadingScreen } from './components/LoadingScreen'
 import { ErrorScreen } from './components/ErrorScreen'
 import { UnauthorizedScreen } from './components/UnauthorizedScreen'
+import { ChannelPicker } from './components/ChannelPicker'
 import Layout from './components/Layout'
 import Home from './routes/Home'
 import Halaqas from './routes/Halaqas'
@@ -13,9 +14,17 @@ import PostDetail from './routes/PostDetail'
 import ParticipationSummary from './routes/ParticipationSummary'
 
 function AppContent() {
-  const { user, isAuthorized, isLoading, error } = useTelegramAuthContext()
+  const {
+    user,
+    isLoading,
+    error,
+    channels,
+    isLoadingChannels,
+    selectedChannel,
+    selectChannel,
+  } = useTelegramAuthContext()
 
-  // Show loading while initializing
+  // Show loading while initializing the Telegram user
   if (isLoading) {
     return <LoadingScreen />
   }
@@ -25,12 +34,22 @@ function AppContent() {
     return <ErrorScreen message={error} />
   }
 
-  // Show unauthorized if user is not allowed
-  if (!isAuthorized) {
+  // Still fetching which channels this admin can access
+  if (isLoadingChannels || channels === undefined) {
+    return <LoadingScreen />
+  }
+
+  // The user administers no registered channels -> not authorized
+  if (channels.length === 0) {
     return <UnauthorizedScreen user={user} />
   }
 
-  // User is authorized - show the app!
+  // Multiple channels and none selected yet -> let the admin pick
+  if (!selectedChannel) {
+    return <ChannelPicker channels={channels} onSelect={selectChannel} />
+  }
+
+  // User is authorized and a channel is selected - show the app!
   return (
     <ThemeProvider>
       <Layout>
