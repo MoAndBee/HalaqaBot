@@ -161,7 +161,8 @@ export default defineSchema({
     createdAt: v.number(), // earliest known timestamp for this post
   })
     .index("by_chat_post", ["chatId", "postId"])
-    .index("by_created_at", ["createdAt"]),
+    .index("by_created_at", ["createdAt"])
+    .index("by_chat_created", ["chatId", "createdAt"]),
 
   // Channel administrators cache for authorization
   channelAdmins: defineTable({

@@ -39,11 +39,18 @@ globally with no channel filter — this is the core data-separation gap.
 - `getMyChannels({ userId })` query: join `channelAdmins` (by user) → `channels`.
 - Seed the existing channel.
 
-### Phase 2 — Backend query scoping (highest risk)
-- Make `getAllPosts` and student search take a required channel scope and filter
-  `turnQueue` / `participationHistory` / `messageAuthors` to it.
-- Backfill the optional `channelId` column on existing rows for the seeded
-  channel so `by_channel_post` indexes are reliable.
+### Phase 2 — Backend query scoping
+- Scope the list views by the selected channel's `chatId`. `getPaginatedPosts`
+  takes a required `chatId` and paginates via a new `posts.by_chat_created`
+  index; `searchUsers` takes an optional `chatId` and restricts to users who
+  participated in that chat.
+- **No backfill needed:** posts / turnQueue / participationHistory are already
+  keyed by `chatId`, and the registry maps channel -> chatId, so scoping by
+  `chatId` uses columns that are already populated everywhere.
+- `getAllPosts` stays global — it is only used by one-off maintenance scripts,
+  not the UI.
+- `AddUserModal` search stays global by design: it is an explicit admin action
+  to add a known person into their own (already channel-scoped) session.
 
 ### Phase 3 — Bot process
 - Iterate all active channels from the registry for admin sync (re-read
