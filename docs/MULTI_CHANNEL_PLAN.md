@@ -80,12 +80,16 @@ unauthorized), so it must not be empty for the existing channel after deploy.
    them. The updated `getPaginatedPosts` now requires `chatId`, so the backend
    and the new web build must go out together — don't leave the old frontend
    pointed at the new backend.
-2. **Seed the existing channel** so admins aren't locked out until the next
-   channel post triggers auto-discovery:
-   `bunx convex run migrations/seedChannels:seedChannels`
-   (derives channelId -> chatId pairs from historical `messageAuthors`).
-3. **Deploy the web build and the bot.** From then on, new channels register
-   themselves from traffic and the admin-sync loop picks them up.
+2. **Deploy the web build and the bot.** The bot **self-seeds** the configured
+   channel on startup: it resolves the linked discussion group via Telegram
+   (`getChat(channelId).linked_chat_id`) and upserts the registry row, so admins
+   are never locked out and no manual step is required. From then on, new
+   channels register themselves from traffic and the admin-sync loop picks them
+   up.
+
+The `migrations/seedChannels` mutation remains as an optional manual fallback
+(derives channelId -> chatId pairs from historical `messageAuthors`) if you ever
+need to seed without restarting the bot.
 
 ## Effort estimate
 

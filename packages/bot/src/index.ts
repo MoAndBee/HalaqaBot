@@ -1,6 +1,6 @@
 import { Bot } from "grammy"; // trigger redeploy
 import { loadConfig } from "./config/environment";
-import { ConvexHttpClient, ConvexClient } from "@halakabot/db";
+import { ConvexHttpClient, ConvexClient, api } from "@halakabot/db";
 import { MessageService } from "./services/message.service";
 import { UserListService } from "./services/user-list.service";
 import { ClassificationService } from "./services/classification.service";
@@ -43,14 +43,48 @@ bot.catch((err) => {
   console.error("Bot error:", err);
 });
 
+// Ensure the configured channel is registered in the channels registry on
+// startup, so admins aren't locked out of the web app before auto-discovery
+// fires on the next channel post. We resolve the linked discussion group
+// (chatId) directly from Telegram rather than depending on historical data.
+async function seedConfiguredChannel(): Promise<void> {
+  try {
+    const chat = await bot.api.getChat(config.channelId);
+    const linkedChatId = (chat as { linked_chat_id?: number }).linked_chat_id;
+    const chatId = linkedChatId ?? config.channelId;
+    const title = (chat as { title?: string }).title;
+
+    if (linkedChatId === undefined) {
+      console.warn(
+        `⚠️  Channel ${config.channelId} has no linked discussion group; ` +
+          `seeding chatId = channelId as a fallback.`,
+      );
+    }
+
+    await convex.mutation(api.mutations.upsertChannel, {
+      channelId: config.channelId,
+      chatId,
+      title,
+    });
+    console.log(`✅ Seeded channel ${config.channelId} -> chat ${chatId}`);
+  } catch (error) {
+    console.error("❌ Error seeding configured channel:", error);
+    // Non-fatal: auto-discovery from traffic will still register the channel.
+  }
+}
+
 // Start the bot
 console.log("Starting bot...");
 bot.start({
   allowed_updates: ["message", "message_reaction", "channel_post"],
   drop_pending_updates: true,
-  onStart: (botInfo) => {
+  onStart: async (botInfo) => {
     console.log(`Bot @${botInfo.username} is running!`);
     console.log("Listening for reactions and channel posts...");
+
+    // Seed the configured channel before starting admin sync so the registry
+    // is populated immediately on deploy.
+    await seedConfiguredChannel();
 
     // Start admin sync service across all registered channels. The configured
     // channelId is passed as a fallback so it's synced even before any channel
