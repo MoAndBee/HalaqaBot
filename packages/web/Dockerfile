@@ -10,8 +10,15 @@ COPY packages/web/package.json ./packages/web/
 COPY packages/db/package.json ./packages/db/
 COPY packages/bot/package.json ./packages/bot/
 
-# Install dependencies (this will handle workspace dependencies)
-RUN bun install --frozen-lockfile
+# Install dependencies (this will handle workspace dependencies).
+# Retry with a cleared cache on failure: transient registry corruption can make
+# a freshly downloaded tarball fail its integrity check (e.g. zod), which would
+# otherwise fail the whole build. Clearing the cache purges the bad tarball so
+# the retry re-downloads a clean copy. The final attempt's failure still
+# propagates so a genuine problem is not masked.
+RUN bun install --frozen-lockfile \
+  || { echo "bun install failed; clearing cache and retrying (1/2)..."; bun pm cache rm; bun install --frozen-lockfile; } \
+  || { echo "bun install failed; clearing cache and retrying (2/2)..."; bun pm cache rm; bun install --frozen-lockfile; }
 
 # Copy source code for both web and db packages
 COPY packages/web ./packages/web
