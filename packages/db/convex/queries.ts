@@ -971,6 +971,65 @@ export const getLongMessagesBySaturday = query({
 });
 
 /**
+ * List the channels a given user administers. Powers the web-app channel picker:
+ * joins channelAdmins (by user) against the channels registry. Only active,
+ * registered channels are returned. When the user administers exactly one
+ * channel the client auto-selects it and skips the picker.
+ */
+export const getMyChannels = query({
+  args: {
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Find every channel this user is an admin of.
+    const adminRows = await ctx.db.query("channelAdmins").collect();
+    const myChannelIds = new Set(
+      adminRows
+        .filter((row) => row.userId === args.userId)
+        .map((row) => row.channelId)
+    );
+
+    if (myChannelIds.size === 0) return [];
+
+    const channels = await ctx.db
+      .query("channels")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+
+    return channels
+      .filter((c) => myChannelIds.has(c.channelId))
+      .map((c) => ({
+        channelId: c.channelId,
+        chatId: c.chatId,
+        title: c.title,
+      }));
+  },
+});
+
+/**
+ * Return all active channels in the registry. Used by the bot to iterate
+ * channels for admin sync.
+ */
+export const getActiveChannels = query({
+  args: {},
+  handler: async (ctx) => {
+    const channels = await ctx.db
+      .query("channels")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+
+    return channels.map((c) => ({
+      channelId: c.channelId,
+      chatId: c.chatId,
+      title: c.title,
+      forwardChatId: c.forwardChatId,
+      autoReactionEmoji: c.autoReactionEmoji,
+      webAppUrl: c.webAppUrl,
+    }));
+  },
+});
+
+/**
  * Check if a user is authorized to access the admin panel
  * Returns true if the user is a channel administrator
  */
