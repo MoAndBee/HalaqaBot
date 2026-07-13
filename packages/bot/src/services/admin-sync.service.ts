@@ -85,23 +85,54 @@ export class AdminSyncService {
   }
 
   /**
-   * Start periodic sync (every 5 minutes)
+   * Sync admins for every active channel in the registry. Re-reads the registry
+   * on each run so newly auto-discovered channels join the loop automatically.
+   * Falls back to the provided seed channel(s) if the registry is still empty.
    */
-  startPeriodicSync(channelId: number): void {
+  async fetchAndSyncAll(fallbackChannelIds: number[] = []): Promise<void> {
+    let channelIds: number[] = [];
+    try {
+      const channels = await this.convex.query(api.queries.getActiveChannels, {});
+      channelIds = channels.map((c) => c.channelId);
+    } catch (error) {
+      console.error("❌ Error reading channel registry for admin sync:", error);
+    }
+
+    // Ensure fallback (seed) channels are always synced, even before discovery.
+    for (const id of fallbackChannelIds) {
+      if (!channelIds.includes(id)) channelIds.push(id);
+    }
+
+    if (channelIds.length === 0) {
+      console.log("ℹ️  No channels to sync admins for yet");
+      return;
+    }
+
+    for (const channelId of channelIds) {
+      await this.fetchAndSync(channelId);
+    }
+  }
+
+  /**
+   * Start periodic sync (every 5 minutes) across all registered channels.
+   * The optional fallbackChannelIds are synced even before any channel has been
+   * auto-discovered into the registry.
+   */
+  startPeriodicSync(fallbackChannelIds: number[] = []): void {
     if (this.syncInterval) {
       console.warn("⚠️  Periodic sync already running, stopping previous interval");
       this.stopPeriodicSync();
     }
 
-    console.log(`⏰ Starting periodic admin sync for channel ${channelId} (every 5 minutes)`);
+    console.log(`⏰ Starting periodic admin sync across registered channels (every 5 minutes)`);
 
     // Sync immediately on start
-    this.fetchAndSync(channelId);
+    this.fetchAndSyncAll(fallbackChannelIds);
 
     // Then sync every 5 minutes
     const FIVE_MINUTES = 5 * 60 * 1000;
     this.syncInterval = setInterval(() => {
-      this.fetchAndSync(channelId);
+      this.fetchAndSyncAll(fallbackChannelIds);
     }, FIVE_MINUTES);
   }
 

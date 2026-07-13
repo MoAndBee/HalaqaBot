@@ -52,9 +52,11 @@ bot.start({
     console.log(`Bot @${botInfo.username} is running!`);
     console.log("Listening for reactions and channel posts...");
 
-    // Start admin sync service
-    console.log(`🔄 Starting admin sync for channel ${config.channelId}...`);
-    adminSyncService.startPeriodicSync(config.channelId);
+    // Start admin sync service across all registered channels. The configured
+    // channelId is passed as a fallback so it's synced even before any channel
+    // has been auto-discovered into the registry from traffic.
+    console.log(`🔄 Starting admin sync (seed channel ${config.channelId})...`);
+    adminSyncService.startPeriodicSync([config.channelId]);
   },
 });
 
