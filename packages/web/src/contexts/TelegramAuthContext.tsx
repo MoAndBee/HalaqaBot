@@ -25,6 +25,7 @@ interface TelegramAuthContextValue {
   // The currently selected channel (null until one is chosen/auto-selected)
   selectedChannel: Channel | null
   selectChannel: (channel: Channel) => void
+  clearSelectedChannel: () => void
 }
 
 const TelegramAuthContext = createContext<TelegramAuthContextValue | null>(null)
@@ -45,8 +46,11 @@ export function TelegramAuthProvider({ children }: TelegramAuthProviderProps) {
   ) as Channel[] | undefined
 
   const [manualSelection, setManualSelection] = useState<Channel | null>(null)
+  // Bumped to force re-reading the (cleared) persisted selection when switching.
+  const [selectionCleared, setSelectionCleared] = useState(false)
 
   const selectChannel = (channel: Channel) => {
+    setSelectionCleared(false)
     setManualSelection(channel)
     try {
       sessionStorage.setItem(STORAGE_KEY, String(channel.channelId))
@@ -55,14 +59,28 @@ export function TelegramAuthProvider({ children }: TelegramAuthProviderProps) {
     }
   }
 
+  const clearSelectedChannel = () => {
+    setManualSelection(null)
+    setSelectionCleared(true)
+    try {
+      sessionStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+  }
+
   // Resolve the effective selection: explicit choice first, then a persisted one,
   // then auto-select when the user administers exactly one channel.
   let selectedChannel: Channel | null = manualSelection
   if (!selectedChannel && channels) {
-    const storedId = readStoredChannelId()
-    if (storedId !== null) {
-      selectedChannel = channels.find((c) => c.channelId === storedId) ?? null
+    if (!selectionCleared) {
+      const storedId = readStoredChannelId()
+      if (storedId !== null) {
+        selectedChannel = channels.find((c) => c.channelId === storedId) ?? null
+      }
     }
+    // Auto-select only when there is exactly one channel; a multi-channel admin
+    // who explicitly switched should land back on the picker.
     if (!selectedChannel && channels.length === 1) {
       selectedChannel = channels[0]
     }
@@ -79,6 +97,7 @@ export function TelegramAuthProvider({ children }: TelegramAuthProviderProps) {
         isLoadingChannels: user !== null && channels === undefined,
         selectedChannel,
         selectChannel,
+        clearSelectedChannel,
       }}
     >
       {children}
