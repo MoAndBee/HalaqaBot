@@ -17,12 +17,14 @@ export function registerMessageHandler(
     // Walk up the reply chain to find the original channel post
     let postId: number | null = null;
     let channelId: number | undefined = undefined;
+    let channelTitle: string | undefined = undefined;
     let messageType = "unknown";
 
     // Case 1: This message itself is an automatic forward (it's the channel post)
     if (message.is_automatic_forward) {
       postId = message.message_id;
       channelId = message.sender_chat?.id;
+      channelTitle = (message.sender_chat as { title?: string } | undefined)?.title;
       messageType = "channel post";
 
       // Auto-register turn registration posts by detecting the opening phrase
@@ -40,6 +42,7 @@ export function registerMessageHandler(
     else if (message.reply_to_message?.is_automatic_forward) {
       postId = message.reply_to_message.message_id;
       channelId = message.reply_to_message.sender_chat?.id;
+      channelTitle = (message.reply_to_message.sender_chat as { title?: string } | undefined)?.title;
       messageType = "comment on post";
     }
     // Case 3: This might be a nested reply (comment on comment)
@@ -54,6 +57,21 @@ export function registerMessageHandler(
         postId = parentPostInfo.postId;
         channelId = parentPostInfo.channelId ?? undefined;
         messageType = "nested comment";
+      }
+    }
+
+    // Auto-discover the channel<->chat mapping whenever we observe both IDs.
+    // This registers channels in the registry from live traffic, so no manual
+    // setup is needed for the bot to serve a new channel.
+    if (channelId !== undefined) {
+      try {
+        await convex.mutation(api.mutations.upsertChannel, {
+          channelId,
+          chatId: ctx.chat!.id,
+          title: channelTitle,
+        });
+      } catch (error) {
+        console.error("❌ Error auto-discovering channel:", error);
       }
     }
 

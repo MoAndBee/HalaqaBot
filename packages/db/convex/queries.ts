@@ -431,11 +431,13 @@ export const getUnclassifiedMessages = query({
 });
 
 export const getPaginatedPosts = query({
-  args: { paginationOpts: paginationOptsValidator },
+  args: { paginationOpts: paginationOptsValidator, chatId: v.number() },
   handler: async (ctx, args) => {
+    // Scope posts to the selected channel's discussion group so each channel's
+    // admins only see their own posts.
     const result = await ctx.db
       .query("posts")
-      .withIndex("by_created_at")
+      .withIndex("by_chat_created", (q) => q.eq("chatId", args.chatId))
       .order("desc")
       .paginate(args.paginationOpts);
 
@@ -761,6 +763,10 @@ export const getMessagesByUserId = query({
 export const searchUsers = query({
   args: {
     query: v.string(),
+    // When provided, restrict results to users who have participated in this
+    // channel's discussion group, so one channel's admins don't see another
+    // channel's roster.
+    chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     if (!args.query.trim()) {
@@ -770,7 +776,25 @@ export const searchUsers = query({
     const users = await ctx.db.query("users").collect();
     const lowerQuery = args.query.toLowerCase();
 
+    // Build the set of userIds that belong to the requested channel's chat.
+    let allowedUserIds: Set<number> | null = null;
+    if (args.chatId !== undefined) {
+      const chatId = args.chatId;
+      const queueUsers = await ctx.db
+        .query("turnQueue")
+        .filter((q) => q.eq(q.field("chatId"), chatId))
+        .collect();
+      const historyUsers = await ctx.db
+        .query("participationHistory")
+        .filter((q) => q.eq(q.field("chatId"), chatId))
+        .collect();
+      allowedUserIds = new Set(
+        [...queueUsers, ...historyUsers].map((u) => u.userId)
+      );
+    }
+
     return users
+      .filter((user) => allowedUserIds === null || allowedUserIds.has(user.userId))
       .filter((user) => {
         const realName = user.realName?.toLowerCase() || "";
         const telegramName = user.telegramName.toLowerCase();
@@ -966,6 +990,65 @@ export const getLongMessagesBySaturday = query({
       messageLength: msg.messageText?.length ?? 0,
       createdAt: msg.createdAt,
       channelId: msg.channelId,
+    }));
+  },
+});
+
+/**
+ * List the channels a given user administers. Powers the web-app channel picker:
+ * joins channelAdmins (by user) against the channels registry. Only active,
+ * registered channels are returned. When the user administers exactly one
+ * channel the client auto-selects it and skips the picker.
+ */
+export const getMyChannels = query({
+  args: {
+    userId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Find every channel this user is an admin of.
+    const adminRows = await ctx.db.query("channelAdmins").collect();
+    const myChannelIds = new Set(
+      adminRows
+        .filter((row) => row.userId === args.userId)
+        .map((row) => row.channelId)
+    );
+
+    if (myChannelIds.size === 0) return [];
+
+    const channels = await ctx.db
+      .query("channels")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+
+    return channels
+      .filter((c) => myChannelIds.has(c.channelId))
+      .map((c) => ({
+        channelId: c.channelId,
+        chatId: c.chatId,
+        title: c.title,
+      }));
+  },
+});
+
+/**
+ * Return all active channels in the registry. Used by the bot to iterate
+ * channels for admin sync.
+ */
+export const getActiveChannels = query({
+  args: {},
+  handler: async (ctx) => {
+    const channels = await ctx.db
+      .query("channels")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+
+    return channels.map((c) => ({
+      channelId: c.channelId,
+      chatId: c.chatId,
+      title: c.title,
+      forwardChatId: c.forwardChatId,
+      autoReactionEmoji: c.autoReactionEmoji,
+      webAppUrl: c.webAppUrl,
     }));
   },
 });

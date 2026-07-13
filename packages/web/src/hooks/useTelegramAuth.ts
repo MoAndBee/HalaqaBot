@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@halakabot/db'
 
 export interface TelegramUser {
   id: number
@@ -14,12 +12,8 @@ export interface AuthState {
   // User data from Telegram
   user: TelegramUser | null
 
-  // Authorization status from backend
-  isAuthorized: boolean
-
   // Loading states
   isLoading: boolean
-  isCheckingAuth: boolean
 
   // Error state
   error: string | null
@@ -33,7 +27,7 @@ const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID
   ? Number(import.meta.env.VITE_DEV_USER_ID)
   : null
 
-export function useTelegramAuth(channelId: number): AuthState {
+export function useTelegramAuth(): AuthState {
   const [user, setUser] = useState<TelegramUser | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(!DEV_USER_ID)
@@ -102,27 +96,15 @@ export function useTelegramAuth(channelId: number): AuthState {
       name: telegramUser.first_name,
       username: telegramUser.username,
     })
+
+    // User extracted — nothing else to wait for.
+    setIsLoading(false)
   }, [])
-
-  // Step 2: Check authorization against backend (skipped in dev mode)
-  const authCheck = useQuery(
-    api.queries.isUserAuthorized,
-    DEV_USER_ID || !user ? 'skip' : { userId: user.id, channelId }
-  )
-
-  // Step 3: Update state when auth check completes
-  useEffect(() => {
-    if (authCheck !== undefined) {
-      setIsLoading(false)
-    }
-  }, [authCheck])
 
   if (DEV_USER_ID) {
     return {
       user: { id: DEV_USER_ID, firstName: 'Dev', lastName: 'User' },
-      isAuthorized: true,
       isLoading: false,
-      isCheckingAuth: false,
       error: null,
       webApp: null,
     }
@@ -130,9 +112,7 @@ export function useTelegramAuth(channelId: number): AuthState {
 
   return {
     user,
-    isAuthorized: authCheck ?? false,
     isLoading,
-    isCheckingAuth: user !== null && authCheck === undefined,
     error,
     webApp,
   }

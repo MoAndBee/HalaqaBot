@@ -161,7 +161,8 @@ export default defineSchema({
     createdAt: v.number(), // earliest known timestamp for this post
   })
     .index("by_chat_post", ["chatId", "postId"])
-    .index("by_created_at", ["createdAt"]),
+    .index("by_created_at", ["createdAt"])
+    .index("by_chat_created", ["chatId", "createdAt"]),
 
   // Channel administrators cache for authorization
   channelAdmins: defineTable({
@@ -176,4 +177,22 @@ export default defineSchema({
   })
     .index("by_channel", ["channelId"])
     .index("by_channel_user", ["channelId", "userId"]),
+
+  // Registry of channels the bot serves. Maps a Telegram channel to its linked
+  // discussion group (chatId), where posts/turns/history actually live. Rows are
+  // auto-discovered from traffic (see upsertChannel), so no manual setup needed.
+  channels: defineTable({
+    channelId: v.number(), // Telegram channel ID (admin source of truth)
+    chatId: v.number(), // Linked discussion group where posts live
+    title: v.optional(v.string()), // Display name for the channel picker
+    forwardChatId: v.optional(v.string()), // Per-channel forward target
+    autoReactionEmoji: v.optional(v.string()), // Per-channel auto-reaction emoji
+    webAppUrl: v.optional(v.string()), // Per-channel web app URL override
+    isActive: v.boolean(), // Whether the bot should serve this channel
+    createdAt: v.number(), // timestamp in ms when first discovered
+    updatedAt: v.number(), // timestamp in ms of last update
+  })
+    .index("by_channel", ["channelId"])
+    .index("by_chat", ["chatId"])
+    .index("by_active", ["isActive"]),
 });

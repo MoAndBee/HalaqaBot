@@ -1570,6 +1570,59 @@ export const syncChannelAdmins = mutation({
   },
 });
 
+/**
+ * Upsert a channel registry row. Called by the bot's discovery hook when it
+ * observes a channelId<->chatId pairing from traffic, so channels register
+ * themselves without any manual setup. Existing rows are patched (fields are
+ * only overwritten when a non-undefined value is supplied) to avoid clobbering
+ * per-channel settings on every sighting.
+ */
+export const upsertChannel = mutation({
+  args: {
+    channelId: v.number(),
+    chatId: v.number(),
+    title: v.optional(v.string()),
+    forwardChatId: v.optional(v.string()),
+    autoReactionEmoji: v.optional(v.string()),
+    webAppUrl: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    const existing = await ctx.db
+      .query("channels")
+      .withIndex("by_channel", (q) => q.eq("channelId", args.channelId))
+      .first();
+
+    if (existing) {
+      const patch: Record<string, unknown> = { updatedAt: now };
+      if (args.chatId !== undefined) patch.chatId = args.chatId;
+      if (args.title !== undefined) patch.title = args.title;
+      if (args.forwardChatId !== undefined) patch.forwardChatId = args.forwardChatId;
+      if (args.autoReactionEmoji !== undefined) patch.autoReactionEmoji = args.autoReactionEmoji;
+      if (args.webAppUrl !== undefined) patch.webAppUrl = args.webAppUrl;
+      if (args.isActive !== undefined) patch.isActive = args.isActive;
+      await ctx.db.patch(existing._id, patch);
+      return existing._id;
+    }
+
+    const id = await ctx.db.insert("channels", {
+      channelId: args.channelId,
+      chatId: args.chatId,
+      title: args.title,
+      forwardChatId: args.forwardChatId,
+      autoReactionEmoji: args.autoReactionEmoji,
+      webAppUrl: args.webAppUrl,
+      isActive: args.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    console.log(`Discovered channel ${args.channelId} -> chat ${args.chatId}`);
+    return id;
+  },
+});
+
 export const updateAdminPreferredName = mutation({
   args: {
     channelId: v.number(),

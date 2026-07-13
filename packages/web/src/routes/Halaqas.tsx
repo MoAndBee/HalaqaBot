@@ -6,16 +6,20 @@ import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '~/components/Loader'
 import { PostsList } from '~/components/PostsList'
+import { useSelectedChannel } from '~/contexts/TelegramAuthContext'
 
 const PAGE_SIZE = 10
 
 export default function Halaqas() {
+  const { chatId } = useSelectedChannel()
+
   // cursors[0] = null (first page), cursors[1] = cursor for page 2, etc.
   const [cursors, setCursors] = useState<(string | null)[]>([null])
   const [page, setPage] = useState(0)
 
   const result = useQuery(api.queries.getPaginatedPosts, {
     paginationOpts: { numItems: PAGE_SIZE, cursor: cursors[page] },
+    chatId,
   })
 
   if (result === undefined) {

@@ -9,8 +9,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader } from '~/components/Loader'
 import { StudentStats } from '~/components/StudentStats'
+import { useSelectedChannel } from '~/contexts/TelegramAuthContext'
 
 export default function Students() {
+  const { chatId } = useSelectedChannel()
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
@@ -23,7 +25,7 @@ export default function Students() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  const searchResults = useQuery(api.queries.searchUsers, { query: debouncedQuery })
+  const searchResults = useQuery(api.queries.searchUsers, { query: debouncedQuery, chatId })
 
   useEffect(() => {
     if (!selectedUserId) {
