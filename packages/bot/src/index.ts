@@ -11,6 +11,7 @@ import { registerReactionHandler } from "./handlers/reaction.handler";
 import { registerAutoClassifyHandler } from "./handlers/auto-classify.handler";
 import { registerWebAppHandler } from "./handlers/webApp.handler";
 import { registerChatMemberHandler } from "./handlers/chatMember.handler";
+import { registerChannelDiscoveryHandler } from "./handlers/channelDiscovery.handler";
 import { registerChannelFromChat } from "./services/channel-registry.service";
 
 // Load and validate configuration
@@ -30,12 +31,15 @@ const userListService = new UserListService(convex);
 const classificationService = new ClassificationService();
 const adminSyncService = new AdminSyncService(convex, bot.api);
 
-// Register event handlers
+// Register event handlers. Channel discovery goes first: it's pass-through
+// middleware that registers unknown channels/discussion groups from any
+// channel post or group message before the other handlers run.
+registerChannelDiscoveryHandler(bot, convex, adminSyncService);
 registerReactionHandler(bot, messageService, userListService, classificationService, convex, config);
 registerAutoClassifyHandler(bot, classificationService, messageService, userListService, convex, config);
 registerMessageHandler(bot, messageService, classificationService, convex);
 registerWebAppHandler(bot, convex, config);
-registerChatMemberHandler(bot, convex);
+registerChatMemberHandler(bot, convex, adminSyncService);
 
 // Start bot task service with reactive subscriptions
 const botTaskService = new BotTaskService(bot, convex, reactiveConvex, config);
