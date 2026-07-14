@@ -1,6 +1,6 @@
 import { Link } from 'wouter'
 import { Card, CardContent } from '@/components/ui/card'
-import { BookOpen, Users } from 'lucide-react'
+import { BookOpen, Users, CalendarDays } from 'lucide-react'
 import pkg from '../../package.json'
 
 export default function Home() {
@@ -25,6 +25,16 @@ export default function Home() {
               <Users className="h-16 w-16 mb-4 text-primary" />
               <h2 className="text-2xl font-bold text-foreground mb-2">الطالبات</h2>
               <p className="text-muted-foreground text-center">البحث عن الطالبات وعرض إحصائياتهن</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/attendance">
+          <Card className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 h-48">
+            <CardContent className="flex flex-col items-center justify-center h-full p-6">
+              <CalendarDays className="h-16 w-16 mb-4 text-primary" />
+              <h2 className="text-2xl font-bold text-foreground mb-2">سجل الحضور</h2>
+              <p className="text-muted-foreground text-center">عرض الحضور والغياب في التسميع حسب اليوم</p>
             </CardContent>
           </Card>
         </Link>

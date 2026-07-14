@@ -953,6 +953,76 @@ export const getParticipationSummary = query({
   },
 });
 
+/**
+ * Data for the per-day attendance record (سجل الحضور) of تسميع participations.
+ * Returns the channel's roster (everyone who ever joined a queue or completed a
+ * participation in this chat) plus every participation that counts toward
+ * تسميع attendance: entries whose sessionType is تسميع, and compensation
+ * entries (compensatingForDates) which count toward the days they compensate.
+ * Grouping by day happens on the client so days follow the viewer's timezone,
+ * matching the per-student calendar.
+ */
+export const getTasmeeAttendance = query({
+  args: {
+    chatId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const chatId = args.chatId;
+
+    const [historyEntries, queueEntries] = await Promise.all([
+      ctx.db
+        .query("participationHistory")
+        .filter((q) => q.eq(q.field("chatId"), chatId))
+        .collect(),
+      ctx.db
+        .query("turnQueue")
+        .filter((q) => q.eq(q.field("chatId"), chatId))
+        .collect(),
+    ]);
+
+    // Roster: everyone who has ever appeared in this chat's queue or history.
+    const rosterIds = new Set([
+      ...historyEntries.map((e) => e.userId),
+      ...queueEntries.map((e) => e.userId),
+    ]);
+
+    const users = await Promise.all(
+      [...rosterIds].map((userId) =>
+        ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", userId))
+          .first()
+      )
+    );
+
+    const roster = [...rosterIds].map((userId, i) => {
+      const user = users[i];
+      return {
+        userId,
+        telegramName: user?.telegramName ?? null,
+        realName: user?.realName ?? null,
+        username: user?.username ?? null,
+      };
+    });
+
+    const participations = historyEntries
+      .filter(
+        (e) =>
+          e.sessionType.includes("تسميع") ||
+          (e.compensatingForDates && e.compensatingForDates.length > 0)
+      )
+      .map((e) => ({
+        userId: e.userId,
+        completedAt: e.completedAt,
+        sessionType: e.sessionType,
+        compensatingForDates: e.compensatingForDates ?? null,
+        postId: e.postId,
+      }));
+
+    return { roster, participations };
+  },
+});
+
 export const getLongMessagesBySaturday = query({
   args: {
     adminUserIds: v.array(v.number()), // Admin user IDs to filter by
