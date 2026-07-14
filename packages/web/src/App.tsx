@@ -10,6 +10,7 @@ import Layout from './components/Layout'
 import Home from './routes/Home'
 import Halaqas from './routes/Halaqas'
 import Students from './routes/Students'
+import AttendanceRecord from './routes/AttendanceRecord'
 import PostDetail from './routes/PostDetail'
 import ParticipationSummary from './routes/ParticipationSummary'
 
@@ -57,6 +58,7 @@ function AppContent() {
           <Route path="/" component={Home} />
           <Route path="/halaqas" component={Halaqas} />
           <Route path="/students" component={Students} />
+          <Route path="/attendance" component={AttendanceRecord} />
           <Route path="/posts/:chatId/:postId/summary" component={ParticipationSummary} />
           <Route path="/posts/:chatId/:postId" component={PostDetail} />
           <Route>
