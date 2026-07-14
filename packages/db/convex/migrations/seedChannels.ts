@@ -29,6 +29,20 @@ export const seedChannels = internalMutation({
       }
     }
 
+    // Drop pairs where the discussion group itself was recorded as the
+    // "channel" (channelId === chatId) while a real channel maps to the same
+    // chat — those are misattributed rows, not real channels.
+    const realChannelChatIds = new Set(
+      [...pairs.entries()]
+        .filter(([channelId, chatId]) => channelId !== chatId)
+        .map(([, chatId]) => chatId)
+    );
+    for (const [channelId, chatId] of [...pairs.entries()]) {
+      if (channelId === chatId && realChannelChatIds.has(chatId)) {
+        pairs.delete(channelId);
+      }
+    }
+
     const now = Date.now();
     let created = 0;
     let skipped = 0;

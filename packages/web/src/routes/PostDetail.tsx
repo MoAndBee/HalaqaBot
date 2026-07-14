@@ -186,30 +186,37 @@ export default function PostDetail() {
   const sendParticipantList = useAction(api.actions.sendParticipantList)
   const reactToMessage = useAction(api.actions.reactToMessage)
 
-  // Auto-assign supervisor on first page load if no supervisor is assigned (Option A)
+  // Auto-assign supervisor on first page load if no supervisor is assigned (Option A).
+  // Gate on the actual supervisor list (not the resolved display name — a name
+  // lookup miss must not trigger a takeover) and never touch locked sessions.
   React.useEffect(() => {
     const autoAssign = async () => {
-      if (telegramUser && data?.currentSession && supervisorName === null) {
+      if (
+        telegramUser &&
+        data?.currentSession &&
+        supervisors !== undefined &&
+        supervisors.length === 0 &&
+        sessionInfo !== undefined &&
+        !sessionInfo?.isLocked
+      ) {
         try {
-          await assignSessionSupervisor({
+          const result = await assignSessionSupervisor({
             chatId,
             postId,
             sessionNumber: data.currentSession,
             supervisorUserId: telegramUser.id,
           })
-          console.log(`Auto-assigned supervisor ${telegramUser.id} to session ${data.currentSession}`)
-          toast.success('تم تعيينك كمشرفة لهذه الحلقة')
+          if (!result?.alreadyAssigned) {
+            console.log(`Auto-assigned supervisor ${telegramUser.id} to session ${data.currentSession}`)
+            toast.success('تم تعيينك كمشرفة لهذه الحلقة')
+          }
         } catch (error) {
           console.error('Failed to auto-assign supervisor:', error)
-          // Don't show error toast for already assigned case
-          if (error instanceof Error && !error.message.includes('already has supervisor')) {
-            toast.error('فشل التعيين التلقائي كمشرفة')
-          }
         }
       }
     }
     autoAssign()
-  }, [telegramUser, data?.currentSession, supervisorName, assignSessionSupervisor, chatId, postId])
+  }, [telegramUser, data?.currentSession, supervisors, sessionInfo, assignSessionSupervisor, chatId, postId])
 
   const handleReorder = async (entryId: string, newPosition: number) => {
     await updatePosition({ entryId, newPosition })
