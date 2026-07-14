@@ -50,12 +50,14 @@ bot.catch((err) => {
   console.error("Bot error:", err);
 });
 
-// Ensure the configured channel is registered in the channels registry on
+// Ensure the configured channels are registered in the channels registry on
 // startup, so admins aren't locked out of the web app before auto-discovery
-// fires on the next channel post. Resolves the linked discussion group directly
-// from Telegram rather than depending on historical data.
-async function seedConfiguredChannel(): Promise<void> {
-  await registerChannelFromChat(bot.api, convex, config.channelId);
+// fires on the next channel post. Resolves each linked discussion group
+// directly from Telegram rather than depending on historical data.
+async function seedConfiguredChannels(): Promise<void> {
+  for (const channelId of config.channelIds) {
+    await registerChannelFromChat(bot.api, convex, channelId);
+  }
 }
 
 // Start the bot
@@ -67,15 +69,15 @@ bot.start({
     console.log(`Bot @${botInfo.username} is running!`);
     console.log("Listening for reactions and channel posts...");
 
-    // Seed the configured channel before starting admin sync so the registry
+    // Seed the configured channels before starting admin sync so the registry
     // is populated immediately on deploy.
-    await seedConfiguredChannel();
+    await seedConfiguredChannels();
 
     // Start admin sync service across all registered channels. The configured
-    // channelId is passed as a fallback so it's synced even before any channel
-    // has been auto-discovered into the registry from traffic.
-    console.log(`🔄 Starting admin sync (seed channel ${config.channelId})...`);
-    adminSyncService.startPeriodicSync([config.channelId]);
+    // channel ids are passed as a fallback so they're synced even before any
+    // channel has been auto-discovered into the registry from traffic.
+    console.log(`🔄 Starting admin sync (seed channels ${config.channelIds.join(", ")})...`);
+    adminSyncService.startPeriodicSync(config.channelIds);
   },
 });
 

@@ -6,6 +6,11 @@ export interface Config {
   allowedReactionUserIds: number[];
   webAppUrl: string;
   channelId: number;
+  /**
+   * All channels to seed into the registry on startup. Set CHANNEL_IDS to a
+   * comma-separated list of channel IDs; falls back to [channelId].
+   */
+  channelIds: number[];
 }
 
 export function loadConfig(): Config {
@@ -18,6 +23,12 @@ export function loadConfig(): Config {
     : [5627601992, 1093520031];
   const webAppUrl = process.env.WEB_APP_URL || "https://halakabot.app.thawabcoding.work";
   const channelId = process.env.CHANNEL_ID ? parseInt(process.env.CHANNEL_ID, 10) : -1002081068866;
+  const channelIds = process.env.CHANNEL_IDS
+    ? process.env.CHANNEL_IDS.split(",")
+        .map((id: string) => parseInt(id.trim(), 10))
+        .filter((id: number) => Number.isFinite(id))
+    : [channelId];
+  if (!channelIds.includes(channelId)) channelIds.push(channelId);
 
   if (!botToken) {
     console.error("Error: BOT_TOKEN environment variable is not set");
@@ -51,5 +62,6 @@ export function loadConfig(): Config {
     allowedReactionUserIds,
     webAppUrl,
     channelId,
+    channelIds,
   };
 }
