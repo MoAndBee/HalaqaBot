@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'wouter'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
-import { ArrowRight, CalendarDays, Check, X } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, RefreshCw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -27,7 +27,8 @@ interface AttendanceParticipation {
 interface DayRecord {
   key: string
   timestamp: number
-  attendees: Map<number, { isCompensation: boolean }>
+  // performedAt is set for compensations: when the make-up was actually done
+  attendees: Map<number, { isCompensation: boolean; performedAt?: number }>
 }
 
 function dayKeyOf(timestamp: number): { key: string; dayStart: number } {
@@ -64,7 +65,12 @@ export default function AttendanceRecord() {
   // Group تسميع attendance by day. Compensation entries count toward the days
   // they compensate (same convention as the per-student calendar).
   const days = new Map<string, DayRecord>()
-  const markAttendance = (timestamp: number, userId: number, isCompensation: boolean) => {
+  const markAttendance = (
+    timestamp: number,
+    userId: number,
+    isCompensation: boolean,
+    performedAt?: number
+  ) => {
     const { key, dayStart } = dayKeyOf(timestamp)
     let record = days.get(key)
     if (!record) {
@@ -74,13 +80,13 @@ export default function AttendanceRecord() {
     // A direct تسميع wins over a compensation mark for the same day
     const existing = record.attendees.get(userId)
     if (!existing || (existing.isCompensation && !isCompensation)) {
-      record.attendees.set(userId, { isCompensation })
+      record.attendees.set(userId, { isCompensation, performedAt })
     }
   }
 
   data.participations.forEach((p: AttendanceParticipation) => {
     if (p.compensatingForDates && p.compensatingForDates.length > 0) {
-      p.compensatingForDates.forEach((d) => markAttendance(d, p.userId, true))
+      p.compensatingForDates.forEach((d) => markAttendance(d, p.userId, true, p.completedAt))
     } else {
       markAttendance(p.completedAt, p.userId, false)
     }
@@ -91,13 +97,17 @@ export default function AttendanceRecord() {
 
   // Day detail view
   if (selectedDay) {
-    const attendees = [...selectedDay.attendees.entries()]
+    const allMarked = [...selectedDay.attendees.entries()]
       .map(([userId, info]) => ({
         userId,
         isCompensation: info.isCompensation,
+        performedAt: info.performedAt,
         name: displayName(usersById.get(userId), userId),
       }))
       .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+
+    const attendees = allMarked.filter((a) => !a.isCompensation)
+    const compensators = allMarked.filter((a) => a.isCompensation)
 
     const absentees = data.roster
       .filter((u: RosterUser) => !selectedDay.attendees.has(u.userId))
@@ -147,10 +157,43 @@ export default function AttendanceRecord() {
                     >
                       <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
                       <span className="truncate">{a.name}</span>
-                      {a.isCompensation && (
-                        <Badge className="mr-auto bg-yellow-500 text-white hover:bg-yellow-500">
-                          تعويض
-                        </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                <RefreshCw className="h-5 w-5 text-yellow-600" />
+                <span>عوّضن</span>
+                <Badge variant="secondary">{compensators.length.toLocaleString('ar-EG')}</Badge>
+              </h3>
+              {compensators.length === 0 ? (
+                <p className="text-muted-foreground">لا توجد تعويضات لهذا اليوم</p>
+              ) : (
+                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {compensators.map((a) => (
+                    <li
+                      key={a.userId}
+                      className="flex flex-col gap-1 rounded-lg border p-2 bg-yellow-500/5 border-yellow-500/30"
+                    >
+                      <span className="flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                        <span className="truncate">{a.name}</span>
+                      </span>
+                      {a.performedAt && (
+                        <span className="text-xs text-muted-foreground pr-6">
+                          عوّضت يوم{' '}
+                          {new Date(a.performedAt).toLocaleDateString('ar-EG', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </span>
                       )}
                     </li>
                   ))}
@@ -212,8 +255,10 @@ export default function AttendanceRecord() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sortedDays.map((day) => {
               const date = new Date(day.timestamp)
-              const attendedCount = day.attendees.size
-              const absentCount = data.roster.length - attendedCount
+              const marked = [...day.attendees.values()]
+              const attendedCount = marked.filter((m) => !m.isCompensation).length
+              const compensatedCount = marked.length - attendedCount
+              const absentCount = data.roster.length - marked.length
               return (
                 <Card
                   key={day.key}
@@ -238,10 +283,14 @@ export default function AttendanceRecord() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex gap-3 text-sm">
+                    <div className="flex flex-wrap gap-3 text-sm">
                       <span className="flex items-center gap-1 text-green-600 font-medium">
                         <Check className="h-4 w-4" />
                         {attendedCount.toLocaleString('ar-EG')} حضرن
+                      </span>
+                      <span className="flex items-center gap-1 text-yellow-600 font-medium">
+                        <RefreshCw className="h-4 w-4" />
+                        {compensatedCount.toLocaleString('ar-EG')} عوّضن
                       </span>
                       <span className="flex items-center gap-1 text-red-600 font-medium">
                         <X className="h-4 w-4" />
