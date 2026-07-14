@@ -1,6 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { ConvexHttpClient } from "@halakabot/db";
 import { registerChannelFromChat } from "../services/channel-registry.service";
+import type { AdminSyncService } from "../services/admin-sync.service";
 
 // Statuses that mean the bot is present and able to serve the chat.
 const PRESENT_STATUSES = new Set(["member", "administrator", "creator"]);
@@ -13,7 +14,11 @@ const ABSENT_STATUSES = new Set(["left", "kicked"]);
  * in the registry immediately - no need to wait for the first post. When the bot
  * is removed, we mark the channel inactive so it drops out of the picker.
  */
-export function registerChatMemberHandler(bot: Bot, convex: ConvexHttpClient) {
+export function registerChatMemberHandler(
+  bot: Bot,
+  convex: ConvexHttpClient,
+  adminSyncService: AdminSyncService,
+) {
   bot.on("my_chat_member", async (ctx: Context) => {
     const update = ctx.myChatMember;
     if (!update) return;
@@ -39,9 +44,14 @@ export function registerChatMemberHandler(bot: Bot, convex: ConvexHttpClient) {
     if (nowPresent && wasPresent) return;
 
     try {
-      await registerChannelFromChat(bot.api, convex, chat.id, {
+      const registered = await registerChannelFromChat(bot.api, convex, chat.id, {
         isActive: nowPresent,
       });
+      // Sync admins immediately so the web app picker reflects the new channel
+      // without waiting for the periodic sync.
+      if (registered && nowPresent) {
+        await adminSyncService.fetchAndSync(registered.channelId);
+      }
     } catch (error) {
       console.error("❌ Error handling my_chat_member update:", error);
     }

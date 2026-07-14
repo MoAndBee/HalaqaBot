@@ -17,14 +17,15 @@ import { api } from "@halakabot/db";
  *   group has no linked channel it isn't part of our model, so we skip it.
  * - Any other chat type (private, basic group) is skipped.
  *
- * @returns true if a channel row was upserted, false if the chat was skipped.
+ * @returns the resolved { channelId, chatId } if a channel row was upserted,
+ *   or null if the chat was skipped.
  */
 export async function registerChannelFromChat(
   telegramApi: Api,
   convex: ConvexHttpClient,
   chatId: number,
   opts: { isActive?: boolean } = {},
-): Promise<boolean> {
+): Promise<{ channelId: number; chatId: number } | null> {
   const isActive = opts.isActive ?? true;
 
   let chat;
@@ -32,7 +33,7 @@ export async function registerChannelFromChat(
     chat = await telegramApi.getChat(chatId);
   } catch (error) {
     console.error(`❌ Error resolving chat ${chatId} for registry:`, error);
-    return false;
+    return null;
   }
 
   const type = (chat as { type?: string }).type;
@@ -57,13 +58,13 @@ export async function registerChannelFromChat(
         `⏭️  Chat ${chatId} (${type}) has no linked channel - not part of the ` +
           `channel model, skipping registry.`,
       );
-      return false;
+      return null;
     }
     resolvedChatId = chatId;
     resolvedChannelId = linkedChatId;
   } else {
     console.log(`⏭️  Chat ${chatId} (type ${type}) is not a channel/group - skipping registry.`);
-    return false;
+    return null;
   }
 
   try {
@@ -77,9 +78,9 @@ export async function registerChannelFromChat(
       `✅ Registered channel ${resolvedChannelId} -> chat ${resolvedChatId}` +
         (isActive ? "" : " (inactive)"),
     );
-    return true;
+    return { channelId: resolvedChannelId, chatId: resolvedChatId };
   } catch (error) {
     console.error(`❌ Error upserting channel ${resolvedChannelId} to registry:`, error);
-    return false;
+    return null;
   }
 }
