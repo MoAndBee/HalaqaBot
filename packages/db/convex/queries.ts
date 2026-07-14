@@ -1,6 +1,7 @@
 import { query, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { paginationOptsValidator } from "convex/server";
+import { paginationOptsValidator, type GenericDatabaseReader } from "convex/server";
+import type { DataModel } from "./_generated/dataModel";
 
 export const getMessageAuthor = query({
   args: {
@@ -1020,8 +1021,20 @@ export const getMyChannels = query({
       .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
 
-    return channels
-      .filter((c) => myChannelIds.has(c.channelId))
+    const mine = channels.filter((c) => myChannelIds.has(c.channelId));
+
+    // A discussion group can end up registered as a "channel" of its own
+    // (channelId === chatId). When a real channel row points at the same chat,
+    // hide the group row so the picker doesn't show duplicates and supervisor
+    // lookups stay keyed to the real channel.
+    const realChannelChatIds = new Set(
+      channels.filter((c) => c.channelId !== c.chatId).map((c) => c.chatId)
+    );
+
+    return mine
+      .filter(
+        (c) => c.channelId !== c.chatId || !realChannelChatIds.has(c.chatId)
+      )
       .map((c) => ({
         channelId: c.channelId,
         chatId: c.chatId,
@@ -1080,6 +1093,50 @@ export const isUserAuthorized = query({
 });
 
 /**
+ * Find the channelAdmins record for a user, preferring the given channel but
+ * falling back to any channel the user administers. The fallback matters when
+ * the channels registry contains more than one row pointing at the same
+ * discussion group (e.g. the group itself was mistakenly registered as a
+ * channel): the admin's record — including their preferredName — lives under
+ * the real channelId, and scoping strictly to the selected one would lose it.
+ */
+async function findAdminRecord(
+  ctx: { db: GenericDatabaseReader<DataModel> },
+  channelId: number,
+  userId: number
+) {
+  const admin = await ctx.db
+    .query("channelAdmins")
+    .withIndex("by_channel_user", (q) =>
+      q.eq("channelId", channelId).eq("userId", userId)
+    )
+    .first();
+  if (admin) return admin;
+
+  const anyChannel = await ctx.db
+    .query("channelAdmins")
+    .filter((q) => q.eq(q.field("userId"), userId))
+    .collect();
+  // Prefer a record with a preferredName set, then most recently updated.
+  anyChannel.sort(
+    (a, b) =>
+      Number(Boolean(b.preferredName)) - Number(Boolean(a.preferredName)) ||
+      b.updatedAt - a.updatedAt
+  );
+  return anyChannel[0] ?? null;
+}
+
+function adminDisplayName(admin: {
+  preferredName?: string;
+  firstName?: string;
+  lastName?: string;
+}): string | null {
+  if (admin.preferredName) return admin.preferredName;
+  const fullName = `${admin.firstName || ""} ${admin.lastName || ""}`.trim();
+  return fullName || null;
+}
+
+/**
  * Get the display name for an admin
  * Returns preferredName if set, otherwise firstName + lastName
  */
@@ -1089,29 +1146,14 @@ export const getAdminDisplayName = query({
     channelId: v.number(),
   },
   handler: async (ctx, args) => {
-    // Find the admin in channelAdmins table
-    const admin = await ctx.db
-      .query("channelAdmins")
-      .withIndex("by_channel_user", (q) =>
-        q.eq("channelId", args.channelId).eq("userId", args.userId)
-      )
-      .first();
+    const admin = await findAdminRecord(ctx, args.channelId, args.userId);
 
     if (!admin) {
       console.log(`Admin ${args.userId} not found in channel ${args.channelId}`);
       return null;
     }
 
-    // Use preferredName if set, otherwise construct from firstName + lastName
-    if (admin.preferredName) {
-      return admin.preferredName;
-    }
-
-    const firstName = admin.firstName || "";
-    const lastName = admin.lastName || "";
-    const fullName = `${firstName} ${lastName}`.trim();
-
-    return fullName || null;
+    return adminDisplayName(admin);
   },
 });
 
@@ -1158,26 +1200,15 @@ export const getSessionSupervisorName = query({
     // Look up each admin and resolve their display name
     const names: string[] = [];
     for (const userId of supervisorIds) {
-      const admin = await ctx.db
-        .query("channelAdmins")
-        .withIndex("by_channel_user", (q) =>
-          q.eq("channelId", args.channelId).eq("userId", userId)
-        )
-        .first();
+      const admin = await findAdminRecord(ctx, args.channelId, userId);
 
       if (!admin) {
         console.log(`Supervisor ${userId} not found in channel ${args.channelId}`);
         continue;
       }
 
-      if (admin.preferredName) {
-        names.push(admin.preferredName);
-      } else {
-        const firstName = admin.firstName || "";
-        const lastName = admin.lastName || "";
-        const fullName = `${firstName} ${lastName}`.trim();
-        if (fullName) names.push(fullName);
-      }
+      const name = adminDisplayName(admin);
+      if (name) names.push(name);
     }
 
     return names.length > 0 ? names.join("، ") : null;
@@ -1218,22 +1249,8 @@ export const getSessionSupervisors = query({
 
     const result: { userId: number; name: string }[] = [];
     for (const userId of supervisorIds) {
-      const admin = await ctx.db
-        .query("channelAdmins")
-        .withIndex("by_channel_user", (q) =>
-          q.eq("channelId", args.channelId).eq("userId", userId)
-        )
-        .first();
-
-      let name = `#${userId}`;
-      if (admin) {
-        if (admin.preferredName) {
-          name = admin.preferredName;
-        } else {
-          const fullName = `${admin.firstName || ""} ${admin.lastName || ""}`.trim();
-          if (fullName) name = fullName;
-        }
-      }
+      const admin = await findAdminRecord(ctx, args.channelId, userId);
+      const name = (admin && adminDisplayName(admin)) || `#${userId}`;
       result.push({ userId, name });
     }
 

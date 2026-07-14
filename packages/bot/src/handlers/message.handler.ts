@@ -63,7 +63,10 @@ export function registerMessageHandler(
     // Auto-discover the channel<->chat mapping whenever we observe both IDs.
     // This registers channels in the registry from live traffic, so no manual
     // setup is needed for the bot to serve a new channel.
-    if (channelId !== undefined) {
+    // Guard: a reply to an anonymous-admin group message has sender_chat set to
+    // the group itself; registering that would create a bogus "channel" row
+    // whose channelId is the discussion group's chatId.
+    if (channelId !== undefined && channelId !== ctx.chat!.id) {
       try {
         await convex.mutation(api.mutations.upsertChannel, {
           channelId,
