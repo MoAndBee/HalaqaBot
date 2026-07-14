@@ -1126,6 +1126,30 @@ async function findAdminRecord(
   return anyChannel[0] ?? null;
 }
 
+/**
+ * Resolve a user's display name for supervisor/admin UI. Tries channelAdmins
+ * (channel-scoped, then any channel), then falls back to the users table so a
+ * former admin's name doesn't degrade to a raw Telegram ID after their
+ * channelAdmins record is removed by the periodic sync.
+ */
+async function resolveSupervisorName(
+  ctx: { db: GenericDatabaseReader<DataModel> },
+  channelId: number,
+  userId: number
+): Promise<string | null> {
+  const admin = await findAdminRecord(ctx, channelId, userId);
+  if (admin) {
+    const name = adminDisplayName(admin);
+    if (name) return name;
+  }
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_user_id", (q) => q.eq("userId", userId))
+    .first();
+  return user?.realName || user?.telegramName || null;
+}
+
 function adminDisplayName(admin: {
   preferredName?: string;
   firstName?: string;
@@ -1200,15 +1224,12 @@ export const getSessionSupervisorName = query({
     // Look up each admin and resolve their display name
     const names: string[] = [];
     for (const userId of supervisorIds) {
-      const admin = await findAdminRecord(ctx, args.channelId, userId);
-
-      if (!admin) {
+      const name = await resolveSupervisorName(ctx, args.channelId, userId);
+      if (name) {
+        names.push(name);
+      } else {
         console.log(`Supervisor ${userId} not found in channel ${args.channelId}`);
-        continue;
       }
-
-      const name = adminDisplayName(admin);
-      if (name) names.push(name);
     }
 
     return names.length > 0 ? names.join("، ") : null;
@@ -1249,8 +1270,9 @@ export const getSessionSupervisors = query({
 
     const result: { userId: number; name: string }[] = [];
     for (const userId of supervisorIds) {
-      const admin = await findAdminRecord(ctx, args.channelId, userId);
-      const name = (admin && adminDisplayName(admin)) || `#${userId}`;
+      const name =
+        (await resolveSupervisorName(ctx, args.channelId, userId)) ||
+        `#${userId}`;
       result.push({ userId, name });
     }
 
