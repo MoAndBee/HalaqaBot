@@ -121,6 +121,7 @@ export const getUserList = query({
           carriedOver: entry.carriedOver,
           sessionType: entry.sessionType,
           notes: entry.notes || null,
+          score: entry.score ?? null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
           wasSkipped: entry.wasSkipped,
@@ -153,6 +154,7 @@ export const getUserList = query({
           completedAt: entry.completedAt,
           sessionType: entry.sessionType,
           notes: entry.notes || null,
+          score: entry.score ?? null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
           recordCreatedAt: entry._creationTime, // When the participation record was created
@@ -677,6 +679,7 @@ export const getUserParticipations = query({
       postId: p.postId,
       sessionNumber: p.sessionNumber,
       notes: p.notes,
+      score: p.score ?? null,
       compensatingForDates: p.compensatingForDates,
     }));
   },

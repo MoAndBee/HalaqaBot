@@ -42,6 +42,7 @@ interface UserListProps {
   onUpdateDisplayName: (userId: number, displayName: string) => Promise<void>
   onAddTurnAfter3: (userId: number, currentPosition: number | undefined) => Promise<void>
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
+  onEditScore?: (entryId: string, currentScore?: number | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
   isLocked: boolean
 }
@@ -61,6 +62,7 @@ export function UserList({
   onUpdateDisplayName,
   onAddTurnAfter3,
   onEditNotes,
+  onEditScore,
   onSetCompensation,
   isLocked
 }: UserListProps) {
@@ -344,6 +346,7 @@ export function UserList({
           onUpdateDisplayName={handleUpdateDisplayName}
           onDelete={handleDeleteCompleted}
           onAddTurnAfter3={onAddTurnAfter3}
+          onEditScore={onEditScore}
           isLocked={isLocked}
         />
 
@@ -371,6 +374,7 @@ export function UserList({
                     onMoveToEnd={handleMoveToEnd}
                     onMoveToPosition={handleMoveToPosition}
                     onEditNotes={onEditNotes}
+                    onEditScore={onEditScore}
                     onSetCompensation={onSetCompensation}
                     onUnskip={handleUnskip}
                     totalUsers={items.length}

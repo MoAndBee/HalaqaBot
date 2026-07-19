@@ -30,6 +30,7 @@ import { UserList } from '~/components/UserList'
 import { AddUserModal } from '~/components/AddUserModal'
 import { RegisterUserModal } from '~/components/RegisterUserModal'
 import { EditNotesModal } from '~/components/EditNotesModal'
+import { EditScoreModal } from '~/components/EditScoreModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import { UnlockSessionModal } from '~/components/UnlockSessionModal'
@@ -111,6 +112,12 @@ export default function PostDetail() {
     currentNotes?: string | null
     userName: string
   } | null>(null)
+  const [isEditScoreModalOpen, setIsEditScoreModalOpen] = React.useState(false)
+  const [scoreModalState, setScoreModalState] = React.useState<{
+    entryId: string
+    currentScore?: number | null
+    userName: string
+  } | null>(null)
   const [isCompensationModalOpen, setIsCompensationModalOpen] = React.useState(false)
   const [compensationModalState, setCompensationModalState] = React.useState<{
     entryId: string
@@ -166,6 +173,8 @@ export default function PostDetail() {
   const updateUserRealName = useMutation(api.mutations.updateUserRealName)
   const updateUserNotes = useMutation(api.mutations.updateUserNotes)
   const updateTurnQueueNotes = useMutation(api.mutations.updateTurnQueueNotes)
+  const updateParticipationScore = useMutation(api.mutations.updateParticipationScore)
+  const updateTurnQueueScore = useMutation(api.mutations.updateTurnQueueScore)
   const startNewSession = useMutation(api.mutations.startNewSession)
   const addUserAtPosition = useMutation(api.mutations.addUserAtPosition)
   const addUserToList = useMutation(api.mutations.addUserToList)
@@ -343,6 +352,45 @@ export default function PostDetail() {
     } catch (error) {
       console.error('Failed to save notes:', error)
       toast.error('فشل حفظ الملاحظات')
+      throw error
+    }
+  }
+
+  const handleOpenEditScore = (entryId: string, currentScore?: number | null) => {
+    const user = [...data.activeUsers, ...data.completedUsers].find(u => u.entryId === entryId)
+    if (!user) return
+
+    setScoreModalState({
+      entryId,
+      currentScore,
+      userName: user.realName || user.telegramName,
+    })
+    setIsEditScoreModalOpen(true)
+  }
+
+  const handleSaveScore = async (score: number | null) => {
+    if (!scoreModalState) return
+
+    try {
+      // Determine if this is an active user or completed user
+      const activeUser = data?.activeUsers.find((u: User) => u.entryId === scoreModalState.entryId)
+      const completedUser = data?.completedUsers.find((u: User) => u.entryId === scoreModalState.entryId)
+
+      if (activeUser) {
+        await updateTurnQueueScore({
+          entryId: scoreModalState.entryId as any,
+          score,
+        })
+      } else if (completedUser) {
+        await updateParticipationScore({
+          entryId: scoreModalState.entryId as any,
+          score,
+        })
+      }
+      toast.success('تم حفظ الدرجة!')
+    } catch (error) {
+      console.error('Failed to save score:', error)
+      toast.error('فشل حفظ الدرجة')
       throw error
     }
   }
@@ -1095,6 +1143,7 @@ export default function PostDetail() {
             onUpdateDisplayName={handleUpdateDisplayName}
             onAddTurnAfter3={handleAddTurnAfter3}
             onEditNotes={handleOpenEditNotes}
+            onEditScore={handleOpenEditScore}
             onSetCompensation={handleSetCompensationDates}
             isLocked={sessionInfo?.isLocked || false}
           />
@@ -1128,6 +1177,17 @@ export default function PostDetail() {
         onSave={handleSaveNotes}
         currentNotes={notesModalState?.currentNotes}
         userName={notesModalState?.userName || ''}
+      />
+
+      <EditScoreModal
+        isOpen={isEditScoreModalOpen}
+        onClose={() => {
+          setIsEditScoreModalOpen(false)
+          setScoreModalState(null)
+        }}
+        onSave={handleSaveScore}
+        currentScore={scoreModalState?.currentScore}
+        userName={scoreModalState?.userName || ''}
       />
 
       <CompensationModal

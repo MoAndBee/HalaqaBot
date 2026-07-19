@@ -53,6 +53,7 @@ export default defineSchema({
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous session
     sessionType: v.optional(v.string()), // "تلاوة", "تسميع", "تطبيق", "اختبار", "تعويض"
     notes: v.optional(v.string()), // optional notes for this participant
+    score: v.optional(v.number()), // score for "اختبار" participations
     isCompensation: v.optional(v.boolean()), // true if this turn is for compensation
     compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
     wasSkipped: v.optional(v.boolean()), // true if this participant has been skipped
@@ -70,6 +71,7 @@ export default defineSchema({
     userId: v.number(),
     sessionType: v.string(), // "تلاوة", "تسميع", "تطبيق", "اختبار", "تعويض"
     notes: v.optional(v.string()),
+    score: v.optional(v.number()), // score for "اختبار" participations
     channelId: v.optional(v.number()),
     createdAt: v.number(), // timestamp in ms when user joined the queue
     completedAt: v.number(), // timestamp in ms when turn was completed

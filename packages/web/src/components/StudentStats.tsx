@@ -20,6 +20,7 @@ interface Participation {
   postId: number
   sessionNumber: number
   notes?: string | null
+  score?: number | null
   compensatingForDates?: number[] | null
 }
 
@@ -231,9 +232,15 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                               className={`text-[9px] p-0 rounded text-white font-medium whitespace-nowrap w-[125%] flex items-center justify-center ${
                                 SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
                               }`}
-                              title={p.sessionType}
+                              title={
+                                p.sessionType === 'اختبار' && p.score != null
+                                  ? `${p.sessionType} - الدرجة: ${p.score.toLocaleString('ar-EG')}`
+                                  : p.sessionType
+                              }
                             >
-                              {p.sessionType}
+                              {p.sessionType === 'اختبار' && p.score != null
+                                ? `${p.sessionType} ${p.score.toLocaleString('ar-EG')}`
+                                : p.sessionType}
                             </div>
                           ))}
                         </div>
