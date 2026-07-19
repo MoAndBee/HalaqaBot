@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link } from 'wouter'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
-import { ArrowRight, GraduationCap, Download, AlertTriangle, Users } from 'lucide-react'
+import { ArrowRight, GraduationCap, Copy, AlertTriangle, Users } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -41,26 +42,25 @@ function formatDate(timestamp: number): string {
   })
 }
 
-function downloadResults(day: ExamDay, students: ExamRecord[]) {
-  const date = new Date(day.timestamp)
-  const isoDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-
+// Copy results as tab-separated text: pasting into Google Sheets or Excel
+// splits each tab into its own column and each line into its own row.
+// (File downloads don't work inside the Telegram Mini App WebView.)
+async function copyResults(students: ExamRecord[]) {
   const rows = [
     ['الاسم', 'الدرجة'],
     ...students.map((s) => [s.name, s.score != null ? s.score.toString() : '']),
   ]
-  // Quote fields; BOM so Excel opens the Arabic text as UTF-8
-  const csv = '\uFEFF' + rows
-    .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(','))
-    .join('\r\n')
+  const tsv = rows
+    .map((row) => row.map((cell) => cell.replace(/[\t\r\n]+/g, ' ')).join('\t'))
+    .join('\n')
 
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `نتائج-الاختبار-${isoDate}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
+  try {
+    await navigator.clipboard.writeText(tsv)
+    toast.success('تم نسخ النتائج! الصقيها في Google Sheets أو Excel')
+  } catch (error) {
+    console.error('Copy failed:', error)
+    toast.error('فشل النسخ')
+  }
 }
 
 export default function ExamRecords() {
@@ -113,9 +113,9 @@ export default function ExamRecords() {
               <h1 className="text-2xl md:text-3xl font-black text-foreground mb-1">الاختبارات</h1>
               <h2 className="text-lg md:text-xl font-bold text-foreground/80">{formatDate(selectedDay.timestamp)}</h2>
             </div>
-            <Button onClick={() => downloadResults(selectedDay, students)} className="gap-2">
-              <Download className="h-4 w-4" />
-              تحميل نتائج الاختبار
+            <Button onClick={() => copyResults(students)} className="gap-2">
+              <Copy className="h-4 w-4" />
+              نسخ نتائج الاختبار
             </Button>
           </div>
         </div>
