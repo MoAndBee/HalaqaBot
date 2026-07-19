@@ -45,8 +45,8 @@ export function EditScoreModal({ isOpen, onClose, onSave, currentScore, userName
     let parsed: number | null = null
     if (trimmed !== '') {
       parsed = Number(trimmed)
-      if (isNaN(parsed) || parsed < 0 || parsed > 100) {
-        setError('الرجاء إدخال درجة صحيحة بين ٠ و ١٠٠')
+      if (isNaN(parsed)) {
+        setError('الرجاء إدخال درجة صحيحة')
         return
       }
     }
@@ -85,12 +85,10 @@ export function EditScoreModal({ isOpen, onClose, onSave, currentScore, userName
             ref={inputRef}
             type="number"
             inputMode="decimal"
-            min={0}
-            max={100}
             value={score}
             onChange={(e) => setScore(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="أدخل الدرجة (من ١٠٠)"
+            placeholder="أدخل الدرجة"
             disabled={isSaving}
           />
           {error && (
