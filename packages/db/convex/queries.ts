@@ -1026,6 +1026,51 @@ export const getTasmeeAttendance = query({
   },
 });
 
+export const getExamRecords = query({
+  args: {
+    chatId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // All completed اختبار participations for this chat
+    const examEntries = await ctx.db
+      .query("participationHistory")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("chatId"), args.chatId),
+          q.eq(q.field("sessionType"), "اختبار")
+        )
+      )
+      .collect();
+
+    const userIds = [...new Set(examEntries.map((e) => e.userId))];
+
+    const users = await Promise.all(
+      userIds.map((userId) =>
+        ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", userId))
+          .first()
+      )
+    );
+
+    const usersById = new Map(userIds.map((userId, i) => [userId, users[i]]));
+
+    return examEntries.map((e) => {
+      const user = usersById.get(e.userId);
+      return {
+        userId: e.userId,
+        name:
+          user?.realName ||
+          user?.telegramName ||
+          (user?.username ? `@${user.username}` : `#${e.userId}`),
+        completedAt: e.completedAt,
+        score: e.score ?? null,
+        postId: e.postId,
+      };
+    });
+  },
+});
+
 export const getLongMessagesBySaturday = query({
   args: {
     adminUserIds: v.array(v.number()), // Admin user IDs to filter by
