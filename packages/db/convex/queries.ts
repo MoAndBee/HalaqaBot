@@ -121,6 +121,7 @@ export const getUserList = query({
           carriedOver: entry.carriedOver,
           sessionType: entry.sessionType,
           notes: entry.notes || null,
+          score: entry.score ?? null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
           wasSkipped: entry.wasSkipped,
@@ -153,6 +154,7 @@ export const getUserList = query({
           completedAt: entry.completedAt,
           sessionType: entry.sessionType,
           notes: entry.notes || null,
+          score: entry.score ?? null,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
           recordCreatedAt: entry._creationTime, // When the participation record was created
@@ -677,6 +679,7 @@ export const getUserParticipations = query({
       postId: p.postId,
       sessionNumber: p.sessionNumber,
       notes: p.notes,
+      score: p.score ?? null,
       compensatingForDates: p.compensatingForDates,
     }));
   },
@@ -1020,6 +1023,51 @@ export const getTasmeeAttendance = query({
       }));
 
     return { roster, participations };
+  },
+});
+
+export const getExamRecords = query({
+  args: {
+    chatId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // All completed اختبار participations for this chat
+    const examEntries = await ctx.db
+      .query("participationHistory")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("chatId"), args.chatId),
+          q.eq(q.field("sessionType"), "اختبار")
+        )
+      )
+      .collect();
+
+    const userIds = [...new Set(examEntries.map((e) => e.userId))];
+
+    const users = await Promise.all(
+      userIds.map((userId) =>
+        ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", userId))
+          .first()
+      )
+    );
+
+    const usersById = new Map(userIds.map((userId, i) => [userId, users[i]]));
+
+    return examEntries.map((e) => {
+      const user = usersById.get(e.userId);
+      return {
+        userId: e.userId,
+        name:
+          user?.realName ||
+          user?.telegramName ||
+          (user?.username ? `@${user.username}` : `#${e.userId}`),
+        completedAt: e.completedAt,
+        score: e.score ?? null,
+        postId: e.postId,
+      };
+    });
   },
 });
 

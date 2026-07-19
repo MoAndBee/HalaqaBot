@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { tgConfirm } from '@/lib/utils'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
-import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash } from 'lucide-react'
+import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash, GraduationCap } from 'lucide-react'
 import type { User } from '@halakabot/db'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,13 +36,14 @@ interface DraggableUserProps {
   onMoveToEnd?: (entryId: string) => void
   onMoveToPosition?: (entryId: string, position: number) => void
   onEditNotes?: (entryId: string, currentNotes?: string | null) => void
+  onEditScore?: (entryId: string, currentScore?: number | null) => void
   onSetCompensation?: (entryId: string, currentDates?: number[] | null) => void
   onUnskip?: (entryId: string) => void
   totalUsers?: number
   isLocked?: boolean
 }
 
-export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onSetCompensation, onUnskip, totalUsers, isLocked }: DraggableUserProps) {
+export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUpdateSessionType, onAddTurnAfter3, onMoveToTop, onMoveToEnd, onMoveToPosition, onEditNotes, onEditScore, onSetCompensation, onUnskip, totalUsers, isLocked }: DraggableUserProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user.realName || '')
   const [isEditingType, setIsEditingType] = useState(false)
@@ -136,6 +137,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     }
   }
 
+  const handleEditScore = () => {
+    if (onEditScore && user.entryId) {
+      onEditScore(user.entryId, user.score)
+    }
+  }
+
   const handleSetCompensation = () => {
     if (onSetCompensation && user.entryId) {
       onSetCompensation(user.entryId, user.compensatingForDates)
@@ -218,6 +225,12 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
                 <DropdownMenuItem onClick={handleEditNotes} disabled={isLocked}>
                   <StickyNote className="h-4 w-4 ml-2" />
                   إضافة ملاحظات
+                </DropdownMenuItem>
+              )}
+              {onEditScore && user.sessionType === 'اختبار' && (
+                <DropdownMenuItem onClick={handleEditScore} disabled={isLocked}>
+                  <GraduationCap className="h-4 w-4 ml-2" />
+                  {user.score != null ? 'تعديل الدرجة' : 'إضافة الدرجة'}
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -319,6 +332,11 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
               {user.notes && (
                 <div className="mt-1 text-muted-foreground text-xs sm:text-sm italic">
                   {user.notes}
+                </div>
+              )}
+              {user.sessionType === 'اختبار' && user.score != null && (
+                <div className="mt-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
+                  الدرجة: {user.score.toLocaleString('ar-EG')}
                 </div>
               )}
               {user.wasSkipped && (

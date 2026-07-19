@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { tgConfirm } from '@/lib/utils'
-import { ChevronDown, CheckCircle, MoreVertical, Pencil, Tag, Plus, Trash2, Check, X, Hash } from 'lucide-react'
+import { ChevronDown, CheckCircle, MoreVertical, Pencil, Tag, Plus, Trash2, Check, X, Hash, GraduationCap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -36,6 +36,7 @@ interface CompletedUser {
   position: number
   completedAt?: number
   sessionType?: string
+  score?: number | null
   isCompensation?: boolean
   compensatingForDates?: number[]
 }
@@ -46,6 +47,7 @@ interface CompletedUsersSectionProps {
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onDelete?: (entryId: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
+  onEditScore?: (entryId: string, currentScore?: number | null) => void
   isLocked?: boolean
 }
 
@@ -55,6 +57,7 @@ function CompletedUserCard({
   onUpdateDisplayName,
   onDelete,
   onAddTurnAfter3,
+  onEditScore,
   isLocked,
 }: {
   user: CompletedUser
@@ -63,6 +66,7 @@ function CompletedUserCard({
   onUpdateDisplayName?: (userId: number, realName: string) => void
   onDelete?: (entryId: string) => void
   onAddTurnAfter3?: (userId: number, currentPosition: number | undefined) => void
+  onEditScore?: (entryId: string, currentScore?: number | null) => void
   isLocked?: boolean
 }) {
   const [isEditingType, setIsEditingType] = useState(false)
@@ -182,6 +186,15 @@ function CompletedUserCard({
                 <Tag className="h-4 w-4 ml-2" />
                 تعديل المشاركة
               </DropdownMenuItem>
+              {onEditScore && user.sessionType === 'اختبار' && (
+                <DropdownMenuItem
+                  onClick={() => user.entryId && onEditScore(user.entryId, user.score)}
+                  disabled={isLocked}
+                >
+                  <GraduationCap className="h-4 w-4 ml-2" />
+                  {user.score != null ? 'تعديل الدرجة' : 'إضافة الدرجة'}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleCopyId}>
                 <Hash className="h-4 w-4 ml-2" />
@@ -244,6 +257,18 @@ function CompletedUserCard({
                   ).join('، ')}
                 </div>
               )}
+              {user.sessionType === 'اختبار' && (
+                <div className={cn(
+                  "mt-1 text-xs font-medium",
+                  user.score != null
+                    ? "text-orange-600 dark:text-orange-400"
+                    : "text-destructive"
+                )}>
+                  {user.score != null
+                    ? `الدرجة: ${user.score.toLocaleString('ar-EG')}`
+                    : 'بدون درجة ⚠️'}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -289,6 +314,7 @@ export function CompletedUsersSection({
   onUpdateDisplayName,
   onDelete,
   onAddTurnAfter3,
+  onEditScore,
   isLocked,
 }: CompletedUsersSectionProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -322,6 +348,7 @@ export function CompletedUsersSection({
             onUpdateDisplayName={onUpdateDisplayName}
             onDelete={onDelete}
             onAddTurnAfter3={onAddTurnAfter3}
+            onEditScore={onEditScore}
             isLocked={isLocked}
           />
         ))}

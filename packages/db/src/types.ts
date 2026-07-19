@@ -9,6 +9,7 @@ export interface User {
   sessionType?: string;
   sessionNumber?: number;
   notes?: string | null;
+  score?: number | null; // score for اختبار participations
   isCompensation?: boolean; // true if this turn/participation is for compensation
   compensatingForDates?: number[]; // array of timestamps for dates being compensated
   wasSkipped?: boolean; // true if this participant has been skipped

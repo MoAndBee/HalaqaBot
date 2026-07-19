@@ -767,6 +767,7 @@ export const completeUserTurn = mutation({
       userId: entry.userId,
       sessionType: args.sessionType,
       notes: entry.notes,
+      score: args.sessionType === 'اختبار' ? entry.score : undefined,
       channelId: entry.channelId,
       createdAt: entry.createdAt,
       completedAt,
@@ -882,6 +883,8 @@ export const updateSessionType = mutation({
     // Update session type
     await ctx.db.patch(args.entryId, {
       sessionType: args.sessionType,
+      // Score only applies to اختبار — clear it when changing to another type
+      ...(args.sessionType !== 'اختبار' && { score: undefined }),
       ...(isChangingFromCompensation && {
         isCompensation: false,
         compensatingForDates: undefined,
@@ -913,6 +916,8 @@ export const updateTurnQueueSessionType = mutation({
     // Update session type
     await ctx.db.patch(args.entryId, {
       sessionType: args.sessionType,
+      // Score only applies to اختبار — clear it when changing to another type
+      ...(args.sessionType !== 'اختبار' && { score: undefined }),
       ...(isChangingFromCompensation && {
         isCompensation: false,
         compensatingForDates: undefined,
@@ -941,6 +946,7 @@ export const bulkUpdateTurnQueueSessionType = mutation({
 
       await ctx.db.patch(entryId, {
         sessionType: args.sessionType,
+        ...(args.sessionType !== 'اختبار' && { score: undefined }),
         ...(isChangingFromCompensation && {
           isCompensation: false,
           compensatingForDates: undefined,
@@ -1045,6 +1051,56 @@ export const updateTurnQueueNotes = mutation({
     // Update notes (trim and set to undefined if empty)
     await ctx.db.patch(args.entryId, {
       notes: args.notes.trim() || undefined,
+    });
+  },
+});
+
+export const updateParticipationScore = mutation({
+  args: {
+    entryId: v.id("participationHistory"),
+    score: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const entry = await ctx.db.get(args.entryId);
+
+    if (!entry) {
+      throw new Error(`Entry not found`);
+    }
+
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
+
+    if (entry.sessionType !== 'اختبار') {
+      throw new Error("الدرجة متاحة فقط لمشاركات الاختبار");
+    }
+
+    await ctx.db.patch(args.entryId, {
+      score: args.score ?? undefined,
+    });
+  },
+});
+
+export const updateTurnQueueScore = mutation({
+  args: {
+    entryId: v.id("turnQueue"),
+    score: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const entry = await ctx.db.get(args.entryId);
+
+    if (!entry) {
+      throw new Error(`Entry not found`);
+    }
+
+    // Check if session is locked
+    await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
+
+    if (entry.sessionType !== 'اختبار') {
+      throw new Error("الدرجة متاحة فقط لمشاركات الاختبار");
+    }
+
+    await ctx.db.patch(args.entryId, {
+      score: args.score ?? undefined,
     });
   },
 });
@@ -1176,15 +1232,32 @@ export const startNewSession = mutation({
 
     const newSessionNumber = currentMaxSession + 1;
 
-    // Auto-lock the previous session when starting a new one
+    // Auto-lock the previous session when starting a new one.
+    // Skip locking if it still has an اختبار without a score, so the score
+    // can be added later and the session locked manually.
     if (currentMaxSession > 0) {
       const previousSession = allSessions.find(s => s.sessionNumber === currentMaxSession);
       if (previousSession && !previousSession.isLocked) {
-        await ctx.db.patch(previousSession._id, {
-          isLocked: true,
-          lockedAt: Date.now(),
-          lockedBy: "auto",
-        });
+        const previousHistory = await ctx.db
+          .query("participationHistory")
+          .withIndex("by_chat_post_session", (q) =>
+            q.eq("chatId", args.chatId)
+              .eq("postId", args.postId)
+              .eq("sessionNumber", currentMaxSession)
+          )
+          .collect();
+
+        const hasUnscoredExam = previousHistory.some(
+          (p) => p.sessionType === 'اختبار' && p.score === undefined
+        );
+
+        if (!hasUnscoredExam) {
+          await ctx.db.patch(previousSession._id, {
+            isLocked: true,
+            lockedAt: Date.now(),
+            lockedBy: "auto",
+          });
+        }
       }
     }
 
@@ -1342,6 +1415,26 @@ export const lockSession = mutation({
 
     if (!session) {
       throw new Error("Session not found");
+    }
+
+    // Prevent locking while any اختبار participation in this session has no score
+    const history = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .collect();
+
+    const unscored = history.filter(
+      (p) => p.sessionType === 'اختبار' && p.score === undefined
+    );
+
+    if (unscored.length > 0) {
+      throw new Error(
+        `لا يمكن إغلاق الحلقة: يوجد ${unscored.length.toLocaleString('ar-EG')} اختبار بدون درجة. الرجاء إضافة الدرجات أولاً.`
+      );
     }
 
     // Lock the session
