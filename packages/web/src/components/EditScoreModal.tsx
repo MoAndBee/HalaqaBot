@@ -11,6 +11,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
+// Normalize Arabic-Indic (٠-٩) and Eastern Arabic (۰-۹) digits to ASCII,
+// and the Arabic decimal separator (٫) to a dot, so both numeral systems parse
+function normalizeNumerals(value: string): string {
+  return value
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/٫/g, '.')
+}
+
 interface EditScoreModalProps {
   isOpen: boolean
   onClose: () => void
@@ -40,7 +49,7 @@ export function EditScoreModal({ isOpen, onClose, onSave, currentScore, userName
   }, [isOpen])
 
   const handleSave = async () => {
-    const trimmed = score.trim()
+    const trimmed = normalizeNumerals(score.trim())
 
     let parsed: number | null = null
     if (trimmed !== '') {
@@ -83,8 +92,10 @@ export function EditScoreModal({ isOpen, onClose, onSave, currentScore, userName
         <div className="space-y-3">
           <Input
             ref={inputRef}
-            type="number"
+            type="text"
             inputMode="decimal"
+            dir="ltr"
+            className="text-right"
             value={score}
             onChange={(e) => setScore(e.target.value)}
             onKeyDown={handleKeyDown}

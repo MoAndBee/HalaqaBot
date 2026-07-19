@@ -1232,15 +1232,32 @@ export const startNewSession = mutation({
 
     const newSessionNumber = currentMaxSession + 1;
 
-    // Auto-lock the previous session when starting a new one
+    // Auto-lock the previous session when starting a new one.
+    // Skip locking if it still has an اختبار without a score, so the score
+    // can be added later and the session locked manually.
     if (currentMaxSession > 0) {
       const previousSession = allSessions.find(s => s.sessionNumber === currentMaxSession);
       if (previousSession && !previousSession.isLocked) {
-        await ctx.db.patch(previousSession._id, {
-          isLocked: true,
-          lockedAt: Date.now(),
-          lockedBy: "auto",
-        });
+        const previousHistory = await ctx.db
+          .query("participationHistory")
+          .withIndex("by_chat_post_session", (q) =>
+            q.eq("chatId", args.chatId)
+              .eq("postId", args.postId)
+              .eq("sessionNumber", currentMaxSession)
+          )
+          .collect();
+
+        const hasUnscoredExam = previousHistory.some(
+          (p) => p.sessionType === 'اختبار' && p.score === undefined
+        );
+
+        if (!hasUnscoredExam) {
+          await ctx.db.patch(previousSession._id, {
+            isLocked: true,
+            lockedAt: Date.now(),
+            lockedBy: "auto",
+          });
+        }
       }
     }
 
