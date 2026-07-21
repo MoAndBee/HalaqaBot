@@ -8,7 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 interface PostMessagesViewProps {
   chatId: number
   postId: number
-  onAddToQueue?: (userId: number, sessionType: string | undefined, messageId: number | undefined) => Promise<void>
+  onAddToQueue?: (userId: number, sessionType: string | undefined, messageId: number, autoReact: boolean) => Promise<void>
   isLocked?: boolean
 }
 
@@ -80,7 +80,7 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
     if (!onAddToQueue || loadingUsers.has(userId)) return
     setLoadingUsers(prev => new Set(prev).add(userId))
     try {
-      await onAddToQueue(userId, sessionType, autoReact ? messageId : undefined)
+      await onAddToQueue(userId, sessionType, messageId, autoReact)
     } finally {
       setLoadingUsers(prev => {
         const next = new Set(prev)

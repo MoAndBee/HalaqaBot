@@ -194,6 +194,7 @@ export default function PostDetail() {
   const setSessionRegistrationClosed = useMutation(api.mutations.setSessionRegistrationClosed)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
   const reactToMessage = useAction(api.actions.reactToMessage)
+  const detectNameFromMessage = useAction(api.actions.detectNameFromMessage)
 
   // Auto-assign supervisor on first page load if no supervisor is assigned (Option A).
   // Gate on the actual supervisor list (not the resolved display name — a name
@@ -866,7 +867,7 @@ export default function PostDetail() {
     }
   }
 
-  const handleAddFromMessages = async (userId: number, sessionType: string | undefined, messageId: number | undefined) => {
+  const handleAddFromMessages = async (userId: number, sessionType: string | undefined, messageId: number, autoReact: boolean) => {
     try {
       await addUserToList({
         chatId,
@@ -876,7 +877,11 @@ export default function PostDetail() {
         sessionType,
       })
       toast.success('تم إضافة المستخدم!')
-      if (messageId !== undefined) {
+      // Detect and store the participant's real name from this message,
+      // regardless of the auto-react toggle (mirrors the admin 👌 reaction).
+      detectNameFromMessage({ chatId, postId, messageId }).catch(() => {})
+      // The ❤ reaction stays gated behind the auto-react toggle.
+      if (autoReact) {
         reactToMessage({ chatId, postId, messageId }).catch(() => {})
       }
     } catch (error: any) {

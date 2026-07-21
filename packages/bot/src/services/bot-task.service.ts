@@ -4,6 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
 import type { Config } from "../config/environment";
+import type { MessageService } from "./message.service";
+import type { ClassificationService } from "./classification.service";
+import { detectRealNameFromMessage } from "./name-detection.service";
 
 const REGISTRATION_CLOSED_IMAGE_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -18,14 +21,25 @@ export class BotTaskService {
   private convex: ConvexHttpClient;
   private reactiveClient: ConvexClient;
   private config: Config;
+  private messageService: MessageService;
+  private classificationService: ClassificationService;
   private isProcessing = false;
   private unsubscribe: (() => void) | null = null;
 
-  constructor(bot: Bot, convex: ConvexHttpClient, reactiveClient: ConvexClient, config: Config) {
+  constructor(
+    bot: Bot,
+    convex: ConvexHttpClient,
+    reactiveClient: ConvexClient,
+    config: Config,
+    messageService: MessageService,
+    classificationService: ClassificationService,
+  ) {
     this.bot = bot;
     this.convex = convex;
     this.reactiveClient = reactiveClient;
     this.config = config;
+    this.messageService = messageService;
+    this.classificationService = classificationService;
   }
 
   /**
@@ -85,6 +99,8 @@ export class BotTaskService {
         await this.handleSendParticipantList(task);
       } else if (task.type === "react_to_message") {
         await this.handleReactToMessage(task);
+      } else if (task.type === "detect_name") {
+        await this.handleDetectName(task);
       } else if (task.type === "delete_message") {
         await this.handleDeleteMessage(task);
       } else {
@@ -115,6 +131,82 @@ export class BotTaskService {
     });
 
     console.log(`✅ Reacted to message ${messageId} in chat ${chatId}`);
+  }
+
+  /**
+   * Detect the sender's real name from a message and store it. Triggered by the
+   * web "add turn" (دور+) flow so adding a participant from a message populates
+   * their real name the same way an admin 👌 reaction does. The user has already
+   * been added to the queue by the web mutation, so this only resolves the name.
+   */
+  private async handleDetectName(task: any) {
+    const { chatId, postId, messageId } = task;
+
+    // Resolve the message author (from storage, or via forwarding).
+    const messageAuthor = await this.messageService.getMessageAuthor(
+      this.bot.api,
+      chatId,
+      postId,
+      messageId,
+    );
+
+    if (!messageAuthor || messageAuthor.id === 0) {
+      console.log(`⏭️  detect_name: no resolvable author for message ${messageId}, skipping`);
+      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
+      return;
+    }
+
+    // Resolve the channel so classification/message records stay channel-consistent.
+    const channelId =
+      (await this.convex.query(api.queries.getChannelIdForPost, { chatId, postId })) ?? undefined;
+
+    const { realName } = await detectRealNameFromMessage(
+      {
+        convex: this.convex,
+        classificationService: this.classificationService,
+        forwardChatId: this.config.forwardChatId,
+      },
+      this.bot.api,
+      chatId,
+      postId,
+      messageId,
+      messageAuthor,
+      channelId,
+    );
+
+    if (!realName) {
+      console.log(`ℹ️  detect_name: no name detected in message ${messageId}, leaving user's name unchanged`);
+      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
+      return;
+    }
+
+    // Don't override a manually-verified name.
+    const existingUser = await this.convex.query(api.queries.getUser, { userId: messageAuthor.id });
+    if (existingUser?.realName && existingUser?.realNameVerified) {
+      console.log(
+        `ℹ️  detect_name: user ${messageAuthor.id} already has verified realName "${existingUser.realName}", keeping it`,
+      );
+      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
+      return;
+    }
+
+    // Ensure the users row exists, then store the detected name as verified —
+    // adding from a message is an explicit admin action, matching 👌 behavior.
+    const telegramName = messageAuthor.last_name
+      ? `${messageAuthor.first_name} ${messageAuthor.last_name}`
+      : messageAuthor.first_name;
+    await this.convex.mutation(api.mutations.ensureUser, {
+      userId: messageAuthor.id,
+      telegramName,
+      username: messageAuthor.username,
+    });
+    await this.convex.mutation(api.mutations.updateUserRealName, {
+      userId: messageAuthor.id,
+      realName,
+    });
+
+    console.log(`✅ detect_name: set realName for user ${messageAuthor.id} to "${realName}"`);
+    await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
   }
 
   private async handleDeleteMessage(task: any) {
