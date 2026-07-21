@@ -1105,6 +1105,36 @@ export const updateTurnQueueScore = mutation({
   },
 });
 
+export const bulkUpdateParticipationScores = mutation({
+  args: {
+    updates: v.array(
+      v.object({
+        entryId: v.id("participationHistory"),
+        score: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    for (const update of args.updates) {
+      const entry = await ctx.db.get(update.entryId);
+
+      if (!entry) {
+        throw new Error(`Entry not found`);
+      }
+
+      await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
+
+      if (entry.sessionType !== 'اختبار') {
+        throw new Error("الدرجة متاحة فقط لمشاركات الاختبار");
+      }
+
+      await ctx.db.patch(update.entryId, { score: update.score });
+    }
+
+    return { updated: args.updates.length };
+  },
+});
+
 export const setTurnQueueCompensation = mutation({
   args: {
     entryId: v.id("turnQueue"),
