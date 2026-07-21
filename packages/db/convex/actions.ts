@@ -116,7 +116,7 @@ Respond with ONLY a JSON object of this exact shape:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-20b",
+        model: "openai/gpt-oss-120b",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
         reasoning_effort: "high",
