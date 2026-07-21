@@ -75,6 +75,25 @@ export class UserListService {
     // Normalize to array
     const userArray = Array.isArray(users) ? users : [users];
 
+    // Ensure every author has a row in the users table before we try to write
+    // their realName or add them to the list. Without this, a detected name
+    // would be silently dropped when the users row doesn't exist yet.
+    for (const user of userArray) {
+      if (user.id === 0) continue; // hidden/privacy senders have no stable id
+      const telegramName = user.last_name
+        ? `${user.first_name} ${user.last_name}`
+        : user.first_name;
+      try {
+        await this.convex.mutation(api.mutations.ensureUser, {
+          userId: user.id,
+          telegramName,
+          username: user.username,
+        });
+      } catch (error) {
+        console.log(`Could not ensure user ${user.id} exists:`, error);
+      }
+    }
+
     // Update realName in users table if detected names are provided
     if (userIdToRealName) {
       for (const user of userArray) {
