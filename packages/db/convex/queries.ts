@@ -1058,6 +1058,7 @@ export const getExamRecords = query({
     return examEntries.map((e) => {
       const user = usersById.get(e.userId);
       return {
+        entryId: e._id,
         userId: e.userId,
         name:
           user?.realName ||

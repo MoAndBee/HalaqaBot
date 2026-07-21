@@ -2,15 +2,17 @@ import { useState } from 'react'
 import { Link } from 'wouter'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
-import { ArrowRight, GraduationCap, Copy, AlertTriangle, Users } from 'lucide-react'
+import { ArrowRight, GraduationCap, Copy, AlertTriangle, Users, ClipboardPaste } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader } from '~/components/Loader'
 import { useSelectedChannel } from '~/contexts/TelegramAuthContext'
+import { BulkScoreModal } from '~/components/BulkScoreModal'
 
 interface ExamRecord {
+  entryId: string
   userId: number
   name: string
   completedAt: number
@@ -67,6 +69,7 @@ export default function ExamRecords() {
   const { chatId } = useSelectedChannel()
   const records = useQuery(api.queries.getExamRecords, { chatId })
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null)
+  const [isBulkScoreOpen, setIsBulkScoreOpen] = useState(false)
 
   if (records === undefined) {
     return (
@@ -113,10 +116,20 @@ export default function ExamRecords() {
               <h1 className="text-2xl md:text-3xl font-black text-foreground mb-1">الاختبارات</h1>
               <h2 className="text-lg md:text-xl font-bold text-foreground/80">{formatDate(selectedDay.timestamp)}</h2>
             </div>
-            <Button onClick={() => copyResults(students)} className="gap-2">
-              <Copy className="h-4 w-4" />
-              نسخ نتائج الاختبار
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => copyResults(students)} className="gap-2">
+                <Copy className="h-4 w-4" />
+                نسخ نتائج الاختبار
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsBulkScoreOpen(true)}
+                className="gap-2"
+              >
+                <ClipboardPaste className="h-4 w-4" />
+                إدخال الدرجات دفعة واحدة
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -154,6 +167,12 @@ export default function ExamRecords() {
             </CardContent>
           </Card>
         </div>
+
+        <BulkScoreModal
+          isOpen={isBulkScoreOpen}
+          onClose={() => setIsBulkScoreOpen(false)}
+          roster={students.map((s) => ({ entryId: s.entryId, name: s.name, score: s.score }))}
+        />
       </div>
     )
   }

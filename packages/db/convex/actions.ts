@@ -55,6 +55,130 @@ export const reactToMessage = action({
   },
 });
 
+interface BulkScoreMatch {
+  entryId: string | null;
+  extractedName: string;
+  score: number | null;
+  confidence: "high" | "medium" | "low";
+}
+
+/**
+ * Matches a pasted free-form text of student names and scores against the
+ * roster of a single exam day, using an LLM to handle Arabic spelling
+ * variants, Arabic-Indic numerals, scores written as words, absence
+ * markers, and partial names. Returns proposed matches for the user to
+ * review — nothing is saved here.
+ */
+export const matchBulkScores = action({
+  args: {
+    text: v.string(),
+    roster: v.array(
+      v.object({
+        entryId: v.string(),
+        name: v.string(),
+      })
+    ),
+  },
+  handler: async (_ctx, args): Promise<{ matches: BulkScoreMatch[] }> => {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      throw new Error("GROQ_API_KEY is not configured");
+    }
+
+    const rosterList = args.roster
+      .map((s) => `- id: ${s.entryId} | name: ${s.name}`)
+      .join("\n");
+
+    const prompt = `You are helping a Quran study group (حلقة) teacher enter exam scores. The teacher pasted a hand-written list of student names with scores. Match each line against the official roster below.
+
+Roster of students who took the exam (id | name):
+${rosterList}
+
+Pasted text:
+"""
+${args.text}
+"""
+
+Rules:
+1. Extract every (name, score) pair you can find in the pasted text. Names and scores are in Arabic; scores may use Arabic-Indic numerals (٩), ASCII digits (9), decimals (٨٫٥ or 8.5), or words (تسعة).
+2. Match each extracted name to a roster id. Arabic names vary in spelling (أ/ا/إ, ة/ه, ى/ي), may be partial (first name only), or use a kunya (أم فلان). Match generously but never guess between two equally plausible roster students — return null id instead.
+3. If a student is marked absent (غائبة, لم تحضر, غ) or has no readable score, return score null.
+4. confidence: "high" = clear unambiguous match, "medium" = probable match, "low" = uncertain.
+5. Each roster id may appear at most once. A pasted name with no roster match gets id null.
+
+Respond with ONLY a JSON object of this exact shape:
+{"matches": [{"entryId": "<roster id or null>", "extractedName": "<name as written in the pasted text>", "score": <number or null>, "confidence": "high" | "medium" | "low"}]}`;
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-20b",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        reasoning_effort: "high",
+        temperature: 0,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Groq API error ${response.status}: ${body}`);
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") {
+      throw new Error("Groq API returned no content");
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      throw new Error("Groq API returned invalid JSON");
+    }
+
+    const rawMatches = (parsed as { matches?: unknown }).matches;
+    if (!Array.isArray(rawMatches)) {
+      throw new Error("Groq API response is missing the matches array");
+    }
+
+    const validEntryIds = new Set(args.roster.map((s) => s.entryId));
+    const seenEntryIds = new Set<string>();
+
+    const matches: BulkScoreMatch[] = rawMatches.flatMap((m: any) => {
+      if (typeof m !== "object" || m === null) return [];
+      if (typeof m.extractedName !== "string" || m.extractedName.trim() === "") return [];
+
+      let entryId: string | null =
+        typeof m.entryId === "string" && validEntryIds.has(m.entryId) ? m.entryId : null;
+      // Enforce one match per roster entry even if the model repeats an id
+      if (entryId !== null) {
+        if (seenEntryIds.has(entryId)) {
+          entryId = null;
+        } else {
+          seenEntryIds.add(entryId);
+        }
+      }
+
+      const score =
+        typeof m.score === "number" && Number.isFinite(m.score) ? m.score : null;
+      const confidence: BulkScoreMatch["confidence"] =
+        m.confidence === "high" || m.confidence === "medium" || m.confidence === "low"
+          ? m.confidence
+          : "low";
+
+      return [{ entryId, extractedName: m.extractedName.trim(), score, confidence }];
+    });
+
+    return { matches };
+  },
+});
+
 /**
  * One-time backfill: populates the posts table from turnQueue and participationHistory.
  * Only creates post records for posts that have actual participants — informational
