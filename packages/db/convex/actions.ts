@@ -109,35 +109,82 @@ Rules:
 Respond with ONLY a JSON object of this exact shape:
 {"matches": [{"entryId": "<roster id or null>", "extractedName": "<name as written in the pasted text>", "score": <number or null>, "confidence": "high" | "medium" | "low"}]}`;
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-oss-20b",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-        reasoning_effort: "high",
-        temperature: 0,
-      }),
-    });
+    const callGroq = async (responseFormat: object | undefined): Promise<string> => {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-oss-120b",
+          messages: [{ role: "user", content: prompt }],
+          ...(responseFormat ? { response_format: responseFormat } : {}),
+          reasoning_effort: "high",
+          temperature: 0,
+        }),
+      });
 
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Groq API error ${response.status}: ${body}`);
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Groq API error ${response.status}: ${body}`);
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (typeof content !== "string" || content.trim() === "") {
+        throw new Error("Groq API returned no content");
+      }
+      return content;
+    };
+
+    // Schema-enforced structured output. json_object mode is unreliable with
+    // the gpt-oss reasoning models (reasoning tokens can trip Groq's JSON
+    // validator), so use json_schema and fall back to free-text on failure.
+    const matchesSchema = {
+      type: "object",
+      properties: {
+        matches: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              entryId: { type: ["string", "null"] },
+              extractedName: { type: "string" },
+              score: { type: ["number", "null"] },
+              confidence: { type: "string", enum: ["high", "medium", "low"] },
+            },
+            required: ["entryId", "extractedName", "score", "confidence"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["matches"],
+      additionalProperties: false,
+    };
+
+    let content: string;
+    try {
+      content = await callGroq({
+        type: "json_schema",
+        json_schema: { name: "bulk_score_matches", strict: true, schema: matchesSchema },
+      });
+    } catch (error) {
+      console.error("Groq structured output failed, retrying without response_format:", error);
+      content = await callGroq(undefined);
     }
 
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") {
-      throw new Error("Groq API returned no content");
+    // The free-text fallback may wrap the JSON in prose or code fences —
+    // extract the outermost object before parsing.
+    const firstBrace = content.indexOf("{");
+    const lastBrace = content.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace <= firstBrace) {
+      throw new Error("Groq API returned no JSON object");
     }
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(content);
+      parsed = JSON.parse(content.slice(firstBrace, lastBrace + 1));
     } catch {
       throw new Error("Groq API returned invalid JSON");
     }
