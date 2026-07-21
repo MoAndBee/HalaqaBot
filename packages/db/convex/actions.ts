@@ -124,7 +124,9 @@ Respond with ONLY a JSON object of this exact shape:
           // final answer may never land in message.content
           reasoning_format: "hidden",
           reasoning_effort: "medium",
-          max_completion_tokens: 16384,
+          // Groq counts this reservation toward the free tier's 8000 TPM
+          // limit, so keep prompt + completion under that cap
+          max_completion_tokens: 4096,
           temperature: 0,
         }),
       });
