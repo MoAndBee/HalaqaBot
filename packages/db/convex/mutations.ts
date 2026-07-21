@@ -983,6 +983,51 @@ export const updateUserRealName = mutation({
   },
 });
 
+/**
+ * Ensure a user exists in the users table, creating a row from their Telegram
+ * info if it's missing. This is a prerequisite for writing a realName (which
+ * requires an existing row) so a detected name is never silently dropped.
+ * Never touches realName/realNameVerified on existing rows.
+ */
+export const ensureUser = mutation({
+  args: {
+    userId: v.number(),
+    telegramName: v.string(),
+    username: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Hidden/privacy senders have no stable id — don't create a bogus row.
+    if (args.userId === 0) {
+      return { created: false };
+    }
+
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (existing) {
+      // Refresh Telegram-derived fields, but preserve realName/realNameVerified.
+      await ctx.db.patch(existing._id, {
+        telegramName: args.telegramName,
+        username: args.username,
+        updatedAt: Date.now(),
+      });
+      return { created: false };
+    }
+
+    // Insert a new row without a realName — it gets populated later
+    // (admin 👌 reaction, /auto, or a manual edit).
+    await ctx.db.insert("users", {
+      userId: args.userId,
+      username: args.username,
+      telegramName: args.telegramName,
+      updatedAt: Date.now(),
+    });
+    return { created: true };
+  },
+});
+
 export const updateUserTelegramName = mutation({
   args: {
     userId: v.number(),

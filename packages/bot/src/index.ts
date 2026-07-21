@@ -42,7 +42,7 @@ registerWebAppHandler(bot, convex, config);
 registerChatMemberHandler(bot, convex, adminSyncService);
 
 // Start bot task service with reactive subscriptions
-const botTaskService = new BotTaskService(bot, convex, reactiveConvex, config);
+const botTaskService = new BotTaskService(bot, convex, reactiveConvex, config, messageService, classificationService);
 botTaskService.start();
 
 // Handle errors

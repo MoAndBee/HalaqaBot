@@ -180,6 +180,29 @@ Respond with ONLY a JSON object of this exact shape:
 });
 
 /**
+ * Creates a bot task to detect the sender's real name from a message and store
+ * it. Used by the web "add turn" (دور+) flow so adding a participant from a
+ * message populates their real name the same way an admin 👌 reaction does.
+ */
+export const detectNameFromMessage = action({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    messageId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.runMutation(api.mutations.createBotTask, {
+      type: "detect_name",
+      chatId: args.chatId,
+      postId: args.postId,
+      messageId: args.messageId,
+    });
+
+    return { success: true, taskId: result.taskId };
+  },
+});
+
+/**
  * One-time backfill: populates the posts table from turnQueue and participationHistory.
  * Only creates post records for posts that have actual participants — informational
  * channel posts (with no users) are excluded.
