@@ -120,7 +120,11 @@ Respond with ONLY a JSON object of this exact shape:
           model: "openai/gpt-oss-120b",
           messages: [{ role: "user", content: prompt }],
           ...(responseFormat ? { response_format: responseFormat } : {}),
-          reasoning_effort: "high",
+          // gpt-oss models emit a reasoning channel; without "hidden" the
+          // final answer may never land in message.content
+          reasoning_format: "hidden",
+          reasoning_effort: "medium",
+          max_completion_tokens: 16384,
           temperature: 0,
         }),
       });
@@ -131,9 +135,12 @@ Respond with ONLY a JSON object of this exact shape:
       }
 
       const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content;
+      const choice = data?.choices?.[0];
+      const content = choice?.message?.content;
       if (typeof content !== "string" || content.trim() === "") {
-        throw new Error("Groq API returned no content");
+        throw new Error(
+          `Groq API returned no content (finish_reason: ${choice?.finish_reason}, choice: ${JSON.stringify(choice)?.slice(0, 500)})`
+        );
       }
       return content;
     };
