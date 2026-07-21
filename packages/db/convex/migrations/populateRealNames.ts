@@ -60,6 +60,13 @@ const NAMES: Array<{ userId: number; realName: string }> = [
   { userId: 841355278, realName: "نسرين ميرغني عبد الرحمن" },
   { userId: 7073879196, realName: "آمال محمود عيسى" },
   { userId: 5560393120, realName: "عزه سعيد إسماعيل" },
+
+  // ── 4. Corrections: stored realName was wrong; CSV + username agree ───────
+  // Stored names below were mis-scraped from list messages. The registration
+  // form and the Telegram username both point to the corrected value.
+  { userId: 619856390, realName: "نادين وائل يسري" }, // was "أسماء فهمي التهامي"; @nadeenwaell
+  { userId: 1787404332, realName: "إسراء محمد حلمي" }, // was "نادية محمد كامل"; @Esraa_Helmy55
+  { userId: 475414405, realName: "هبة الله السيد هويدي" }, // was "...حسن"; @Hebahwedi7 / "Heba Howedi"
 ];
 
 export default mutation({
