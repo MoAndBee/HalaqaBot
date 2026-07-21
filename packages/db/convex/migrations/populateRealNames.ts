@@ -67,6 +67,20 @@ const NAMES: Array<{ userId: number; realName: string }> = [
   { userId: 619856390, realName: "نادين وائل يسري" }, // was "أسماء فهمي التهامي"; @nadeenwaell
   { userId: 1787404332, realName: "إسراء محمد حلمي" }, // was "نادية محمد كامل"; @Esraa_Helmy55
   { userId: 475414405, realName: "هبة الله السيد هويدي" }, // was "...حسن"; @Hebahwedi7 / "Heba Howedi"
+  // Telegram had الزعيري, registration had عبدالناصر — keep both, عبدالناصر first.
+  { userId: 635968953, realName: "أمنية جمال عبدالناصر الزعيري" }, // @OmniaElzeary
+
+  // ── 5. Enrichment: stored 3-part name extended with the CSV's 4th name ────
+  { userId: 5885997783, realName: "امل عبدالنبي عبدالخالق علي" }, // @amlabdelkhaliq710
+  { userId: 1450370981, realName: "هبة علي أحمد حسن" }, // @hebaaliahmed
+  { userId: 681927795, realName: "هبة رفعت محمد السعيد" }, // @hebarefaat
+  { userId: 5980097337, realName: "مرام محمد نجيب انور" }, // @Maram_anwer
+  { userId: 8575956780, realName: "إيمان أحمد الحاج أحمد" }, // @emy_jasmine
+  { userId: 1074553931, realName: "عايدة محمد فوزي سالم" }, // @aidamohamed1307
+  { userId: 2112371728, realName: "فاطمة محمد أحمد يونس" }, // @Fatmamohamedyouns
+  { userId: 1724475367, realName: "إسراء أحمد إبراهيم نعيم" }, // @emtcoesraaahmed
+  { userId: 1324208937, realName: "رقية عبد السميع محمود إبراهيم" }, // @Rokaia_Abdelsamia
+  { userId: 5330423160, realName: "إيمان رشاد عبدالحميد احمد" }, // @emanrashad12
 ];
 
 export default mutation({
