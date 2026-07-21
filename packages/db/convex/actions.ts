@@ -126,7 +126,9 @@ Respond with ONLY a JSON object of this exact shape:
         // gpt-oss models emit a reasoning channel; without "hidden" the
         // final answer may never land in message.content
         reasoning_format: "hidden",
-        reasoning_effort: "medium",
+        // "low" — at medium the model can burn the whole completion budget
+        // on reasoning and finish with reason "length" and empty content
+        reasoning_effort: "low",
         // Groq counts this reservation toward the free tier's 8000 TPM
         // limit, so keep prompt + completion under that cap
         max_completion_tokens: 4096,
