@@ -60,7 +60,7 @@ export class ClassificationService {
         .join(",");
 
       const { object } = await generateObject({
-        model: groq("openai/gpt-oss-20b"),
+        model: groq("openai/gpt-oss-120b"),
         schema: batchClassificationSchema,
         providerOptions: {
           groq: {
@@ -167,7 +167,7 @@ Return the message_id, contains_name (true/false), names array, and activity_typ
         .join(",");
 
       const { object } = await generateObject({
-        model: groq("openai/gpt-oss-20b"),
+        model: groq("openai/gpt-oss-120b"),
         schema: activityTypeOnlySchema,
         providerOptions: {
           groq: {
