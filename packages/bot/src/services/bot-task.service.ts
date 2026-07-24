@@ -300,8 +300,8 @@ export class BotTaskService {
       const flowerBorder = `ه${flower}`.repeat(7);
 
       let message = `${flowerBorder}\n`;
-      message += `${formattedDate}\n`;
-      message += `${hijriDate}`;
+      message += `${hijriDate}\n`;
+      message += `${formattedDate}`;
 
       if (teacherName) {
         message += `\nالمعلمة: ${teacherName}`;
