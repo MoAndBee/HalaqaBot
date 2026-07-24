@@ -526,8 +526,8 @@ export default function PostDetail() {
       day: 'numeric',
     })
 
-    let fullMessage = `${formattedDate}\n`
-    fullMessage += `${formatHijriDate(date)}\n`
+    let fullMessage = `${formatHijriDate(date)}\n`
+    fullMessage += `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
@@ -567,8 +567,8 @@ export default function PostDetail() {
     const flowerBorder = `ه${selectedFlower}`.repeat(7)
 
     let fullMessage = `${flowerBorder}\n`
-    fullMessage += `${formattedDate}\n`
     fullMessage += `${formatHijriDate(date)}\n`
+    fullMessage += `${formattedDate}\n`
     if (sessionInfo?.teacherName) {
       fullMessage += `المعلمة: ${sessionInfo.teacherName}\n`
     }
