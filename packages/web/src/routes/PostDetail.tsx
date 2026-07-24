@@ -61,7 +61,10 @@ function formatRealNames(activeUsers: User[], completedUsers: User[], flower: st
     .map((user, index) => {
       const arabicNumber = (index + 1).toLocaleString('ar-EG')
       const name = user.realName || user.telegramName
-      const isDone = completedUsers.some(cu => cu.id === user.id)
+      // Done-ness is a property of the individual turn, not the user. Derive it
+      // from the entry's list membership (completed entries come first) so a user
+      // with two turns — one done, one still active — doesn't show ✅ on both.
+      const isDone = index < completedUsers.length
       const notesLabel = user.notes ? ` - ${user.notes}` : ''
       // Format compensation dates if present
       let activityLabel = ''

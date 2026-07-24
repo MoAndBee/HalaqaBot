@@ -320,7 +320,10 @@ export class BotTaskService {
       allParticipants.forEach((participant: any, index: number) => {
         const arabicNumber = (index + 1).toLocaleString('ar-EG');
         const name = participant.realName || participant.telegramName;
-        const isDone = completedUsers.some((u: any) => u.id === participant.id);
+        // Done-ness is a property of the individual turn, not the user. Derive it
+        // from the entry's list membership (completed entries come first) so a user
+        // with two turns — one done, one still active — doesn't show ✅ on both.
+        const isDone = index < completedUsers.length;
         const notesLabel = participant.notes ? ` - ${participant.notes}` : '';
         // Format compensation dates if present
         let activityLabel = '';
