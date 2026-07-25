@@ -13,6 +13,30 @@ export const sendParticipantList = action({
     flower: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // A closed (locked) halaqa is final — don't publish its list again. Resolve
+    // the target session the same way the bot does when none is given: the most
+    // recent one for this post.
+    let sessionNumber = args.sessionNumber;
+    if (sessionNumber === undefined) {
+      const sessions = await ctx.runQuery(api.queries.getAvailableSessions, {
+        chatId: args.chatId,
+        postId: args.postId,
+      });
+      sessionNumber = sessions[0]?.sessionNumber;
+    }
+
+    if (sessionNumber !== undefined) {
+      const sessionInfo = await ctx.runQuery(api.queries.getSessionInfo, {
+        chatId: args.chatId,
+        postId: args.postId,
+        sessionNumber,
+      });
+
+      if (sessionInfo?.isLocked) {
+        throw new Error("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
+      }
+    }
+
     // Query the user list first to ensure the cache is warmed up with fresh data
     // This prevents the bot from hitting stale cached data when it processes the task
     await ctx.runQuery(api.queries.getUserList, {

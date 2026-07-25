@@ -591,6 +591,12 @@ export default function PostDetail() {
   const handleSendParticipantList = async () => {
     if (!data) return
 
+    // A closed (locked) halaqa is final — its list must not be re-published.
+    if (sessionInfo?.isLocked) {
+      toast.error('الحلقة مغلقة، لا يمكن إرسال قائمة الأسماء')
+      return
+    }
+
     try {
       const currentSession = selectedSession ?? data.currentSession
       await sendParticipantList({
@@ -1035,7 +1041,10 @@ export default function PostDetail() {
                   <Copy className="h-4 w-4 ml-2" />
                   نسخ قائمة الأسماء
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSendParticipantList}>
+                <DropdownMenuItem
+                  onClick={handleSendParticipantList}
+                  disabled={sessionInfo?.isLocked}
+                >
                   <Send className="h-4 w-4 ml-2" />
                   إرسال قائمة الأسماء
                 </DropdownMenuItem>
