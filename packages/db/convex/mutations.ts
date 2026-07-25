@@ -1569,6 +1569,7 @@ export const setSessionRegistrationClosed = mutation({
     postId: v.number(),
     sessionNumber: v.number(),
     registrationClosed: v.boolean(),
+    flower: v.optional(v.string()), // decoration for the list pushed when closing
   },
   handler: async (ctx, args) => {
     const session = await ctx.db
@@ -1590,6 +1591,22 @@ export const setSessionRegistrationClosed = mutation({
     await ctx.db.patch(session._id, {
       registrationClosed: willBeClosed,
     });
+
+    // When transitioning from open -> closed, (re)send the list so the
+    // closed-registration image is pushed to the chat immediately. This is
+    // queued here rather than by the caller because sendParticipantList
+    // refuses to publish the list of a session whose registration is closed.
+    if (!wasClosed && willBeClosed) {
+      await ctx.db.insert("botTasks", {
+        type: "send_participant_list",
+        chatId: args.chatId,
+        postId: args.postId,
+        sessionNumber: args.sessionNumber,
+        flower: args.flower,
+        status: "pending",
+        createdAt: Date.now(),
+      });
+    }
 
     // When transitioning from closed -> open, delete the closed-registration
     // image that's still in the chat (if any) and clear its tracked message ID.
