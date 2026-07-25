@@ -597,13 +597,6 @@ export default function PostDetail() {
       return
     }
 
-    // Same once turn registration is closed: the list published at closing time
-    // is the final one.
-    if (sessionInfo?.registrationClosed) {
-      toast.error('تسجيل الأدوار مغلق، لا يمكن إرسال قائمة الأسماء')
-      return
-    }
-
     try {
       const currentSession = selectedSession ?? data.currentSession
       await sendParticipantList({
@@ -841,16 +834,29 @@ export default function PostDetail() {
     const nextValue = !sessionInfo?.registrationClosed
 
     try {
-      // When closing registration, the mutation itself queues the list send so
-      // the closed-registration image is pushed to the chat immediately — the
-      // send action refuses to publish once registration is closed.
       await setSessionRegistrationClosed({
         chatId,
         postId,
         sessionNumber: currentSession,
         registrationClosed: nextValue,
-        flower: selectedFlower,
       })
+
+      // When closing registration, also (re)send the list so the closed-registration
+      // image is pushed to the chat immediately — same as clicking إرسال قائمة الأسماء.
+      if (nextValue) {
+        try {
+          await sendParticipantList({
+            chatId,
+            postId,
+            sessionNumber: currentSession,
+            flower: selectedFlower,
+          })
+        } catch (sendError) {
+          console.error('Auto-send list after closing registration failed:', sendError)
+          toast.error('تم إغلاق تسجيل الأدوار، لكن فشل إرسال القائمة')
+          return
+        }
+      }
 
       toast.success(nextValue ? 'تم إغلاق تسجيل الأدوار' : 'تم فتح تسجيل الأدوار')
     } catch (error: any) {
@@ -1037,7 +1043,7 @@ export default function PostDetail() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleSendParticipantList}
-                  disabled={sessionInfo?.isLocked || sessionInfo?.registrationClosed}
+                  disabled={sessionInfo?.isLocked}
                 >
                   <Send className="h-4 w-4 ml-2" />
                   إرسال قائمة الأسماء

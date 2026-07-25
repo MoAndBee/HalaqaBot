@@ -13,9 +13,9 @@ export const sendParticipantList = action({
     flower: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Don't publish the list of a halaqa that is closed (locked) or whose turn
-    // registration is closed. Resolve the target session the same way the bot
-    // does when none is given: the most recent one for this post.
+    // A closed (locked) halaqa is final — don't publish its list again. Resolve
+    // the target session the same way the bot does when none is given: the most
+    // recent one for this post.
     let sessionNumber = args.sessionNumber;
     if (sessionNumber === undefined) {
       const sessions = await ctx.runQuery(api.queries.getAvailableSessions, {
@@ -34,12 +34,6 @@ export const sendParticipantList = action({
 
       if (sessionInfo?.isLocked) {
         throw new Error("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
-      }
-
-      if (sessionInfo?.registrationClosed) {
-        throw new Error(
-          "لا يمكن إرسال القائمة: تسجيل الأدوار مغلق. الرجاء فتح تسجيل الأدوار أولاً."
-        );
       }
     }
 
