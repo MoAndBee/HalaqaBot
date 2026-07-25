@@ -1584,6 +1584,12 @@ export const setSessionRegistrationClosed = mutation({
       throw new Error("Session not found");
     }
 
+    // A locked (ended) halaqa can't have its registration state changed — the
+    // menu item is greyed out for the same reason.
+    if (session.isLocked) {
+      throw new Error("لا يمكن تغيير حالة التسجيل: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
+    }
+
     const wasClosed = session.registrationClosed === true;
     const willBeClosed = args.registrationClosed;
 
