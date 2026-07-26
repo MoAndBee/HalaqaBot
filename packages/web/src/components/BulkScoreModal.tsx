@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAction, useMutation } from 'convex/react'
 import { api } from '@halakabot/db'
-import { Loader2, Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Loader2, Sparkles, AlertTriangle, CheckCircle2, ChevronsUpDown } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -14,13 +14,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { StudentPickerModal } from './StudentPickerModal'
 
 // Normalize Arabic-Indic (٠-٩) and Eastern Arabic (۰-۹) digits to ASCII,
 // and the Arabic decimal separator (٫) to a dot, so both numeral systems parse
@@ -30,8 +24,6 @@ function normalizeNumerals(value: string): string {
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     .replace(/٫/g, '.')
 }
-
-const NO_MATCH = '__none__'
 
 interface RosterStudent {
   entryId: string
@@ -58,6 +50,8 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
   const [overwrite, setOverwrite] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  // Index of the row whose student picker is open
+  const [pickerRowIdx, setPickerRowIdx] = useState<number | null>(null)
 
   const matchBulkScores = useAction(api.actions.matchBulkScores)
   const bulkUpdateScores = useMutation(api.mutations.bulkUpdateParticipationScores)
@@ -73,6 +67,7 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
     setText('')
     setRows(null)
     setOverwrite(false)
+    setPickerRowIdx(null)
     onClose()
   }
 
@@ -147,7 +142,10 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
     }
   }
 
+  const pickerRow = pickerRowIdx !== null ? (rows ?? [])[pickerRowIdx] : undefined
+
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col" dir="rtl">
         <DialogHeader>
@@ -190,33 +188,20 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Select
-                          value={row.entryId ?? NO_MATCH}
-                          onValueChange={(value) =>
-                            setRows((prev) =>
-                              prev!.map((r, i) =>
-                                i === idx ? { ...r, entryId: value === NO_MATCH ? null : value } : r
-                              )
-                            )
-                          }
+                        <Button
+                          variant="outline"
+                          className="w-44 justify-between font-normal"
+                          onClick={() => setPickerRowIdx(idx)}
                           disabled={isSaving}
                         >
-                          <SelectTrigger className="w-44">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NO_MATCH}>بدون مطابقة</SelectItem>
-                            {roster
-                              .filter(
-                                (s) => s.entryId === row.entryId || !usedEntryIds.includes(s.entryId)
-                              )
-                              .map((s) => (
-                                <SelectItem key={s.entryId} value={s.entryId}>
-                                  {s.name}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
+                          <span
+                            className={`truncate ${student ? '' : 'text-muted-foreground'}`}
+                            title={student?.name}
+                          >
+                            {student ? student.name : 'بدون مطابقة'}
+                          </span>
+                          <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+                        </Button>
                         <Input
                           type="text"
                           inputMode="decimal"
@@ -294,7 +279,14 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => setRows(null)} disabled={isSaving}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRows(null)
+                  setPickerRowIdx(null)
+                }}
+                disabled={isSaving}
+              >
                 رجوع للنص
               </Button>
               <Button onClick={handleSave} disabled={isSaving || updates.length === 0}>
@@ -312,5 +304,27 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {pickerRow && (
+      <StudentPickerModal
+        isOpen
+        onClose={() => setPickerRowIdx(null)}
+        extractedName={pickerRow.extractedName}
+        selectedEntryId={pickerRow.entryId}
+        students={roster.map((s) => ({
+          entryId: s.entryId,
+          name: s.name,
+          score: s.score,
+          // Taken by another row — each student can be matched once
+          disabled: s.entryId !== pickerRow.entryId && usedEntryIds.includes(s.entryId),
+        }))}
+        onSelect={(entryId) =>
+          setRows((prev) =>
+            prev!.map((r, i) => (i === pickerRowIdx ? { ...r, entryId } : r))
+          )
+        }
+      />
+    )}
+    </>
   )
 }
