@@ -91,7 +91,7 @@ export function StudentPickerModal({
   // inside the content and hits the same problem as picking a student
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeAfterTap()}>
-      <DialogContent className="max-w-md h-[60vh] flex flex-col" dir="rtl">
+      <DialogContent className="max-w-md h-[85vh] flex flex-col" dir="rtl">
         <DialogHeader>
           <DialogTitle>اختيار الطالبة</DialogTitle>
           {extractedName && (
