@@ -53,6 +53,7 @@ export function StudentPickerModal({
 }: StudentPickerModalProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +61,20 @@ export function StudentPickerModal({
       setTimeout(() => inputRef.current?.focus(), 100)
     }
   }, [isOpen])
+
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
+
+  // On touch devices Radix defers its "was this interaction outside?" check
+  // from pointerdown to the click event. React's onClick runs first, so closing
+  // this dialog straight away unmounts its layer before that check happens —
+  // the dialog underneath is then the topmost layer, sees the same tap as an
+  // outside interaction, and closes too. Yielding a tick keeps this layer alive
+  // until the tap has been resolved against it. Verified in Chromium: without
+  // it, picking a student on touch closes the bulk score modal as well.
+  const closeAfterTap = () => {
+    clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(onClose, 0)
+  }
 
   const query = normalizeArabic(searchQuery)
   const results =
@@ -69,11 +84,13 @@ export function StudentPickerModal({
 
   const choose = (entryId: string | null) => {
     onSelect(entryId)
-    onClose()
+    closeAfterTap()
   }
 
+  // Covers Escape, the overlay, and the built-in X button — the X is a tap
+  // inside the content and hits the same problem as picking a student
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && closeAfterTap()}>
       <DialogContent className="max-w-md h-[60vh] flex flex-col" dir="rtl">
         <DialogHeader>
           <DialogTitle>اختيار الطالبة</DialogTitle>
