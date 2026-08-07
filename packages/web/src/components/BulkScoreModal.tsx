@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useAction, useMutation } from 'convex/react'
+import { ConvexError } from 'convex/values'
 import { api } from '@halakabot/db'
-import { Loader2, Sparkles, AlertTriangle, CheckCircle2, ChevronsUpDown } from 'lucide-react'
+import { Loader2, Sparkles, AlertTriangle, CheckCircle2, ChevronsUpDown, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -44,12 +45,50 @@ interface BulkScoreModalProps {
   roster: RosterStudent[]
 }
 
+interface AnalyzeError {
+  /** Arabic, shown directly to the admin */
+  message: string
+  /** Technical detail, hidden behind "التفاصيل التقنية" */
+  detail: string
+}
+
+/**
+ * The action reports failures as ConvexError data — a plain Error would reach
+ * the browser as "Server Error", which is what made every failure here look
+ * identical. Anything else (network drop, unexpected throw) still gets a
+ * readable fallback rather than being swallowed.
+ */
+function describeAnalyzeError(error: unknown): AnalyzeError {
+  if (error instanceof ConvexError) {
+    const data = error.data as
+      | { kind?: string; message?: string; detail?: string; stage?: string }
+      | undefined
+    if (data?.kind === 'bulk_score_failure' && typeof data.message === 'string') {
+      return {
+        message: data.message,
+        detail: `[${data.stage ?? 'unknown'}] ${data.detail ?? 'no detail provided'}`,
+      }
+    }
+    return {
+      message: 'فشل تحليل النص، حاولي مرة أخرى',
+      detail: typeof error.data === 'string' ? error.data : JSON.stringify(error.data),
+    }
+  }
+
+  return {
+    message: 'تعذّر الوصول إلى الخادم. تحقّقي من الاتصال بالإنترنت وحاولي مرة أخرى.',
+    detail: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+  }
+}
+
 export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps) {
   const [text, setText] = useState('')
   const [rows, setRows] = useState<ReviewRow[] | null>(null)
   const [overwrite, setOverwrite] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState<AnalyzeError | null>(null)
+  const [showErrorDetail, setShowErrorDetail] = useState(false)
   // Index of the row whose student picker is open
   const [pickerRowIdx, setPickerRowIdx] = useState<number | null>(null)
 
@@ -68,12 +107,16 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
     setRows(null)
     setOverwrite(false)
     setPickerRowIdx(null)
+    setAnalyzeError(null)
+    setShowErrorDetail(false)
     onClose()
   }
 
   const handleAnalyze = async () => {
     if (text.trim() === '') return
     setIsAnalyzing(true)
+    setAnalyzeError(null)
+    setShowErrorDetail(false)
     try {
       const result = await matchBulkScores({
         text,
@@ -92,9 +135,22 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
       }
     } catch (error) {
       console.error('Bulk score analysis failed:', error)
-      toast.error('فشل تحليل النص، حاولي مرة أخرى')
+      const described = describeAnalyzeError(error)
+      setAnalyzeError(described)
+      toast.error(described.message)
     } finally {
       setIsAnalyzing(false)
+    }
+  }
+
+  const copyErrorDetail = async () => {
+    if (analyzeError === null) return
+    const report = `${analyzeError.message}\n${analyzeError.detail}`
+    try {
+      await navigator.clipboard.writeText(report)
+      toast.success('تم نسخ التفاصيل')
+    } catch {
+      toast.error('تعذّر النسخ')
     }
   }
 
@@ -156,6 +212,39 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4">
+          {analyzeError !== null && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-sm font-medium text-destructive">{analyzeError.message}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowErrorDetail((shown) => !shown)}
+                  className="text-xs underline text-muted-foreground"
+                >
+                  {showErrorDetail ? 'إخفاء التفاصيل التقنية' : 'عرض التفاصيل التقنية'}
+                </button>
+                <button
+                  type="button"
+                  onClick={copyErrorDetail}
+                  className="text-xs underline text-muted-foreground flex items-center gap-1"
+                >
+                  <Copy className="h-3 w-3" />
+                  نسخ التفاصيل
+                </button>
+              </div>
+              {showErrorDetail && (
+                <pre
+                  dir="ltr"
+                  className="text-[11px] leading-relaxed whitespace-pre-wrap break-all text-muted-foreground bg-background/60 rounded p-2 max-h-40 overflow-y-auto"
+                >
+                  {analyzeError.detail}
+                </pre>
+              )}
+            </div>
+          )}
           {rows === null ? (
             <Textarea
               value={text}
