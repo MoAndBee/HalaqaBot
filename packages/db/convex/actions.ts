@@ -1,5 +1,5 @@
 import { action } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { api, internal } from "./_generated/api";
 
 /**
@@ -87,6 +87,56 @@ interface BulkScoreMatch {
 }
 
 /**
+ * Which step of the bulk score matching failed. Sent to the client so the
+ * modal can show what actually went wrong instead of one generic message.
+ */
+type BulkScoreErrorStage =
+  | "config"
+  | "rate_limit"
+  | "auth"
+  | "upstream"
+  | "http"
+  | "truncated"
+  | "empty"
+  | "parse"
+  | "shape";
+
+// A type alias, not an interface: ConvexError<T> constrains T to Value, and an
+// interface has no implicit index signature to satisfy that constraint.
+type BulkScoreErrorData = {
+  kind: "bulk_score_failure";
+  stage: BulkScoreErrorStage;
+  /** Arabic, shown to the admin */
+  message: string;
+  /** Technical detail, shown in the modal's collapsible section */
+  detail: string;
+  /** Seconds to wait, when the upstream told us */
+  retryAfterSeconds?: number;
+};
+
+/**
+ * Convex replaces the message of a plain Error with "Server Error" in
+ * production — only ConvexError data survives the trip to the browser.
+ * Every failure below therefore goes out as ConvexError.
+ */
+function bulkScoreError(data: Omit<BulkScoreErrorData, "kind">): ConvexError<BulkScoreErrorData> {
+  const payload: BulkScoreErrorData = { kind: "bulk_score_failure", ...data };
+  return new ConvexError(payload);
+}
+
+/** Groq errors arrive as JSON ({error:{message}}) or bare text; take either. */
+function readUpstreamMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body);
+    const message = parsed?.error?.message;
+    if (typeof message === "string" && message.trim() !== "") return message;
+  } catch {
+    // not JSON — fall through to the raw body
+  }
+  return body.slice(0, 300);
+}
+
+/**
  * Matches a pasted free-form text of student names and scores against the
  * roster of a single exam day, using an LLM to handle Arabic spelling
  * variants, Arabic-Indic numerals, scores written as words, absence
@@ -106,8 +156,17 @@ export const matchBulkScores = action({
   handler: async (_ctx, args): Promise<{ matches: BulkScoreMatch[] }> => {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      throw new Error("GROQ_API_KEY is not configured");
+      throw bulkScoreError({
+        stage: "config",
+        message: "لم يتم إعداد مفتاح الذكاء الاصطناعي على الخادم.",
+        detail: "GROQ_API_KEY is not set in the Convex deployment environment.",
+      });
     }
+
+    // Size context is attached to every failure: the most common cause is a
+    // long pasted list or a large roster pushing the request over the
+    // free-tier token budget, and that is invisible without the numbers.
+    const sizeContext = `roster=${args.roster.length} students, pasted text=${args.text.length} chars`;
 
     const rosterList = args.roster
       .map((s) => `- id: ${s.entryId} | name: ${s.name}`)
@@ -162,36 +221,114 @@ Respond with ONLY a JSON object of this exact shape:
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Groq API error ${response.status}: ${body}`);
+      const upstream = readUpstreamMessage(body);
+      const detail = `Groq HTTP ${response.status}: ${upstream} (${sizeContext})`;
+
+      if (response.status === 429) {
+        // Groq reports the wait either in the Retry-After header or inside the
+        // message ("Please try again in 5.4s")
+        const header = Number(response.headers.get("retry-after"));
+        const fromMessage = upstream.match(/try again in ([\d.]+)s/);
+        const seconds = Number.isFinite(header) && header > 0
+          ? Math.ceil(header)
+          : fromMessage
+            ? Math.ceil(Number(fromMessage[1]))
+            : undefined;
+
+        throw bulkScoreError({
+          stage: "rate_limit",
+          message: seconds
+            ? `تم تجاوز الحد المسموح لاستخدام الذكاء الاصطناعي. حاولي بعد ${seconds} ثانية.`
+            : "تم تجاوز الحد المسموح لاستخدام الذكاء الاصطناعي. حاولي بعد قليل.",
+          detail,
+          ...(seconds !== undefined ? { retryAfterSeconds: seconds } : {}),
+        });
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        throw bulkScoreError({
+          stage: "auth",
+          message: "مفتاح الذكاء الاصطناعي غير صالح. الرجاء إبلاغ المسؤول التقني.",
+          detail,
+        });
+      }
+
+      if (response.status >= 500) {
+        throw bulkScoreError({
+          stage: "upstream",
+          message: "خدمة الذكاء الاصطناعي غير متاحة حالياً. حاولي بعد قليل.",
+          detail,
+        });
+      }
+
+      throw bulkScoreError({
+        stage: "http",
+        message: `فشل الاتصال بخدمة الذكاء الاصطناعي (رمز ${response.status}).`,
+        detail,
+      });
     }
 
     const data = await response.json();
     const choice = data?.choices?.[0];
+    const usage = data?.usage;
+    const usageDetail = usage
+      ? `prompt=${usage.prompt_tokens} completion=${usage.completion_tokens} total=${usage.total_tokens} tokens`
+      : "usage unavailable";
     const content = choice?.message?.content;
     if (typeof content !== "string" || content.trim() === "") {
-      throw new Error(
-        `Groq API returned no content (finish_reason: ${choice?.finish_reason}, choice: ${JSON.stringify(choice)?.slice(0, 500)})`
-      );
+      // finish_reason "length" means reasoning consumed the whole completion
+      // budget — a longer roster or pasted list makes this far more likely,
+      // so it gets its own actionable message.
+      if (choice?.finish_reason === "length") {
+        throw bulkScoreError({
+          stage: "truncated",
+          message:
+            "النص أو قائمة الطالبات طويلة جداً على الذكاء الاصطناعي. جربي إدخال الدرجات على دفعات أصغر.",
+          detail: `Groq stopped with finish_reason=length before emitting an answer (${usageDetail}, max_completion_tokens=4096, ${sizeContext}).`,
+        });
+      }
+
+      throw bulkScoreError({
+        stage: "empty",
+        message: "لم يرجع الذكاء الاصطناعي أي نتيجة. حاولي مرة أخرى.",
+        detail: `Groq returned empty content (finish_reason=${choice?.finish_reason}, ${usageDetail}, ${sizeContext}).`,
+      });
     }
 
     // The model may wrap the JSON in prose or code fences —
     // extract the outermost object before parsing.
+    const unreadableResponse = (reason: string) =>
+      bulkScoreError({
+        stage: content.length > 0 && choice?.finish_reason === "length" ? "truncated" : "parse",
+        message:
+          choice?.finish_reason === "length"
+            ? "انقطع رد الذكاء الاصطناعي قبل اكتماله. جربي إدخال الدرجات على دفعات أصغر."
+            : "تعذّر فهم رد الذكاء الاصطناعي. حاولي مرة أخرى.",
+        detail: `${reason} (finish_reason=${choice?.finish_reason}, ${usageDetail}, ${sizeContext}) — response starts: ${content.slice(0, 200)}`,
+      });
+
     const firstBrace = content.indexOf("{");
     const lastBrace = content.lastIndexOf("}");
     if (firstBrace === -1 || lastBrace <= firstBrace) {
-      throw new Error("Groq API returned no JSON object");
+      throw unreadableResponse("Groq response contained no JSON object");
     }
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(content.slice(firstBrace, lastBrace + 1));
-    } catch {
-      throw new Error("Groq API returned invalid JSON");
+    } catch (error) {
+      throw unreadableResponse(
+        `Groq response was not valid JSON: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
 
     const rawMatches = (parsed as { matches?: unknown }).matches;
     if (!Array.isArray(rawMatches)) {
-      throw new Error("Groq API response is missing the matches array");
+      throw bulkScoreError({
+        stage: "shape",
+        message: "جاء رد الذكاء الاصطناعي بصيغة غير متوقعة. حاولي مرة أخرى.",
+        detail: `Parsed JSON is missing the "matches" array (got keys: ${Object.keys((parsed as object) ?? {}).join(", ") || "none"}, ${usageDetail}, ${sizeContext}).`,
+      });
     }
 
     const validEntryIds = new Set(args.roster.map((s) => s.entryId));
