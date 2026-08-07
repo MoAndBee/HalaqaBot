@@ -87,11 +87,22 @@ interface BulkScoreMatch {
 }
 
 /**
+ * Groq's free tier allows 8000 tokens per minute for gpt-oss-120b, counting
+ * the prompt plus the reserved completion. Held slightly under the real limit
+ * so a token estimate that runs a little low still fits.
+ */
+const TPM_BUDGET = 7600;
+
+/** Floor for a usable answer, including the hidden reasoning channel. */
+const MIN_COMPLETION_TOKENS = 600;
+
+/**
  * Which step of the bulk score matching failed. Sent to the client so the
  * modal can show what actually went wrong instead of one generic message.
  */
 type BulkScoreErrorStage =
   | "config"
+  | "too_large"
   | "rate_limit"
   | "auth"
   | "upstream"
@@ -168,13 +179,16 @@ export const matchBulkScores = action({
     // free-tier token budget, and that is invisible without the numbers.
     const sizeContext = `roster=${args.roster.length} students, pasted text=${args.text.length} chars`;
 
-    const rosterList = args.roster
-      .map((s) => `- id: ${s.entryId} | name: ${s.name}`)
-      .join("\n");
+    // The roster goes to the model as small integer indices, never as Convex
+    // IDs. A Convex ID is 32 random base32 chars — roughly one token per two
+    // chars — so a 133-student roster spent ~4400 tokens on identifiers the
+    // model only had to echo back, which alone overran the 8000 TPM limit.
+    // Indices cost 1-3 tokens each and are mapped back to entry IDs below.
+    const rosterList = args.roster.map((s, i) => `${i} | ${s.name}`).join("\n");
 
     const prompt = `You are helping a Quran study group (حلقة) teacher enter exam scores. The teacher pasted a hand-written list of student names with scores. Match each line against the official roster below.
 
-Roster of students who took the exam (id | name):
+Roster of students who took the exam (id | name), where id is the line number:
 ${rosterList}
 
 Pasted text:
@@ -184,13 +198,36 @@ ${args.text}
 
 Rules:
 1. Extract every (name, score) pair you can find in the pasted text. Names and scores are in Arabic; scores may use Arabic-Indic numerals (٩), ASCII digits (9), decimals (٨٫٥ or 8.5), or words (تسعة).
-2. Match each extracted name to a roster id. Arabic names vary in spelling (أ/ا/إ, ة/ه, ى/ي), may be partial (first name only), or use a kunya (أم فلان). Match generously but never guess between two equally plausible roster students — return null id instead.
+2. Match each extracted name to a roster id (the integer at the start of the roster line). Arabic names vary in spelling (أ/ا/إ, ة/ه, ى/ي), may be partial (first name only), or use a kunya (أم فلان). Match generously but never guess between two equally plausible roster students — return null id instead.
 3. If a student is marked absent (غائبة, لم تحضر, غ) or has no readable score, return score null.
 4. confidence: "high" = clear unambiguous match, "medium" = probable match, "low" = uncertain.
 5. Each roster id may appear at most once. A pasted name with no roster match gets id null.
 
 Respond with ONLY a JSON object of this exact shape:
-{"matches": [{"entryId": "<roster id or null>", "extractedName": "<name as written in the pasted text>", "score": <number or null>, "confidence": "high" | "medium" | "low"}]}`;
+{"matches": [{"id": <roster line number or null>, "extractedName": "<name as written in the pasted text>", "score": <number or null>, "confidence": "high" | "medium" | "low"}]}`;
+
+    // Groq charges prompt + max_completion_tokens against the per-minute
+    // budget before generating anything, so both sides are sized here.
+    // Deliberately conservative (Arabic and random IDs tokenize densely) —
+    // this guards the limit, it does not need to be exact.
+    const estimatedPromptTokens = Math.ceil(prompt.length / 1.6);
+    // The answer scales with the pasted text (one JSON row per pasted line),
+    // not with the roster, plus headroom for the hidden reasoning channel.
+    const wantedCompletionTokens = Math.min(4096, 512 + args.text.length * 6);
+    const maxCompletionTokens = Math.min(
+      wantedCompletionTokens,
+      TPM_BUDGET - estimatedPromptTokens
+    );
+
+    // Below this the model cannot finish even a short answer, so fail with a
+    // clear cause instead of letting Groq reject the request.
+    if (maxCompletionTokens < MIN_COMPLETION_TOKENS) {
+      throw bulkScoreError({
+        stage: "too_large",
+        message: `قائمة الطالبات كبيرة جداً (${args.roster.length} طالبة) على الحد المجاني للذكاء الاصطناعي. الرجاء إبلاغ المسؤول التقني.`,
+        detail: `Prompt alone is ~${estimatedPromptTokens} tokens against a ${TPM_BUDGET}-token budget, leaving ${maxCompletionTokens} for the answer (${sizeContext}).`,
+      });
+    }
 
     // Deliberately no response_format: Groq's json_object and json_schema
     // modes both fail intermittently with the gpt-oss reasoning models
@@ -212,9 +249,7 @@ Respond with ONLY a JSON object of this exact shape:
         // "low" — at medium the model can burn the whole completion budget
         // on reasoning and finish with reason "length" and empty content
         reasoning_effort: "low",
-        // Groq counts this reservation toward the free tier's 8000 TPM
-        // limit, so keep prompt + completion under that cap
-        max_completion_tokens: 4096,
+        max_completion_tokens: maxCompletionTokens,
         temperature: 0,
       }),
     });
@@ -242,6 +277,16 @@ Respond with ONLY a JSON object of this exact shape:
             : "تم تجاوز الحد المسموح لاستخدام الذكاء الاصطناعي. حاولي بعد قليل.",
           detail,
           ...(seconds !== undefined ? { retryAfterSeconds: seconds } : {}),
+        });
+      }
+
+      // 413: the request exceeded the per-minute token limit on its own,
+      // rather than being throttled against recent usage. Waiting won't help.
+      if (response.status === 413) {
+        throw bulkScoreError({
+          stage: "too_large",
+          message: `الطلب أكبر من الحد المسموح للذكاء الاصطناعي (${args.roster.length} طالبة). الرجاء إبلاغ المسؤول التقني.`,
+          detail,
         });
       }
 
@@ -331,15 +376,27 @@ Respond with ONLY a JSON object of this exact shape:
       });
     }
 
-    const validEntryIds = new Set(args.roster.map((s) => s.entryId));
     const seenEntryIds = new Set<string>();
 
     const matches: BulkScoreMatch[] = rawMatches.flatMap((m: any) => {
       if (typeof m !== "object" || m === null) return [];
       if (typeof m.extractedName !== "string" || m.extractedName.trim() === "") return [];
 
+      // The model answers with a roster line number; translate it back to the
+      // real entry ID. Anything out of range or non-numeric becomes null, so a
+      // hallucinated index can never point at the wrong student. Accepts a
+      // string index too, since models often quote numbers — but an empty
+      // string must not slip through, since Number("") is 0 and would silently
+      // match the first student on the roster.
+      const rawIndex =
+        typeof m.id === "string" ? (m.id.trim() === "" ? null : Number(m.id)) : m.id;
       let entryId: string | null =
-        typeof m.entryId === "string" && validEntryIds.has(m.entryId) ? m.entryId : null;
+        typeof rawIndex === "number" &&
+        Number.isInteger(rawIndex) &&
+        rawIndex >= 0 &&
+        rawIndex < args.roster.length
+          ? args.roster[rawIndex].entryId
+          : null;
       // Enforce one match per roster entry even if the model repeats an id
       if (entryId !== null) {
         if (seenEntryIds.has(entryId)) {
