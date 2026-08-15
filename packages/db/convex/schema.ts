@@ -119,9 +119,14 @@ export default defineSchema({
     realName: v.optional(v.string()), // AI-detected name from messages
     realNameVerified: v.optional(v.boolean()), // Whether the real name has been verified
     sourceMessageText: v.optional(v.string()), // The message text from which realName was detected
+    // Discussion group a manually registered user belongs to. Channel
+    // membership is otherwise inferred from turns taken, which a hand-created
+    // user has none of — this is what keeps her findable before her first turn.
+    homeChatId: v.optional(v.number()),
     updatedAt: v.number(), // timestamp in ms
   })
-    .index("by_user_id", ["userId"]),
+    .index("by_user_id", ["userId"])
+    .index("by_home_chat", ["homeChatId"]),
 
   sessions: defineTable({
     chatId: v.number(),
