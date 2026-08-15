@@ -808,6 +808,26 @@ function isUnaffiliatedLegacyUser(user: Doc<"users">): boolean {
   return user.userId < 0 && user.homeChatId === undefined;
 }
 
+/**
+ * Fold the Arabic spelling variants that make a literal search miss: hamza
+ * forms (أإآ → ا), ة → ه, ى → ي, ؤ/ئ, tatweel and tashkeel, plus case for
+ * Latin usernames. Names reach the database however whoever typed them spelled
+ * them — hand-registered ones especially — so searching "فاطمه" has to find
+ * "فاطمة". Mirrors normalizeArabic in the web app's StudentPickerModal.
+ */
+function normalizeName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[ً-ْـ]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export const searchUsers = query({
   args: {
     query: v.string(),
@@ -821,8 +841,14 @@ export const searchUsers = query({
       return [];
     }
 
+    // A query of nothing but tashkeel normalizes to "", which every name
+    // "contains" — that would return an arbitrary 20 users rather than none.
+    const normalizedQuery = normalizeName(args.query);
+    if (normalizedQuery === "") {
+      return [];
+    }
+
     const users = await ctx.db.query("users").collect();
-    const lowerQuery = args.query.toLowerCase();
 
     // Build the set of userIds that belong to the requested channel's chat.
     let allowedUserIds: Set<number> | null = null;
@@ -838,14 +864,14 @@ export const searchUsers = query({
           isUnaffiliatedLegacyUser(user)
       )
       .filter((user) => {
-        const realName = user.realName?.toLowerCase() || "";
-        const telegramName = user.telegramName.toLowerCase();
-        const username = user.username?.toLowerCase() || "";
+        const realName = normalizeName(user.realName ?? "");
+        const telegramName = normalizeName(user.telegramName);
+        const username = normalizeName(user.username ?? "");
 
         return (
-          realName.includes(lowerQuery) ||
-          telegramName.includes(lowerQuery) ||
-          username.includes(lowerQuery)
+          realName.includes(normalizedQuery) ||
+          telegramName.includes(normalizedQuery) ||
+          username.includes(normalizedQuery)
         );
       })
       .slice(0, 20) // Limit results
