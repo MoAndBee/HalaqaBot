@@ -1067,6 +1067,57 @@ export const getExamRecords = query({
         completedAt: e.completedAt,
         score: e.score ?? null,
         postId: e.postId,
+        // Session context, so the bulk score flow can file a new اختبار
+        // participation against the same halaqa an exam day belongs to.
+        sessionNumber: e.sessionNumber,
+        channelId: e.channelId ?? null,
+      };
+    });
+  },
+});
+
+/**
+ * Every student known to this channel — anyone who has ever taken a turn in it,
+ * whether completed or still queued. The bulk score paste flow matches pasted
+ * names against this beyond the exam day's own roster, so a student the teacher
+ * scored on paper but who never registered a turn in the exam halaqa can still
+ * be given a record.
+ */
+export const getChannelStudents = query({
+  args: {
+    chatId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const queueEntries = await ctx.db
+      .query("turnQueue")
+      .filter((q) => q.eq(q.field("chatId"), args.chatId))
+      .collect();
+    const historyEntries = await ctx.db
+      .query("participationHistory")
+      .filter((q) => q.eq(q.field("chatId"), args.chatId))
+      .collect();
+
+    const userIds = [
+      ...new Set([...queueEntries, ...historyEntries].map((e) => e.userId)),
+    ];
+
+    const users = await Promise.all(
+      userIds.map((userId) =>
+        ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", userId))
+          .first()
+      )
+    );
+
+    return userIds.map((userId, i) => {
+      const user = users[i];
+      return {
+        userId,
+        name:
+          user?.realName ||
+          user?.telegramName ||
+          (user?.username ? `@${user.username}` : `#${userId}`),
       };
     });
   },

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAction, useMutation } from 'convex/react'
 import { ConvexError } from 'convex/values'
 import { api } from '@halakabot/db'
-import { Loader2, Sparkles, AlertTriangle, CheckCircle2, ChevronsUpDown, Copy } from 'lucide-react'
+import { Loader2, Sparkles, AlertTriangle, CheckCircle2, ChevronsUpDown, Copy, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -26,15 +26,46 @@ function normalizeNumerals(value: string): string {
     .replace(/٫/g, '.')
 }
 
-interface RosterStudent {
+/** A student the exam day already has a record for */
+export interface RosterStudent {
   entryId: string
+  userId: number
+  name: string
+  score: number | null
+}
+
+/** Anyone in the channel; scoring one of these adds her to the exam day */
+export interface AddableStudent {
+  userId: number
+  name: string
+}
+
+/** The halaqa a newly created اختبار participation is filed against */
+export interface ExamTarget {
+  chatId: number
+  postId: number
+  sessionNumber: number
+  channelId: number | null
+  completedAt: number
+}
+
+/**
+ * A student a pasted line can be matched to. `entryId` is null for students
+ * with no record for this exam day yet — saving a score for one of those
+ * creates the participation rather than patching it.
+ */
+interface Candidate {
+  /** Stable identity: the entry id when she has a record, else her user id */
+  key: string
+  entryId: string | null
+  userId: number
   name: string
   score: number | null
 }
 
 interface ReviewRow {
   extractedName: string
-  entryId: string | null
+  candidateKey: string | null
   scoreText: string
   confidence: 'high' | 'medium' | 'low'
 }
@@ -43,6 +74,13 @@ interface BulkScoreModalProps {
   isOpen: boolean
   onClose: () => void
   roster: RosterStudent[]
+  /**
+   * The rest of the channel's students. A teacher's paper list regularly names
+   * someone who never registered a turn in the exam halaqa, and matching her
+   * here is what lets her score be saved.
+   */
+  otherStudents: AddableStudent[]
+  target: ExamTarget
 }
 
 interface AnalyzeError {
@@ -81,7 +119,13 @@ function describeAnalyzeError(error: unknown): AnalyzeError {
   }
 }
 
-export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps) {
+export function BulkScoreModal({
+  isOpen,
+  onClose,
+  roster,
+  otherStudents,
+  target,
+}: BulkScoreModalProps) {
   const [text, setText] = useState('')
   const [rows, setRows] = useState<ReviewRow[] | null>(null)
   const [overwrite, setOverwrite] = useState(false)
@@ -89,13 +133,37 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
   const [isSaving, setIsSaving] = useState(false)
   const [analyzeError, setAnalyzeError] = useState<AnalyzeError | null>(null)
   const [showErrorDetail, setShowErrorDetail] = useState(false)
+  // Set when the roster was too large to also send the rest of the channel to
+  // the matcher, so the admin knows why an absent student went unmatched
+  const [othersSkipped, setOthersSkipped] = useState(false)
   // Index of the row whose student picker is open
   const [pickerRowIdx, setPickerRowIdx] = useState<number | null>(null)
 
   const matchBulkScores = useAction(api.actions.matchBulkScores)
   const bulkUpdateScores = useMutation(api.mutations.bulkUpdateParticipationScores)
 
-  const rosterById = new Map(roster.map((s) => [s.entryId, s]))
+  const examCandidates: Candidate[] = roster.map((s) => ({
+    key: `e:${s.entryId}`,
+    entryId: s.entryId,
+    userId: s.userId,
+    name: s.name,
+    score: s.score,
+  }))
+
+  const rosterUserIds = new Set(roster.map((s) => s.userId))
+  const addableCandidates: Candidate[] = otherStudents
+    .filter((s) => !rosterUserIds.has(s.userId))
+    .map((s) => ({
+      key: `u:${s.userId}`,
+      entryId: null,
+      userId: s.userId,
+      name: s.name,
+      score: null,
+    }))
+
+  const candidateByKey = new Map(
+    [...examCandidates, ...addableCandidates].map((c) => [c.key, c])
+  )
 
   const handleClose = () => {
     if (isAnalyzing || isSaving) return
@@ -109,6 +177,7 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
     setPickerRowIdx(null)
     setAnalyzeError(null)
     setShowErrorDetail(false)
+    setOthersSkipped(false)
     onClose()
   }
 
@@ -117,19 +186,22 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
     setIsAnalyzing(true)
     setAnalyzeError(null)
     setShowErrorDetail(false)
+    setOthersSkipped(false)
     try {
       const result = await matchBulkScores({
         text,
-        roster: roster.map((s) => ({ entryId: s.entryId, name: s.name })),
+        roster: examCandidates.map((c) => ({ id: c.key, name: c.name })),
+        otherStudents: addableCandidates.map((c) => ({ id: c.key, name: c.name })),
       })
       setRows(
-        result.matches.map((m: { entryId: string | null; extractedName: string; score: number | null; confidence: 'high' | 'medium' | 'low' }) => ({
+        result.matches.map((m: { id: string | null; extractedName: string; score: number | null; confidence: 'high' | 'medium' | 'low' }) => ({
           extractedName: m.extractedName,
-          entryId: m.entryId,
+          candidateKey: m.id,
           scoreText: m.score != null ? m.score.toString() : '',
           confidence: m.confidence,
         }))
       )
+      setOthersSkipped(addableCandidates.length > 0 && !result.otherStudentsSearched)
       if (result.matches.length === 0) {
         toast.error('لم يتم العثور على أسماء أو درجات في النص')
       }
@@ -154,8 +226,10 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
     }
   }
 
-  // Entry IDs already chosen by other rows — each student can be matched once
-  const usedEntryIds = (rows ?? []).map((r) => r.entryId).filter((id): id is string => id !== null)
+  // Students already chosen by other rows — each can be matched once
+  const usedKeys = (rows ?? [])
+    .map((r) => r.candidateKey)
+    .filter((key): key is string => key !== null)
 
   const parseScore = (scoreText: string): number | null => {
     const trimmed = normalizeNumerals(scoreText.trim())
@@ -164,31 +238,60 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
     return isNaN(parsed) ? null : parsed
   }
 
-  const updates = (rows ?? []).flatMap((r) => {
-    if (r.entryId === null) return []
+  // Rows that resolve to a student and a readable score, split by whether the
+  // student already has a record to patch or needs one created
+  const resolved = (rows ?? []).flatMap((r) => {
+    if (r.candidateKey === null) return []
     const score = parseScore(r.scoreText)
     if (score === null) return []
-    const student = rosterById.get(r.entryId)
-    if (!student) return []
-    if (student.score != null && !overwrite) return []
-    return [{ entryId: r.entryId, score }]
+    const candidate = candidateByKey.get(r.candidateKey)
+    if (!candidate) return []
+    return [{ candidate, score }]
   })
 
-  const skippedExisting = (rows ?? []).filter((r) => {
-    if (r.entryId === null || parseScore(r.scoreText) === null) return false
-    const student = rosterById.get(r.entryId)
-    return student != null && student.score != null && !overwrite
-  }).length
+  const updates = resolved.flatMap(({ candidate, score }) => {
+    if (candidate.entryId === null) return []
+    if (candidate.score != null && !overwrite) return []
+    return [{ entryId: candidate.entryId, score }]
+  })
 
-  const matchedEntryIds = new Set(usedEntryIds)
-  const missingStudents = rows === null ? [] : roster.filter((s) => !matchedEntryIds.has(s.entryId))
+  const additions = resolved.flatMap(({ candidate, score }) =>
+    candidate.entryId === null ? [{ userId: candidate.userId, score }] : []
+  )
+
+  const totalToSave = updates.length + additions.length
+
+  const skippedExisting = resolved.filter(
+    ({ candidate }) => candidate.entryId !== null && candidate.score != null && !overwrite
+  ).length
+
+  const matchedKeys = new Set(usedKeys)
+  const missingStudents =
+    rows === null ? [] : examCandidates.filter((c) => !matchedKeys.has(c.key))
 
   const handleSave = async () => {
-    if (updates.length === 0) return
+    if (totalToSave === 0) return
     setIsSaving(true)
     try {
-      await bulkUpdateScores({ updates: updates as { entryId: any; score: number }[] })
-      toast.success(`تم حفظ ${updates.length.toLocaleString('ar-EG')} درجة`)
+      await bulkUpdateScores({
+        updates: updates as { entryId: any; score: number }[],
+        additions:
+          additions.length > 0
+            ? {
+                chatId: target.chatId,
+                postId: target.postId,
+                sessionNumber: target.sessionNumber,
+                channelId: target.channelId ?? undefined,
+                completedAt: target.completedAt,
+                entries: additions,
+              }
+            : undefined,
+      })
+      toast.success(
+        additions.length > 0
+          ? `تم حفظ ${totalToSave.toLocaleString('ar-EG')} درجة، منها ${additions.length.toLocaleString('ar-EG')} طالبة أُضيفت للاختبار`
+          : `تم حفظ ${totalToSave.toLocaleString('ar-EG')} درجة`
+      )
       resetAndClose()
     } catch (error) {
       console.error('Bulk score save failed:', error)
@@ -207,7 +310,8 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
         <DialogHeader>
           <DialogTitle>إدخال الدرجات دفعة واحدة</DialogTitle>
           <DialogDescription>
-            الصقي قائمة الأسماء والدرجات كما هي، وسيتم التعرف عليها ومطابقتها مع الطالبات تلقائياً
+            الصقي قائمة الأسماء والدرجات كما هي، وسيتم التعرف عليها ومطابقتها مع الطالبات تلقائياً.
+            الطالبة التي لم تحضر حلقة الاختبار تُضاف إليه عند حفظ درجتها.
           </DialogDescription>
         </DialogHeader>
 
@@ -255,17 +359,28 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
             />
           ) : (
             <>
+              {othersSkipped && (
+                <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                    القائمة كبيرة، فتمت المطابقة مع طالبات هذا الاختبار فقط. لإضافة طالبة لم تحضر،
+                    اختاريها يدوياً من قائمة الطالبات.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 {rows.map((row, idx) => {
-                  const student = row.entryId !== null ? rosterById.get(row.entryId) : undefined
-                  const hasExistingScore = student?.score != null
+                  const candidate =
+                    row.candidateKey !== null ? candidateByKey.get(row.candidateKey) : undefined
+                  const hasExistingScore = candidate?.score != null
+                  const willBeAdded = candidate != null && candidate.entryId === null
                   return (
                     <div
                       key={idx}
                       className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md border p-3"
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {row.entryId === null ? (
+                        {row.candidateKey === null ? (
                           <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
                         ) : row.confidence === 'high' ? (
                           <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
@@ -284,10 +399,10 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
                           disabled={isSaving}
                         >
                           <span
-                            className={`truncate ${student ? '' : 'text-muted-foreground'}`}
-                            title={student?.name}
+                            className={`truncate ${candidate ? '' : 'text-muted-foreground'}`}
+                            title={candidate?.name}
                           >
-                            {student ? student.name : 'بدون مطابقة'}
+                            {candidate ? candidate.name : 'بدون مطابقة'}
                           </span>
                           <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
                         </Button>
@@ -306,9 +421,15 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
                           disabled={isSaving}
                         />
                       </div>
+                      {willBeAdded && (
+                        <span className="flex items-center gap-1 text-xs text-orange-600 shrink-0">
+                          <UserPlus className="h-3 w-3" />
+                          ستُضاف للاختبار
+                        </span>
+                      )}
                       {hasExistingScore && (
                         <span className="text-xs text-muted-foreground shrink-0">
-                          الدرجة الحالية: {student!.score!.toLocaleString('ar-EG')}
+                          الدرجة الحالية: {candidate!.score!.toLocaleString('ar-EG')}
                         </span>
                       )}
                     </div>
@@ -340,6 +461,11 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
               {skippedExisting > 0 && !overwrite && (
                 <p className="text-xs text-muted-foreground">
                   سيتم تخطي {skippedExisting.toLocaleString('ar-EG')} طالبة لديها درجة مسبقاً
+                </p>
+              )}
+              {additions.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  سيتم إضافة {additions.length.toLocaleString('ar-EG')} طالبة لهذا الاختبار
                 </p>
               )}
             </>
@@ -378,14 +504,14 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
               >
                 رجوع للنص
               </Button>
-              <Button onClick={handleSave} disabled={isSaving || updates.length === 0}>
+              <Button onClick={handleSave} disabled={isSaving || totalToSave === 0}>
                 {isSaving ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     جاري الحفظ...
                   </>
                 ) : (
-                  `حفظ ${updates.length.toLocaleString('ar-EG')} درجة`
+                  `حفظ ${totalToSave.toLocaleString('ar-EG')} درجة`
                 )}
               </Button>
             </>
@@ -399,17 +525,18 @@ export function BulkScoreModal({ isOpen, onClose, roster }: BulkScoreModalProps)
         isOpen
         onClose={() => setPickerRowIdx(null)}
         extractedName={pickerRow.extractedName}
-        selectedEntryId={pickerRow.entryId}
-        students={roster.map((s) => ({
-          entryId: s.entryId,
-          name: s.name,
-          score: s.score,
+        selectedId={pickerRow.candidateKey}
+        students={[...examCandidates, ...addableCandidates].map((c) => ({
+          id: c.key,
+          name: c.name,
+          score: c.score,
+          note: c.entryId === null ? 'لم تحضر الاختبار — ستُضاف إليه' : undefined,
           // Taken by another row — each student can be matched once
-          disabled: s.entryId !== pickerRow.entryId && usedEntryIds.includes(s.entryId),
+          disabled: c.key !== pickerRow.candidateKey && usedKeys.includes(c.key),
         }))}
-        onSelect={(entryId) =>
+        onSelect={(key) =>
           setRows((prev) =>
-            prev!.map((r, i) => (i === pickerRowIdx ? { ...r, entryId } : r))
+            prev!.map((r, i) => (i === pickerRowIdx ? { ...r, candidateKey: key } : r))
           )
         }
       />

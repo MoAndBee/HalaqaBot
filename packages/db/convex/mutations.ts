@@ -1150,12 +1150,38 @@ export const updateTurnQueueScore = mutation({
   },
 });
 
+/**
+ * Saves a pasted batch of exam scores in one transaction.
+ *
+ * `updates` patches students who already have an اختبار record. `additions`
+ * covers the rest: a teacher's pasted list regularly names a student who never
+ * registered a turn in the exam halaqa, and rather than dropping her score we
+ * create the اختبار participation it belongs to, filed against the same halaqa
+ * and day as the records already on screen.
+ */
 export const bulkUpdateParticipationScores = mutation({
   args: {
     updates: v.array(
       v.object({
         entryId: v.id("participationHistory"),
         score: v.number(),
+      })
+    ),
+    additions: v.optional(
+      v.object({
+        chatId: v.number(),
+        postId: v.number(),
+        sessionNumber: v.number(),
+        channelId: v.optional(v.number()),
+        // Timestamp the created participations are filed under, so they land
+        // on the same exam day as the rest of that halaqa's records.
+        completedAt: v.number(),
+        entries: v.array(
+          v.object({
+            userId: v.number(),
+            score: v.number(),
+          })
+        ),
       })
     ),
   },
@@ -1176,7 +1202,94 @@ export const bulkUpdateParticipationScores = mutation({
       await ctx.db.patch(update.entryId, { score: update.score });
     }
 
-    return { updated: args.updates.length };
+    let added = 0;
+    let skipped = 0;
+    const addition = args.additions;
+
+    if (addition && addition.entries.length > 0) {
+      const { chatId, postId, sessionNumber, channelId, completedAt } = addition;
+
+      await checkSessionLock(ctx, chatId, postId, sessionNumber);
+
+      const sessionHistory = await ctx.db
+        .query("participationHistory")
+        .withIndex("by_chat_post_session", (q) =>
+          q.eq("chatId", chatId).eq("postId", postId).eq("sessionNumber", sessionNumber)
+        )
+        .collect();
+
+      // A student who already carries an اختبار record here belongs to
+      // `updates`; inserting for her again would list her twice on the day.
+      const alreadyExamined = new Set(
+        sessionHistory
+          .filter((e) => e.sessionType === 'اختبار')
+          .map((e) => e.userId)
+      );
+
+      const sessionQueue = await ctx.db
+        .query("turnQueue")
+        .withIndex("by_chat_post_session", (q) =>
+          q.eq("chatId", chatId).eq("postId", postId).eq("sessionNumber", sessionNumber)
+        )
+        .collect();
+
+      const now = Date.now();
+      let consumedFromQueue = false;
+
+      for (const entry of addition.entries) {
+        if (alreadyExamined.has(entry.userId)) {
+          skipped++;
+          continue;
+        }
+
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", entry.userId))
+          .first();
+
+        if (!user) {
+          throw new Error(`User ${entry.userId} not found`);
+        }
+
+        // She may be sitting in the queue for this very halaqa with her turn
+        // not yet marked done. Completing that entry instead of inserting a
+        // second one keeps her off the list twice.
+        const queueEntry = sessionQueue.find(
+          (q) => q.userId === entry.userId && q.sessionType === 'اختبار'
+        );
+
+        if (queueEntry) {
+          await ctx.db.delete(queueEntry._id);
+          consumedFromQueue = true;
+        }
+
+        await ctx.db.insert("participationHistory", {
+          chatId,
+          postId,
+          sessionNumber,
+          userId: entry.userId,
+          sessionType: 'اختبار',
+          notes: queueEntry?.notes,
+          score: entry.score,
+          channelId: queueEntry?.channelId ?? channelId,
+          createdAt: queueEntry?.createdAt ?? now,
+          completedAt,
+          originalPosition: queueEntry?.position,
+          carriedOver: queueEntry?.carriedOver ?? false,
+          isCompensation: queueEntry?.isCompensation,
+          compensatingForDates: queueEntry?.compensatingForDates,
+        });
+
+        alreadyExamined.add(entry.userId);
+        added++;
+      }
+
+      if (consumedFromQueue) {
+        await resequenceActiveUsers(ctx, chatId, postId, sessionNumber);
+      }
+    }
+
+    return { updated: args.updates.length, added, skipped };
   },
 });
 
