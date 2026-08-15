@@ -503,7 +503,7 @@ export default function PostDetail() {
 
   const handleRegisterUser = async (name: string, passcode: string) => {
     try {
-      await registerUser({ name, passcode })
+      await registerUser({ name, passcode, chatId })
       toast.success('تم تسجيل المستخدم بنجاح!')
       setIsRegisterUserModalOpen(false)
     } catch (error: any) {

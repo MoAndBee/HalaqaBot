@@ -2171,6 +2171,10 @@ export const registerUser = mutation({
   args: {
     name: v.string(),
     passcode: v.string(),
+    // Discussion group she is being registered into. Without it she has no
+    // channel affiliation at all until her first turn, which is what kept
+    // manually registered users out of every channel-scoped search.
+    chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Validate passcode (same as unlockSession)
@@ -2218,6 +2222,7 @@ export const registerUser = mutation({
       realName: trimmedName,
       realNameVerified: true, // Manually registered users are pre-verified
       sourceMessageText: undefined,
+      homeChatId: args.chatId,
       updatedAt: Date.now(),
     });
 

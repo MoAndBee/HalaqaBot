@@ -1,7 +1,7 @@
 import { query, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator, type GenericDatabaseReader } from "convex/server";
-import type { DataModel } from "./_generated/dataModel";
+import type { DataModel, Doc } from "./_generated/dataModel";
 
 export const getMessageAuthor = query({
   args: {
@@ -764,12 +764,76 @@ export const getMessagesByUserId = query({
   },
 });
 
+/**
+ * Every user who belongs to a channel's discussion group, so one channel's
+ * admins don't see another channel's roster.
+ *
+ * Membership is mostly inferred from turns taken, but that alone makes a
+ * manually registered user invisible: she is created with no participation at
+ * all, so she could never be found to be added to a halaqa in the first place.
+ * Her `homeChatId` covers that gap.
+ */
+export async function collectChatUserIds(
+  ctx: { db: GenericDatabaseReader<DataModel> },
+  chatId: number
+): Promise<Set<number>> {
+  const queueUsers = await ctx.db
+    .query("turnQueue")
+    .filter((q) => q.eq(q.field("chatId"), chatId))
+    .collect();
+  const historyUsers = await ctx.db
+    .query("participationHistory")
+    .filter((q) => q.eq(q.field("chatId"), chatId))
+    .collect();
+  const registered = await ctx.db
+    .query("users")
+    .withIndex("by_home_chat", (q) => q.eq("homeChatId", chatId))
+    .collect();
+
+  return new Set([
+    ...queueUsers.map((u) => u.userId),
+    ...historyUsers.map((u) => u.userId),
+    ...registered.map((u) => u.userId),
+  ]);
+}
+
+/**
+ * Users registered by hand before `homeChatId` existed have no channel on
+ * record and no turns to infer one from, so scoping them to any single channel
+ * is impossible — they are shown everywhere rather than nowhere. Manual
+ * registration mints negative ids, which is what identifies them. Drop this
+ * once such rows have been given a `homeChatId`.
+ */
+function isUnaffiliatedLegacyUser(user: Doc<"users">): boolean {
+  return user.userId < 0 && user.homeChatId === undefined;
+}
+
+/**
+ * Fold the Arabic spelling variants that make a literal search miss: hamza
+ * forms (أإآ → ا), ة → ه, ى → ي, ؤ/ئ, tatweel and tashkeel, plus case for
+ * Latin usernames. Names reach the database however whoever typed them spelled
+ * them — hand-registered ones especially — so searching "فاطمه" has to find
+ * "فاطمة". Mirrors normalizeArabic in the web app's StudentPickerModal.
+ */
+function normalizeName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[ً-ْـ]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export const searchUsers = query({
   args: {
     query: v.string(),
-    // When provided, restrict results to users who have participated in this
-    // channel's discussion group, so one channel's admins don't see another
-    // channel's roster.
+    // When provided, restrict results to users who belong to this channel's
+    // discussion group, so one channel's admins don't see another channel's
+    // roster.
     chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -777,37 +841,37 @@ export const searchUsers = query({
       return [];
     }
 
+    // A query of nothing but tashkeel normalizes to "", which every name
+    // "contains" — that would return an arbitrary 20 users rather than none.
+    const normalizedQuery = normalizeName(args.query);
+    if (normalizedQuery === "") {
+      return [];
+    }
+
     const users = await ctx.db.query("users").collect();
-    const lowerQuery = args.query.toLowerCase();
 
     // Build the set of userIds that belong to the requested channel's chat.
     let allowedUserIds: Set<number> | null = null;
     if (args.chatId !== undefined) {
-      const chatId = args.chatId;
-      const queueUsers = await ctx.db
-        .query("turnQueue")
-        .filter((q) => q.eq(q.field("chatId"), chatId))
-        .collect();
-      const historyUsers = await ctx.db
-        .query("participationHistory")
-        .filter((q) => q.eq(q.field("chatId"), chatId))
-        .collect();
-      allowedUserIds = new Set(
-        [...queueUsers, ...historyUsers].map((u) => u.userId)
-      );
+      allowedUserIds = await collectChatUserIds(ctx, args.chatId);
     }
 
     return users
-      .filter((user) => allowedUserIds === null || allowedUserIds.has(user.userId))
+      .filter(
+        (user) =>
+          allowedUserIds === null ||
+          allowedUserIds.has(user.userId) ||
+          isUnaffiliatedLegacyUser(user)
+      )
       .filter((user) => {
-        const realName = user.realName?.toLowerCase() || "";
-        const telegramName = user.telegramName.toLowerCase();
-        const username = user.username?.toLowerCase() || "";
+        const realName = normalizeName(user.realName ?? "");
+        const telegramName = normalizeName(user.telegramName);
+        const username = normalizeName(user.username ?? "");
 
         return (
-          realName.includes(lowerQuery) ||
-          telegramName.includes(lowerQuery) ||
-          username.includes(lowerQuery)
+          realName.includes(normalizedQuery) ||
+          telegramName.includes(normalizedQuery) ||
+          username.includes(normalizedQuery)
         );
       })
       .slice(0, 20) // Limit results
@@ -1088,30 +1152,23 @@ export const getChannelStudents = query({
     chatId: v.number(),
   },
   handler: async (ctx, args) => {
-    const queueEntries = await ctx.db
-      .query("turnQueue")
-      .filter((q) => q.eq(q.field("chatId"), args.chatId))
-      .collect();
-    const historyEntries = await ctx.db
-      .query("participationHistory")
-      .filter((q) => q.eq(q.field("chatId"), args.chatId))
-      .collect();
+    const allUsers = await ctx.db.query("users").collect();
+    const chatUserIds = await collectChatUserIds(ctx, args.chatId);
 
+    // A hand-registered student is exactly the kind of person this list exists
+    // for — scored on paper, never having taken a turn — so the legacy
+    // allowance applies here too.
     const userIds = [
-      ...new Set([...queueEntries, ...historyEntries].map((e) => e.userId)),
+      ...new Set([
+        ...chatUserIds,
+        ...allUsers.filter(isUnaffiliatedLegacyUser).map((u) => u.userId),
+      ]),
     ];
 
-    const users = await Promise.all(
-      userIds.map((userId) =>
-        ctx.db
-          .query("users")
-          .withIndex("by_user_id", (q) => q.eq("userId", userId))
-          .first()
-      )
-    );
+    const usersById = new Map(allUsers.map((u) => [u.userId, u]));
 
-    return userIds.map((userId, i) => {
-      const user = users[i];
+    return userIds.map((userId) => {
+      const user = usersById.get(userId);
       return {
         userId,
         name:
