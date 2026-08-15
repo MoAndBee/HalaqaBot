@@ -18,12 +18,42 @@ interface ExamRecord {
   completedAt: number
   score: number | null
   postId: number
+  sessionNumber: number
+  channelId: number | null
 }
 
 interface ExamDay {
   key: string
   timestamp: number
   records: ExamRecord[]
+}
+
+/**
+ * Which halaqa a student added through the bulk paste flow is filed against.
+ * A day can span more than one post, so the busiest session wins — that is the
+ * one an unrecorded student most likely sat in.
+ */
+function bulkTargetFor(day: ExamDay, chatId: number) {
+  const counts = new Map<string, { record: ExamRecord; count: number }>()
+  day.records.forEach((record) => {
+    const key = `${record.postId}:${record.sessionNumber}`
+    const seen = counts.get(key)
+    if (seen) {
+      seen.count++
+    } else {
+      counts.set(key, { record, count: 1 })
+    }
+  })
+
+  const busiest = [...counts.values()].sort((a, b) => b.count - a.count)[0].record
+
+  return {
+    chatId,
+    postId: busiest.postId,
+    sessionNumber: busiest.sessionNumber,
+    channelId: busiest.channelId,
+    completedAt: busiest.completedAt,
+  }
 }
 
 function dayKeyOf(timestamp: number): { key: string; dayStart: number } {
@@ -70,6 +100,12 @@ export default function ExamRecords() {
   const records = useQuery(api.queries.getExamRecords, { chatId })
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null)
   const [isBulkScoreOpen, setIsBulkScoreOpen] = useState(false)
+  // Only needed once the paste modal is open, and it walks the channel's whole
+  // participation history — don't pay for it on the days list
+  const channelStudents = useQuery(
+    api.queries.getChannelStudents,
+    isBulkScoreOpen ? { chatId } : 'skip'
+  )
 
   if (records === undefined) {
     return (
@@ -171,7 +207,14 @@ export default function ExamRecords() {
         <BulkScoreModal
           isOpen={isBulkScoreOpen}
           onClose={() => setIsBulkScoreOpen(false)}
-          roster={students.map((s) => ({ entryId: s.entryId, name: s.name, score: s.score }))}
+          roster={students.map((s) => ({
+            entryId: s.entryId,
+            userId: s.userId,
+            name: s.name,
+            score: s.score,
+          }))}
+          otherStudents={channelStudents ?? []}
+          target={bulkTargetFor(selectedDay, chatId)}
         />
       </div>
     )

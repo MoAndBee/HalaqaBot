@@ -26,28 +26,30 @@ function normalizeArabic(value: string): string {
 }
 
 export interface PickerStudent {
-  entryId: string
+  id: string
   name: string
   score?: number | null
   /** Already taken by another row — listed but not selectable */
   disabled?: boolean
+  /** Shown under the name when set, in place of the score line */
+  note?: string
 }
 
 interface StudentPickerModalProps {
   isOpen: boolean
   onClose: () => void
   students: PickerStudent[]
-  selectedEntryId: string | null
+  selectedId: string | null
   /** The name as written in the pasted text, shown for context */
   extractedName?: string
-  onSelect: (entryId: string | null) => void
+  onSelect: (id: string | null) => void
 }
 
 export function StudentPickerModal({
   isOpen,
   onClose,
   students,
-  selectedEntryId,
+  selectedId,
   extractedName,
   onSelect,
 }: StudentPickerModalProps) {
@@ -82,8 +84,8 @@ export function StudentPickerModal({
       ? students
       : students.filter((s) => normalizeArabic(s.name).includes(query))
 
-  const choose = (entryId: string | null) => {
-    onSelect(entryId)
+  const choose = (id: string | null) => {
+    onSelect(id)
     closeAfterTap()
   }
 
@@ -122,35 +124,38 @@ export function StudentPickerModal({
                 <Ban className="h-4 w-4" />
                 بدون مطابقة
               </span>
-              {selectedEntryId === null && <Check className="h-4 w-4 text-primary" />}
+              {selectedId === null && <Check className="h-4 w-4 text-primary" />}
             </Button>
 
             {results.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">لا يوجد نتائج</div>
             ) : (
-              results.map((s) => (
-                <Button
-                  key={s.entryId}
-                  variant="ghost"
-                  className="w-full justify-between h-auto p-3 disabled:opacity-50"
-                  disabled={s.disabled}
-                  onClick={() => choose(s.entryId)}
-                >
-                  <div className="flex-1 text-right min-w-0">
-                    <div className="font-medium truncate">{s.name}</div>
-                    {(s.disabled || s.score != null) && (
-                      <div className="text-muted-foreground text-sm truncate">
-                        {s.disabled
-                          ? 'مطابقة مع سطر آخر'
-                          : `الدرجة الحالية: ${s.score!.toLocaleString('ar-EG')}`}
-                      </div>
+              results.map((s) => {
+                const subtitle = s.disabled
+                  ? 'مطابقة مع سطر آخر'
+                  : s.score != null
+                    ? `الدرجة الحالية: ${s.score.toLocaleString('ar-EG')}`
+                    : s.note
+                return (
+                  <Button
+                    key={s.id}
+                    variant="ghost"
+                    className="w-full justify-between h-auto p-3 disabled:opacity-50"
+                    disabled={s.disabled}
+                    onClick={() => choose(s.id)}
+                  >
+                    <div className="flex-1 text-right min-w-0">
+                      <div className="font-medium truncate">{s.name}</div>
+                      {subtitle && (
+                        <div className="text-muted-foreground text-sm truncate">{subtitle}</div>
+                      )}
+                    </div>
+                    {s.id === selectedId && (
+                      <Check className="h-4 w-4 text-primary shrink-0" />
                     )}
-                  </div>
-                  {s.entryId === selectedEntryId && (
-                    <Check className="h-4 w-4 text-primary shrink-0" />
-                  )}
-                </Button>
-              ))
+                  </Button>
+                )
+              })
             )}
           </div>
         </ScrollArea>

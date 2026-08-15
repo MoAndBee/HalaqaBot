@@ -80,7 +80,8 @@ export const reactToMessage = action({
 });
 
 interface BulkScoreMatch {
-  entryId: string | null;
+  /** Client-supplied id of the matched student, or null when nothing matched */
+  id: string | null;
   extractedName: string;
   score: number | null;
   confidence: "high" | "medium" | "low";
@@ -149,22 +150,38 @@ function readUpstreamMessage(body: string): string {
 
 /**
  * Matches a pasted free-form text of student names and scores against the
- * roster of a single exam day, using an LLM to handle Arabic spelling
+ * students of a single exam day, using an LLM to handle Arabic spelling
  * variants, Arabic-Indic numerals, scores written as words, absence
  * markers, and partial names. Returns proposed matches for the user to
  * review — nothing is saved here.
+ *
+ * `roster` is the students who already have an اختبار record for that day.
+ * `otherStudents` is the rest of the group: a teacher's paper list regularly
+ * includes someone who never registered a turn in the exam halaqa, and
+ * matching her here is what lets the caller create the record for her.
  */
 export const matchBulkScores = action({
   args: {
     text: v.string(),
     roster: v.array(
       v.object({
-        entryId: v.string(),
+        id: v.string(),
         name: v.string(),
       })
     ),
+    otherStudents: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(),
+        })
+      )
+    ),
   },
-  handler: async (_ctx, args): Promise<{ matches: BulkScoreMatch[] }> => {
+  handler: async (
+    _ctx,
+    args
+  ): Promise<{ matches: BulkScoreMatch[]; otherStudentsSearched: boolean }> => {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       throw bulkScoreError({
@@ -174,23 +191,34 @@ export const matchBulkScores = action({
       });
     }
 
+    const otherStudents = args.otherStudents ?? [];
+
     // Size context is attached to every failure: the most common cause is a
     // long pasted list or a large roster pushing the request over the
     // free-tier token budget, and that is invisible without the numbers.
-    const sizeContext = `roster=${args.roster.length} students, pasted text=${args.text.length} chars`;
+    const sizeContext = `roster=${args.roster.length} students, other students=${otherStudents.length}, pasted text=${args.text.length} chars`;
 
-    // The roster goes to the model as small integer indices, never as Convex
-    // IDs. A Convex ID is 32 random base32 chars — roughly one token per two
-    // chars — so a 133-student roster spent ~4400 tokens on identifiers the
-    // model only had to echo back, which alone overran the 8000 TPM limit.
-    // Indices cost 1-3 tokens each and are mapped back to entry IDs below.
-    const rosterList = args.roster.map((s, i) => `${i} | ${s.name}`).join("\n");
+    // Students go to the model as small integer indices, never as Convex IDs.
+    // A Convex ID is 32 random base32 chars — roughly one token per two chars
+    // — so a 133-student roster spent ~4400 tokens on identifiers the model
+    // only had to echo back, which alone overran the 8000 TPM limit. Indices
+    // cost 1-3 tokens each and are mapped back to client ids below.
+    const numbered = (students: { name: string }[], offset: number) =>
+      students.map((s, i) => `${offset + i} | ${s.name}`).join("\n");
 
-    const prompt = `You are helping a Quran study group (حلقة) teacher enter exam scores. The teacher pasted a hand-written list of student names with scores. Match each line against the official roster below.
+    const buildPrompt = (includeOthers: boolean) =>
+      `You are helping a Quran study group (حلقة) teacher enter exam scores. The teacher pasted a hand-written list of student names with scores. Match each line against the students below.
 
-Roster of students who took the exam (id | name), where id is the line number:
-${rosterList}
-
+Students already recorded in this exam (id | name), where id is the line number:
+${numbered(args.roster, 0)}
+${
+  includeOthers
+    ? `
+Other students in this group (id | name). They have no exam record yet, but the teacher may still have tested them:
+${numbered(otherStudents, args.roster.length)}
+`
+    : ""
+}
 Pasted text:
 """
 ${args.text}
@@ -198,26 +226,42 @@ ${args.text}
 
 Rules:
 1. Extract every (name, score) pair you can find in the pasted text. Names and scores are in Arabic; scores may use Arabic-Indic numerals (٩), ASCII digits (9), decimals (٨٫٥ or 8.5), or words (تسعة).
-2. Match each extracted name to a roster id (the integer at the start of the roster line). Arabic names vary in spelling (أ/ا/إ, ة/ه, ى/ي), may be partial (first name only), or use a kunya (أم فلان). Match generously but never guess between two equally plausible roster students — return null id instead.
+2. Match each extracted name to an id (the integer at the start of the line). Arabic names vary in spelling (أ/ا/إ, ة/ه, ى/ي), may be partial (first name only), or use a kunya (أم فلان). Match generously but never guess between two equally plausible students — return null id instead.${includeOthers ? " When a student from the first list and a student from the second list are equally plausible, choose the one from the first list." : ""}
 3. If a student is marked absent (غائبة, لم تحضر, غ) or has no readable score, return score null.
 4. confidence: "high" = clear unambiguous match, "medium" = probable match, "low" = uncertain.
-5. Each roster id may appear at most once. A pasted name with no roster match gets id null.
+5. Each id may appear at most once. A pasted name matching nobody gets id null.
 
 Respond with ONLY a JSON object of this exact shape:
-{"matches": [{"id": <roster line number or null>, "extractedName": "<name as written in the pasted text>", "score": <number or null>, "confidence": "high" | "medium" | "low"}]}`;
+{"matches": [{"id": <line number or null>, "extractedName": "<name as written in the pasted text>", "score": <number or null>, "confidence": "high" | "medium" | "low"}]}`;
 
     // Groq charges prompt + max_completion_tokens against the per-minute
     // budget before generating anything, so both sides are sized here.
     // Deliberately conservative (Arabic and random IDs tokenize densely) —
     // this guards the limit, it does not need to be exact.
-    const estimatedPromptTokens = Math.ceil(prompt.length / 1.6);
+    const estimateTokens = (text: string) => Math.ceil(text.length / 1.6);
     // The answer scales with the pasted text (one JSON row per pasted line),
     // not with the roster, plus headroom for the hidden reasoning channel.
     const wantedCompletionTokens = Math.min(4096, 512 + args.text.length * 6);
-    const maxCompletionTokens = Math.min(
-      wantedCompletionTokens,
-      TPM_BUDGET - estimatedPromptTokens
-    );
+    const budgetFor = (text: string) =>
+      Math.min(wantedCompletionTokens, TPM_BUDGET - estimateTokens(text));
+
+    // The wider group list is the first thing dropped when both lists don't
+    // fit the budget: matching the exam-day students is the part that has to
+    // keep working, and a channel roster can be several times its size.
+    let otherStudentsSearched = otherStudents.length > 0;
+    let prompt = buildPrompt(otherStudentsSearched);
+    let maxCompletionTokens = budgetFor(prompt);
+    if (maxCompletionTokens < MIN_COMPLETION_TOKENS && otherStudentsSearched) {
+      otherStudentsSearched = false;
+      prompt = buildPrompt(false);
+      maxCompletionTokens = budgetFor(prompt);
+    }
+    const estimatedPromptTokens = estimateTokens(prompt);
+
+    // Ids the model may answer with, in the order they appear in the prompt.
+    const candidates = otherStudentsSearched
+      ? [...args.roster, ...otherStudents]
+      : args.roster;
 
     // Below this the model cannot finish even a short answer, so fail with a
     // clear cause instead of letting Groq reject the request.
@@ -285,7 +329,7 @@ Respond with ONLY a JSON object of this exact shape:
       if (response.status === 413) {
         throw bulkScoreError({
           stage: "too_large",
-          message: `الطلب أكبر من الحد المسموح للذكاء الاصطناعي (${args.roster.length} طالبة). الرجاء إبلاغ المسؤول التقني.`,
+          message: `الطلب أكبر من الحد المسموح للذكاء الاصطناعي (${candidates.length} طالبة). الرجاء إبلاغ المسؤول التقني.`,
           detail,
         });
       }
@@ -376,33 +420,33 @@ Respond with ONLY a JSON object of this exact shape:
       });
     }
 
-    const seenEntryIds = new Set<string>();
+    const seenIds = new Set<string>();
 
     const matches: BulkScoreMatch[] = rawMatches.flatMap((m: any) => {
       if (typeof m !== "object" || m === null) return [];
       if (typeof m.extractedName !== "string" || m.extractedName.trim() === "") return [];
 
-      // The model answers with a roster line number; translate it back to the
-      // real entry ID. Anything out of range or non-numeric becomes null, so a
+      // The model answers with a line number; translate it back to the client
+      // id. Anything out of range or non-numeric becomes null, so a
       // hallucinated index can never point at the wrong student. Accepts a
       // string index too, since models often quote numbers — but an empty
       // string must not slip through, since Number("") is 0 and would silently
-      // match the first student on the roster.
+      // match the first student on the list.
       const rawIndex =
         typeof m.id === "string" ? (m.id.trim() === "" ? null : Number(m.id)) : m.id;
-      let entryId: string | null =
+      let id: string | null =
         typeof rawIndex === "number" &&
         Number.isInteger(rawIndex) &&
         rawIndex >= 0 &&
-        rawIndex < args.roster.length
-          ? args.roster[rawIndex].entryId
+        rawIndex < candidates.length
+          ? candidates[rawIndex].id
           : null;
-      // Enforce one match per roster entry even if the model repeats an id
-      if (entryId !== null) {
-        if (seenEntryIds.has(entryId)) {
-          entryId = null;
+      // Enforce one match per student even if the model repeats an id
+      if (id !== null) {
+        if (seenIds.has(id)) {
+          id = null;
         } else {
-          seenEntryIds.add(entryId);
+          seenIds.add(id);
         }
       }
 
@@ -413,10 +457,10 @@ Respond with ONLY a JSON object of this exact shape:
           ? m.confidence
           : "low";
 
-      return [{ entryId, extractedName: m.extractedName.trim(), score, confidence }];
+      return [{ id, extractedName: m.extractedName.trim(), score, confidence }];
     });
 
-    return { matches };
+    return { matches, otherStudentsSearched };
   },
 });
 
