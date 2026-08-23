@@ -2,10 +2,11 @@ import { Link } from 'wouter'
 import { useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '~/components/Loader'
 import { PostsList } from '~/components/PostsList'
+import { ImportPostModal } from '~/components/ImportPostModal'
 import { useSelectedChannel } from '~/contexts/TelegramAuthContext'
 
 const PAGE_SIZE = 10
@@ -16,6 +17,7 @@ export default function Halaqas() {
   // cursors[0] = null (first page), cursors[1] = cursor for page 2, etc.
   const [cursors, setCursors] = useState<(string | null)[]>([null])
   const [page, setPage] = useState(0)
+  const [isImportOpen, setIsImportOpen] = useState(false)
 
   const result = useQuery(api.queries.getPaginatedPosts, {
     paginationOpts: { numItems: PAGE_SIZE, cursor: cursors[page] },
@@ -57,7 +59,13 @@ export default function Halaqas() {
             <span>العودة للصفحة الرئيسية</span>
           </Button>
         </Link>
-        <h1 className="text-3xl font-black text-foreground">الحلقات</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-black text-foreground">الحلقات</h1>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => setIsImportOpen(true)}>
+            <Plus className="h-4 w-4" />
+            <span>إضافة حلقة قديمة</span>
+          </Button>
+        </div>
       </div>
       <div className="flex-1 min-h-0">
         <PostsList posts={result.page} />
@@ -73,6 +81,7 @@ export default function Halaqas() {
           </Button>
         </div>
       )}
+      <ImportPostModal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} />
     </div>
   )
 }

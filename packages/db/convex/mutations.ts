@@ -1,7 +1,87 @@
 import { mutation, internalMutation } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
+
+/**
+ * Parsing for Telegram message links (t.me/...).
+ *
+ * Two shapes matter for importing an old halaqa post:
+ *
+ *   - a link to the channel post itself, copied from the channel
+ *       https://t.me/c/1234567890/456   (private channel)
+ *       https://t.me/my_channel/456     (public channel)
+ *
+ *   - a link to the copy Telegram auto-forwards into the linked discussion
+ *     group, copied from the post's comments
+ *       https://t.me/c/9876543210/789
+ *
+ * The second one is what `posts.postId` actually stores, so it needs no
+ * further lookup; the first has to be resolved to it by the bot.
+ *
+ * Forum/topic links carry an extra segment before the message id
+ * (t.me/c/123/12/456) — the message id is always the last numeric segment.
+ */
+
+interface ParsedPostLink {
+  /** Public link: the @username of the chat, lowercased, without the "@". */
+  username?: string;
+  /** Private link: the chat id in full Telegram form (-100…). */
+  chatId?: number;
+  /** The message this link points at. */
+  messageId: number;
+}
+
+/** Segments that never precede a chat reference. */
+const IGNORED_PREFIXES = new Set(["s"]);
+
+/**
+ * Parses a t.me message link. Returns null when the input is not a link to a
+ * specific message (invite links, bare channel links, junk).
+ */
+function parsePostLink(raw: string): ParsedPostLink | null {
+  if (!raw) return null;
+
+  // Drop protocol, query string and fragment: ?comment=… and ?thread=… are
+  // common on links copied from the comments view and carry nothing we need.
+  let rest = raw.trim();
+  rest = rest.replace(/^https?:\/\//i, "");
+  rest = rest.split(/[?#]/)[0];
+
+  const hostMatch = rest.match(/^(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)\/(.+)$/i);
+  if (!hostMatch) return null;
+
+  const segments = hostMatch[1].split("/").filter((segment) => segment.length > 0);
+  if (segments.length < 2) return null;
+
+  if (IGNORED_PREFIXES.has(segments[0].toLowerCase())) {
+    segments.shift();
+  }
+  if (segments.length < 2) return null;
+
+  // The message id is the trailing numeric segment.
+  const messageId = Number(segments[segments.length - 1]);
+  if (!Number.isInteger(messageId) || messageId <= 0) return null;
+
+  const head = segments[0];
+
+  if (head.toLowerCase() === "c") {
+    // t.me/c/<internal id>/[<topic id>/]<message id>
+    if (segments.length < 3) return null;
+    const internalId = segments[1];
+    if (!/^[1-9][0-9]*$/.test(internalId)) return null;
+    // t.me/c links strip the "-100" prefix supergroups and channels carry, so
+    // it is prepended back rather than added — the id's digit count varies.
+    return { chatId: -Number(`100${internalId}`), messageId };
+  }
+
+  // t.me/<username>/[<topic id>/]<message id>
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{3,}$/.test(head)) return null;
+  // Invite links (t.me/+abc, t.me/joinchat/abc) point at no message.
+  if (head.toLowerCase() === "joinchat") return null;
+
+  return { username: head.toLowerCase(), messageId };
+}
 
 /**
  * Upserts a post record. Inserts if new, or updates createdAt if an earlier
@@ -2240,5 +2320,143 @@ export const upsertPostRecord = internalMutation({
   },
   handler: async (ctx, args) => {
     await upsertPost(ctx, args.chatId, args.postId, args.createdAt);
+  },
+});
+
+/**
+ * Requests the import of an old halaqa post from a Telegram link.
+ *
+ * Posts published before the bot became a channel admin never arrived as an
+ * automatic forward, so nothing registered them. The admin pastes the post's
+ * link here; the actual lookup needs the Telegram API, so this only records the
+ * request and queues a bot task. The bot resolves the link to the post's
+ * message id in the discussion group and calls completePostImport.
+ *
+ * A link to the discussion-group copy already carries that message id, but a
+ * link copied from the channel carries the channel's own id, which the bot has
+ * to search for — both are accepted.
+ */
+export const requestPostImport = mutation({
+  args: {
+    chatId: v.number(),
+    channelId: v.optional(v.number()),
+    link: v.string(),
+    requestedBy: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const parsed = parsePostLink(args.link);
+    if (!parsed) {
+      throw new ConvexError(
+        "الرابط غير صالح. انسخي رابط المنشور من تيليجرام (مثال: https://t.me/c/1234567890/456)"
+      );
+    }
+
+    // Nothing to do if this post is already in the list.
+    if (parsed.chatId === args.chatId) {
+      const existingPost = await ctx.db
+        .query("posts")
+        .withIndex("by_chat_post", (q) =>
+          q.eq("chatId", args.chatId).eq("postId", parsed.messageId)
+        )
+        .first();
+      if (existingPost) {
+        return {
+          importId: null,
+          status: "completed" as const,
+          postId: existingPost.postId,
+          alreadyExists: true,
+        };
+      }
+    }
+
+    const importId = await ctx.db.insert("postImports", {
+      chatId: args.chatId,
+      channelId: args.channelId,
+      link: args.link.trim(),
+      linkChatId: parsed.chatId,
+      linkUsername: parsed.username,
+      linkMessageId: parsed.messageId,
+      status: "pending",
+      requestedBy: args.requestedBy,
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.insert("botTasks", {
+      type: "import_post",
+      chatId: args.chatId,
+      // The task's postId is only known for certain once the link is resolved;
+      // until then it holds the message id the link points at.
+      postId: parsed.messageId,
+      importId,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+
+    return {
+      importId,
+      status: "pending" as const,
+      postId: null,
+      alreadyExists: false,
+    };
+  },
+});
+
+/**
+ * Marks a post import as started, so a retried task does not run it twice.
+ */
+export const startPostImport = mutation({
+  args: { importId: v.id("postImports") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.importId, { status: "processing" });
+  },
+});
+
+/**
+ * Records a resolved post import and registers the post so it shows up in the
+ * halaqa list. Called by the bot once it has located the post's message in the
+ * discussion group.
+ */
+export const completePostImport = mutation({
+  args: {
+    importId: v.id("postImports"),
+    postId: v.number(),
+    createdAt: v.number(),
+    channelId: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const importRecord = await ctx.db.get(args.importId);
+    if (!importRecord) {
+      throw new ConvexError("Post import not found");
+    }
+
+    await upsertPost(ctx, importRecord.chatId, args.postId, args.createdAt);
+
+    await ctx.db.patch(args.importId, {
+      status: "completed",
+      postId: args.postId,
+      channelId: args.channelId ?? importRecord.channelId,
+      error: undefined,
+      resolvedAt: Date.now(),
+    });
+
+    return { chatId: importRecord.chatId, postId: args.postId };
+  },
+});
+
+/**
+ * Records a post import that could not be resolved, with a reason the admin
+ * can act on.
+ */
+export const failPostImport = mutation({
+  args: {
+    importId: v.id("postImports"),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.importId, {
+      status: "failed",
+      error: args.error,
+      resolvedAt: Date.now(),
+    });
   },
 });

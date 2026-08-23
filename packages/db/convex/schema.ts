@@ -152,6 +152,7 @@ export default defineSchema({
     messageId: v.optional(v.number()), // target message ID for react_to_message tasks
     sessionNumber: v.optional(v.number()),
     flower: v.optional(v.string()), // flower emoji to use in formatting
+    importId: v.optional(v.id("postImports")), // target import for "import_post" tasks
     status: v.string(), // "pending", "processing", "completed", "failed"
     resultMessageId: v.optional(v.number()), // message ID after sending
     error: v.optional(v.string()), // error message if failed
@@ -169,6 +170,27 @@ export default defineSchema({
   })
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_created_at", ["createdAt"])
+    .index("by_chat_created", ["chatId", "createdAt"]),
+
+  // Requests to import a halaqa post the bot never saw live — posts published
+  // before the bot was made an admin never reach it as an automatic forward, so
+  // they have no posts row. An admin pastes the post's link and the bot resolves
+  // it to the discussion-group message id that postId is keyed by.
+  postImports: defineTable({
+    chatId: v.number(), // Discussion group the post should be imported into
+    channelId: v.optional(v.number()), // Channel the admin was browsing
+    link: v.string(), // Raw link as pasted, kept for troubleshooting
+    linkChatId: v.optional(v.number()), // Chat id from a t.me/c/… link
+    linkUsername: v.optional(v.string()), // Username from a public t.me/… link
+    linkMessageId: v.number(), // Message id the link points at
+    status: v.string(), // "pending", "processing", "completed", "failed"
+    postId: v.optional(v.number()), // Resolved discussion-group post id, once found
+    error: v.optional(v.string()), // Human-readable failure reason
+    requestedBy: v.optional(v.number()), // Telegram user ID of the requesting admin
+    createdAt: v.number(), // timestamp in ms
+    resolvedAt: v.optional(v.number()), // timestamp in ms when it succeeded or failed
+  })
+    .index("by_status", ["status"])
     .index("by_chat_created", ["chatId", "createdAt"]),
 
   // Channel administrators cache for authorization

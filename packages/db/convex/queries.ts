@@ -926,6 +926,7 @@ export const getPendingBotTasks = query({
       messageId: task.messageId,
       sessionNumber: task.sessionNumber,
       flower: task.flower,
+      importId: task.importId,
       status: task.status,
       createdAt: task.createdAt,
     }));
@@ -1534,5 +1535,54 @@ export const getParticipationHistoryBatch = internalQuery({
     return await ctx.db
       .query("participationHistory")
       .paginate({ numItems: 500, cursor: args.cursor });
+  },
+});
+
+/**
+ * Reads a single post import request, for the bot to resolve it and for the
+ * web app to follow its progress.
+ */
+export const getPostImport = query({
+  args: { importId: v.id("postImports") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.importId);
+  },
+});
+
+/**
+ * Narrows the range of discussion-group message ids a post published at
+ * `timestamp` can live in, using posts already known for this chat.
+ *
+ * Message ids grow with time, so the newest known post older than the target is
+ * a lower bound and the oldest known post newer than it is an upper bound. This
+ * is only an optimization — the bot falls back to the full range when a bound
+ * is missing (e.g. the target predates every post on record).
+ */
+export const getPostSearchBounds = query({
+  args: {
+    chatId: v.number(),
+    timestamp: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const below = await ctx.db
+      .query("posts")
+      .withIndex("by_chat_created", (q) =>
+        q.eq("chatId", args.chatId).lt("createdAt", args.timestamp)
+      )
+      .order("desc")
+      .first();
+
+    const above = await ctx.db
+      .query("posts")
+      .withIndex("by_chat_created", (q) =>
+        q.eq("chatId", args.chatId).gt("createdAt", args.timestamp)
+      )
+      .order("asc")
+      .first();
+
+    return {
+      lower: below ? { postId: below.postId, createdAt: below.createdAt } : null,
+      upper: above ? { postId: above.postId, createdAt: above.createdAt } : null,
+    };
   },
 });
