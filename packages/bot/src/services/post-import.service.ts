@@ -17,6 +17,10 @@ import { api } from "@halakabot/db";
  * message id and its date). That is enough to inspect a message the bot never
  * saw, so every lookup here is a forward-and-delete probe.
  *
+ * Forwarding fails on one class of message: anything published while its chat
+ * restricted saving content. Those are read by replying to them instead, which
+ * protection does not restrict — see probeByReply.
+ *
  * Two link shapes are handled:
  *
  *   - a link into the discussion group — the message id IS the post id, so one
@@ -57,6 +61,20 @@ interface Probe {
 class PostImportError extends Error {}
 
 /**
+ * Whether a failed forward was refused because the message is protected.
+ *
+ * Content protection is stamped on a message when it is sent, so posts
+ * published while a channel had "restrict saving content" on stay unforwardable
+ * even after the setting is turned off — and the copy in the discussion group
+ * inherits it. These are exactly the old posts an import is for.
+ */
+function isForwardingBlocked(description: string | undefined): boolean {
+  return /can'?t be forwarded|cannot be forwarded|protected|noforwards|can'?t be copied|restricted/i.test(
+    description ?? "",
+  );
+}
+
+/**
  * Turns the reason a forward failed into something the admin can act on.
  * Telegram reports all of these as a plain 400, distinguishable only by text.
  */
@@ -69,7 +87,7 @@ function describeProbeFailure(description: string | undefined, subject: string):
   if (/not enough rights|forbidden|CHAT_ADMIN_REQUIRED/i.test(text)) {
     return `لا يملك البوت صلاحيات كافية في ${subject}.`;
   }
-  if (/protected|noforwards|copy|restricted/i.test(text)) {
+  if (isForwardingBlocked(text)) {
     return `${subject} تمنع إعادة توجيه الرسائل، ولا يستطيع البوت قراءة المنشور بسببها.`;
   }
   if (/message to forward not found|message_id_invalid|MESSAGE_ID_INVALID/i.test(text)) {
@@ -173,7 +191,18 @@ export class PostImportService {
    * post id — it only has to be confirmed as a registration post.
    */
   private async resolveFromDiscussionLink(record: PostImportRecord) {
-    const probe = await this.probe(record.chatId, record.linkMessageId);
+    let probe = await this.probe(record.chatId, record.linkMessageId);
+
+    // A post published while the channel restricted saving cannot be forwarded,
+    // and neither can the group's copy of it — replying is the way left to read
+    // it, and the group is a chat the bot can post in.
+    if (!probe && isForwardingBlocked(this.lastProbeError)) {
+      console.log(
+        `🔎 post-import: message ${record.linkMessageId} is protected, reading it by reply instead`,
+      );
+      probe = await this.probeByReply(record.chatId, record.linkMessageId);
+    }
+
     if (!probe) {
       throw new PostImportError(
         describeProbeFailure(this.lastProbeError, "مجموعة النقاش"),
@@ -206,6 +235,13 @@ export class PostImportService {
   ) {
     const channelProbe = await this.probe(channelId, record.linkMessageId);
     if (!channelProbe) {
+      if (isForwardingBlocked(this.lastProbeError)) {
+        // Reading by reply needs a chat the bot can post in, which a channel is
+        // not. The group's copy of the same post is reachable that way, though.
+        throw new PostImportError(
+          "هذا المنشور محمي من إعادة التوجيه. افتحي مجموعة النقاش وانسخي رابط المنشور من هناك.",
+        );
+      }
       throw new PostImportError(describeProbeFailure(this.lastProbeError, "القناة"));
     }
     this.assertRegistrationPost(channelProbe.text);
@@ -313,16 +349,75 @@ export class PostImportService {
   }
 
   /**
-   * Reads a message the bot never received by forwarding it to the scratch chat
-   * and deleting the copy. Returns null when the message cannot be forwarded.
+   * Reads a protected message, which forwarding refuses to touch, by replying to
+   * it: the Message that sendMessage returns carries the replied-to message in
+   * full, and content protection does not restrict that.
+   *
+   * The cost is a real message in the chat — in a discussion group that means a
+   * comment on the post — so this is a fallback for what probe() cannot read,
+   * never the first thing tried. The reply is deleted immediately.
    */
-  private async probe(chatId: number, messageId: number): Promise<Probe | null> {
+  private async probeByReply(chatId: number, messageId: number): Promise<Probe | null> {
+    this.countProbe();
+
+    let sent: Message.TextMessage;
+    try {
+      sent = await this.api.sendMessage(chatId, "⏳", {
+        // No allow_sending_without_reply: a missing target must fail, since a
+        // reply to nothing would tell us nothing about the message we want.
+        reply_parameters: { message_id: messageId },
+      });
+      this.lastProbeError = undefined;
+    } catch (error) {
+      this.lastProbeError = (error as { description?: string })?.description;
+      console.log(
+        `🔎 post-import reply probe failed: chat ${chatId}, message ${messageId} — ${
+          this.lastProbeError ?? String(error)
+        }`,
+      );
+      return null;
+    }
+
+    try {
+      await this.api.deleteMessage(chatId, sent.message_id);
+    } catch (error) {
+      console.warn("⚠️  Could not delete post-import reply probe:", error);
+    }
+
+    const replied = sent.reply_to_message;
+    if (!replied) return null;
+
+    const origin = replied.forward_origin;
+    const probe: Probe = {
+      messageId,
+      date: (origin?.date ?? replied.date) * 1000,
+      text: replied.text ?? replied.caption,
+    };
+
+    if (origin?.type === "channel") {
+      probe.originChannelId = origin.chat.id;
+      probe.originMessageId = origin.message_id;
+    }
+
+    return probe;
+  }
+
+  /** Charges one probe against the budget, so no single import can run away. */
+  private countProbe() {
     if (this.probeCount >= MAX_PROBES) {
       throw new PostImportError(
         "استغرق البحث وقتًا طويلاً. انسخي رابط المنشور من قسم التعليقات لاستيراده مباشرة.",
       );
     }
     this.probeCount++;
+  }
+
+  /**
+   * Reads a message the bot never received by forwarding it to the scratch chat
+   * and deleting the copy. Returns null when the message cannot be forwarded.
+   */
+  private async probe(chatId: number, messageId: number): Promise<Probe | null> {
+    this.countProbe();
     if (this.probeCount > 1) await sleep(PROBE_DELAY_MS);
 
     let forwarded: Message;
