@@ -56,10 +56,34 @@ interface Probe {
 /** Raised for failures the admin can act on; the text is shown in the web app. */
 class PostImportError extends Error {}
 
+/**
+ * Turns the reason a forward failed into something the admin can act on.
+ * Telegram reports all of these as a plain 400, distinguishable only by text.
+ */
+function describeProbeFailure(description: string | undefined, subject: string): string {
+  const text = description ?? "";
+
+  if (/chat not found/i.test(text)) {
+    return `لم يتمكن البوت من الوصول إلى ${subject}. تأكدي من أنه عضو فيها.`;
+  }
+  if (/not enough rights|forbidden|CHAT_ADMIN_REQUIRED/i.test(text)) {
+    return `لا يملك البوت صلاحيات كافية في ${subject}.`;
+  }
+  if (/protected|noforwards|copy|restricted/i.test(text)) {
+    return `${subject} تمنع إعادة توجيه الرسائل، ولا يستطيع البوت قراءة المنشور بسببها.`;
+  }
+  if (/message to forward not found|message_id_invalid|MESSAGE_ID_INVALID/i.test(text)) {
+    return `لم يتم العثور على منشور بهذا الرابط في ${subject}.`;
+  }
+  return `تعذر قراءة المنشور من ${subject}${text ? ` (${text})` : ""}.`;
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class PostImportService {
   private probeCount = 0;
+  /** Why the most recent probe came back empty, for the error the admin sees. */
+  private lastProbeError?: string;
 
   constructor(
     private api: Api,
@@ -103,6 +127,10 @@ export class PostImportService {
     record: PostImportRecord,
   ): Promise<{ postId: number; createdAt: number; channelId?: number }> {
     const linkChatId = await this.resolveLinkChatId(record);
+    console.log(
+      `🔎 post-import ${record.link}: link chat ${linkChatId}, message ${record.linkMessageId}; ` +
+        `discussion group ${record.chatId}, channel ${record.channelId ?? "unknown"}`,
+    );
 
     if (linkChatId === record.chatId) {
       return await this.resolveFromDiscussionLink(record);
@@ -148,7 +176,7 @@ export class PostImportService {
     const probe = await this.probe(record.chatId, record.linkMessageId);
     if (!probe) {
       throw new PostImportError(
-        "لم يتم العثور على رسالة بهذا الرابط في مجموعة النقاش.",
+        describeProbeFailure(this.lastProbeError, "مجموعة النقاش"),
       );
     }
 
@@ -178,9 +206,7 @@ export class PostImportService {
   ) {
     const channelProbe = await this.probe(channelId, record.linkMessageId);
     if (!channelProbe) {
-      throw new PostImportError(
-        "لم يتم العثور على المنشور. تأكدي من الرابط ومن أن البوت مشرف في القناة.",
-      );
+      throw new PostImportError(describeProbeFailure(this.lastProbeError, "القناة"));
     }
     this.assertRegistrationPost(channelProbe.text);
 
@@ -302,7 +328,16 @@ export class PostImportService {
     let forwarded: Message;
     try {
       forwarded = await this.api.forwardMessage(this.forwardChatId, chatId, messageId);
-    } catch {
+      this.lastProbeError = undefined;
+    } catch (error) {
+      // Every lookup here rests on forwarding, so a probe failing for any reason
+      // other than "no such message" is the answer to why an import failed.
+      this.lastProbeError = (error as { description?: string })?.description;
+      console.log(
+        `🔎 post-import probe failed: chat ${chatId}, message ${messageId} — ${
+          this.lastProbeError ?? String(error)
+        }`,
+      );
       return null;
     }
 
