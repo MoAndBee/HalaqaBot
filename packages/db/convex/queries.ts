@@ -1586,3 +1586,72 @@ export const getPostSearchBounds = query({
     };
   },
 });
+
+/** Cap on messages scanned when looking for unregistered posts. */
+const UNREGISTERED_SCAN_LIMIT = 16000;
+
+/**
+ * Finds halaqa posts the bot has messages for but never registered.
+ *
+ * A post published before the bot became a channel admin never arrived as an
+ * automatic forward, so nothing created its posts row and it is missing from the
+ * halaqa list. Its comments, though, were stored the moment the bot saw them:
+ * the handler reads postId off the automatic forward each comment replies to,
+ * which needs no posts row. Anything an old post was discussed in is therefore
+ * already here, and finding it costs no Telegram call — the Bot API cannot read
+ * chat history, so this is the only place old posts can be recovered from.
+ *
+ * The scan runs over the by_chat_post index, which is ordered by postId, so a
+ * truncated scan still covers the oldest posts — exactly the ones being looked
+ * for.
+ */
+export const getUnregisteredPosts = query({
+  args: { chatId: v.number() },
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) => q.eq("chatId", args.chatId))
+      .take(UNREGISTERED_SCAN_LIMIT);
+
+    const registered = new Set(
+      (
+        await ctx.db
+          .query("posts")
+          .withIndex("by_chat_created", (q) => q.eq("chatId", args.chatId))
+          .collect()
+      ).map((post) => post.postId)
+    );
+
+    const candidates = new Map<
+      number,
+      { postId: number; messageCount: number; firstMessageAt: number; lastMessageAt: number }
+    >();
+
+    for (const message of messages) {
+      if (registered.has(message.postId)) continue;
+
+      const existing = candidates.get(message.postId);
+      if (!existing) {
+        candidates.set(message.postId, {
+          postId: message.postId,
+          messageCount: 1,
+          firstMessageAt: message.createdAt,
+          lastMessageAt: message.createdAt,
+        });
+        continue;
+      }
+
+      existing.messageCount++;
+      existing.firstMessageAt = Math.min(existing.firstMessageAt, message.createdAt);
+      existing.lastMessageAt = Math.max(existing.lastMessageAt, message.createdAt);
+    }
+
+    return {
+      posts: Array.from(candidates.values()).sort(
+        (a, b) => b.firstMessageAt - a.firstMessageAt
+      ),
+      // Older posts are still covered when this is true; newer ones may not be.
+      truncated: messages.length === UNREGISTERED_SCAN_LIMIT,
+    };
+  },
+});

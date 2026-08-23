@@ -45,6 +45,13 @@ const PROBE_DELAY_MS = 120;
 const SCAN_BEFORE = 5;
 const SCAN_AFTER = 25;
 
+/**
+ * Consecutive protected messages that mean the whole chat refuses forwarding.
+ * Searching it is then hopeless, and spending the probe budget to discover that
+ * reports "the search took too long" for what is really a blocked chat.
+ */
+const BLOCKED_PROBES_BEFORE_GIVING_UP = 3;
+
 export type PostImportRecord = Doc<"postImports">;
 
 interface Probe {
@@ -341,9 +348,17 @@ export class PostImportService {
     messageId: number,
     limit: number,
   ): Promise<Probe | null> {
+    let blocked = 0;
     for (let candidate = messageId; candidate <= limit; candidate++) {
       const probe = await this.probe(chatId, candidate);
       if (probe) return probe;
+
+      blocked = isForwardingBlocked(this.lastProbeError) ? blocked + 1 : 0;
+      if (blocked >= BLOCKED_PROBES_BEFORE_GIVING_UP) {
+        throw new PostImportError(
+          "مجموعة النقاش تمنع إعادة توجيه الرسائل، ولا يستطيع البوت البحث فيها عن المنشور.",
+        );
+      }
     }
     return null;
   }

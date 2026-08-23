@@ -2460,3 +2460,35 @@ export const failPostImport = mutation({
     });
   },
 });
+
+/**
+ * Registers a post the bot has messages for but never recorded, found by
+ * getUnregisteredPosts.
+ *
+ * The post's own text and publish time were never seen — the bot was not yet an
+ * admin when it went up — so the earliest message on it stands in for its date.
+ * That is the same approximation getAllPosts has always made.
+ */
+export const registerDiscoveredPost = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    if (messages.length === 0) {
+      throw new ConvexError("لا توجد رسائل مسجلة لهذه الحلقة.");
+    }
+
+    const createdAt = Math.min(...messages.map((message) => message.createdAt));
+    await upsertPost(ctx, args.chatId, args.postId, createdAt);
+
+    return { postId: args.postId, createdAt };
+  },
+});
