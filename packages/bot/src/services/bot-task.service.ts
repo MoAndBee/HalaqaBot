@@ -7,6 +7,7 @@ import type { Config } from "../config/environment";
 import type { MessageService } from "./message.service";
 import type { ClassificationService } from "./classification.service";
 import { detectRealNameFromMessage } from "./name-detection.service";
+import { PostImportService } from "./post-import.service";
 
 const REGISTRATION_CLOSED_IMAGE_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -103,6 +104,8 @@ export class BotTaskService {
         await this.handleDetectName(task);
       } else if (task.type === "delete_message") {
         await this.handleDeleteMessage(task);
+      } else if (task.type === "import_post") {
+        await this.handleImportPost(task);
       } else {
         throw new Error(`Unknown task type: ${task.type}`);
       }
@@ -207,6 +210,53 @@ export class BotTaskService {
 
     console.log(`✅ detect_name: set realName for user ${messageAuthor.id} to "${realName}"`);
     await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
+  }
+
+  /**
+   * Import an old halaqa post from a link an admin pasted in the web app.
+   * Posts published before the bot became a channel admin were never announced
+   * to it, so they have to be located through the Telegram API — see
+   * PostImportService for how.
+   */
+  private async handleImportPost(task: any) {
+    if (!task.importId) {
+      throw new Error("import_post task has no importId");
+    }
+
+    const importRecord = await this.convex.query(api.queries.getPostImport, {
+      importId: task.importId,
+    });
+
+    if (!importRecord) {
+      throw new Error(`Post import ${task.importId} not found`);
+    }
+
+    // A failed task may be retried; skip an import that already ran.
+    if (importRecord.status === "completed") {
+      await this.convex.mutation(api.mutations.updateBotTask, {
+        taskId: task._id,
+        status: "completed",
+      });
+      return;
+    }
+
+    await this.convex.mutation(api.mutations.startPostImport, {
+      importId: task.importId,
+    });
+
+    const importService = new PostImportService(
+      this.bot.api,
+      this.convex,
+      this.config.forwardChatId,
+    );
+    // Resolution reports its own outcome on the import record, including
+    // failures the admin can act on, so the task itself always completes.
+    await importService.run(importRecord);
+
+    await this.convex.mutation(api.mutations.updateBotTask, {
+      taskId: task._id,
+      status: "completed",
+    });
   }
 
   private async handleDeleteMessage(task: any) {
