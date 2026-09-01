@@ -26,6 +26,11 @@ export class BotTaskService {
   private classificationService: ClassificationService;
   private isProcessing = false;
   private unsubscribe: (() => void) | null = null;
+  // Latest pending-tasks snapshot from the subscription, drained by processLoop
+  private pendingTasks: any[] = [];
+  // Tasks already picked up in this process — a subscription snapshot can lag
+  // behind our own status mutations and re-deliver a task we just handled
+  private handledTaskIds = new Set<string>();
 
   constructor(
     bot: Bot,
@@ -71,18 +76,43 @@ export class BotTaskService {
     }
   }
 
-  private async handleTasksUpdate(tasks: any[]) {
-    if (this.isProcessing || tasks.length === 0) return;
+  private handleTasksUpdate(tasks: any[]) {
+    // Always record the latest snapshot; an update that arrives while a task
+    // is being processed must not be dropped, or the queued task sits pending
+    // until some unrelated database change re-fires the subscription.
+    this.pendingTasks = tasks;
+    void this.processLoop();
+  }
+
+  private async processLoop() {
+    if (this.isProcessing) return;
 
     this.isProcessing = true;
     try {
-      for (const task of tasks) {
-        await this.processTask(task);
+      while (this.pendingTasks.length > 0) {
+        const tasks = this.pendingTasks;
+        this.pendingTasks = [];
+        for (const task of tasks) {
+          if (this.handledTaskIds.has(task._id)) continue;
+          this.handledTaskIds.add(task._id);
+          // Stale snapshots only ever re-deliver recent tasks; drop the
+          // oldest ids so the set doesn't grow for the life of the process
+          if (this.handledTaskIds.size > 1000) {
+            const oldest = this.handledTaskIds.values().next().value;
+            if (oldest !== undefined) this.handledTaskIds.delete(oldest);
+          }
+          await this.processTask(task);
+        }
       }
     } catch (error) {
       console.error("Error processing bot tasks:", error);
     } finally {
       this.isProcessing = false;
+      // A snapshot may have arrived between the loop condition and the flag
+      // reset — re-enter instead of leaving those tasks stranded
+      if (this.pendingTasks.some((t) => !this.handledTaskIds.has(t._id))) {
+        void this.processLoop();
+      }
     }
   }
 

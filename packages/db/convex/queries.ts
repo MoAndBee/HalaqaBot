@@ -933,6 +933,24 @@ export const getPendingBotTasks = query({
   },
 });
 
+/**
+ * Status of a single bot task, for the web app to track a queued task (e.g.
+ * a participant list send) through to actual completion by the bot.
+ */
+export const getBotTaskStatus = query({
+  args: {
+    taskId: v.id("botTasks"),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) return null;
+    return {
+      status: task.status,
+      error: task.error,
+    };
+  },
+});
+
 export const getParticipationSummary = query({
   args: {
     chatId: v.number(),
