@@ -243,9 +243,11 @@ export default function PostDetail() {
     await removeCompletedUser({ entryId })
   }
 
-  const handleComplete = async (entryId: string, sessionType: SessionType) => {
+  // Returns false when completion was deferred (modal opened) so the list
+  // component can roll back its optimistic update
+  const handleComplete = async (entryId: string, sessionType: SessionType): Promise<boolean> => {
     const user = data?.activeUsers.find((u: User) => u.entryId === entryId)
-    if (!user) return
+    if (!user) return false
 
     // If user has compensation dates set, always use 'تعويض' as session type
     const finalSessionType = (user.isCompensation && user.compensatingForDates && user.compensatingForDates.length > 0)
@@ -261,7 +263,7 @@ export default function PostDetail() {
         currentDates: user.compensatingForDates || null,
       })
       setIsCompensationModalOpen(true)
-      return
+      return false
     }
 
     // Complete the turn (with or without compensation)
@@ -271,6 +273,7 @@ export default function PostDetail() {
       isCompensation: finalSessionType === 'تعويض',
       compensatingForDates: finalSessionType === 'تعويض' ? user.compensatingForDates : undefined,
     })
+    return true
   }
 
   const handleSkip = async (entryId: string) => {

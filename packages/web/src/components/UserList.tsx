@@ -35,7 +35,9 @@ interface UserListProps {
   onReorder: (entryId: string, newPosition: number) => Promise<void>
   onDelete: (entryId: string) => Promise<void>
   onDeleteCompleted: (entryId: string) => Promise<void>
-  onComplete: (entryId: string, sessionType: SessionType) => Promise<void>
+  // Resolves to false when the completion was deferred (e.g. a modal was
+  // opened instead), so optimistic UI changes can be rolled back
+  onComplete: (entryId: string, sessionType: SessionType) => Promise<boolean | void>
   onSkip: (entryId: string) => Promise<void>
   onUnskip: (entryId: string) => Promise<void>
   onUpdateSessionType: (entryId: string, sessionType: SessionType) => Promise<void>
@@ -162,13 +164,22 @@ export function UserList({
     const currentUser = items[0]
     if (!currentUser.entryId) return
 
+    // Optimistically remove the completed user so the queue advances
+    // immediately instead of waiting for the server round-trip
+    const originalItems = [...items]
+    setItems(items.slice(1))
     setIsProcessing(true)
     setError(null)
 
     try {
-      await onComplete(currentUser.entryId, sessionType)
+      const completed = await onComplete(currentUser.entryId, sessionType)
+      if (completed === false) {
+        // Completion was deferred (e.g. compensation modal opened) — restore
+        setItems(originalItems)
+      }
     } catch (error) {
       console.error('Failed to complete turn:', error)
+      setItems(originalItems)
       setError('فشل إتمام الدور. الرجاء المحاولة مرة أخرى.')
       setTimeout(() => setError(null), 3000)
     } finally {
@@ -182,6 +193,11 @@ export function UserList({
     const currentUser = items[0]
     if (!currentUser.entryId) return
 
+    // Optimistically swap the first two users to match the server behavior
+    const originalItems = [...items]
+    const newItems = [...items]
+    ;[newItems[0], newItems[1]] = [newItems[1], newItems[0]]
+    setItems(newItems)
     setIsProcessing(true)
     setError(null)
 
@@ -189,6 +205,7 @@ export function UserList({
       await onSkip(currentUser.entryId)
     } catch (error) {
       console.error('Failed to skip turn:', error)
+      setItems(originalItems)
       setError('فشل تخطي الدور. الرجاء المحاولة مرة أخرى.')
       setTimeout(() => setError(null), 3000)
     } finally {
