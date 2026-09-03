@@ -1,5 +1,6 @@
 import React from 'react'
 import { useQuery } from 'convex/react'
+import type { FunctionReturnType } from 'convex/server'
 import { api } from '@halakabot/db'
 import { MessageSquare } from 'lucide-react'
 import { Loader } from '~/components/Loader'
@@ -11,6 +12,8 @@ interface PostMessagesViewProps {
   onAddToQueue?: (userId: number, sessionType: string | undefined, messageId: number, autoReact: boolean) => Promise<void>
   isLocked?: boolean
 }
+
+type PostMessage = FunctionReturnType<typeof api.queries.getMessagesForPost>[number]
 
 function getInitials(firstName: string, lastName?: string) {
   const first = firstName.charAt(0).toUpperCase()
@@ -42,6 +45,157 @@ function avatarColor(userId: number) {
 
 const AUTO_REACT_STORAGE_KEY = 'halaqa:auto-react'
 
+interface MessageRowProps {
+  msg: PostMessage
+  isSameUser: boolean
+  canRegister: boolean
+  isRegistering: boolean
+  onRegister: (userId: number, sessionType: string | undefined, messageId: number) => void
+}
+
+/**
+ * Convex hands us freshly deserialized message objects on every update, so the
+ * default identity comparison would never hit. Compare the fields the row
+ * actually renders instead.
+ */
+function messageRowPropsAreEqual(prev: MessageRowProps, next: MessageRowProps) {
+  if (
+    prev.isSameUser !== next.isSameUser ||
+    prev.canRegister !== next.canRegister ||
+    prev.isRegistering !== next.isRegistering ||
+    prev.onRegister !== next.onRegister
+  ) {
+    return false
+  }
+
+  const a = prev.msg
+  const b = next.msg
+
+  return (
+    a.messageId === b.messageId &&
+    a.userId === b.userId &&
+    a.firstName === b.firstName &&
+    a.lastName === b.lastName &&
+    a.username === b.username &&
+    a.messageText === b.messageText &&
+    a.createdAt === b.createdAt &&
+    a.classification?.activityType === b.classification?.activityType &&
+    a.classification?.containsName === b.classification?.containsName &&
+    (a.classification === null) === (b.classification === null) &&
+    a.user?.realName === b.user?.realName &&
+    a.user?.realNameVerified === b.user?.realNameVerified &&
+    (a.user === null) === (b.user === null)
+  )
+}
+
+const MessageRow = React.memo(function MessageRow({
+  msg,
+  isSameUser,
+  canRegister,
+  isRegistering,
+  onRegister,
+}: MessageRowProps) {
+  const senderName = `${msg.firstName}${msg.lastName ? ` ${msg.lastName}` : ''}`
+
+  return (
+    <div className="flex items-start gap-2 pb-1">
+      {/* Avatar */}
+      <div className="flex-shrink-0 w-8 h-8">
+        {!isSameUser ? (
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.userId)}`}
+          >
+            {getInitials(msg.firstName, msg.lastName)}
+          </div>
+        ) : (
+          <div className="w-8 h-8" />
+        )}
+      </div>
+
+      {/* Card */}
+      <div className="flex-1 min-w-0 bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 text-sm">
+        {/* Header: name + actions + timestamp */}
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="text-xs font-semibold text-foreground truncate">{senderName}</span>
+          {msg.username && (
+            <span className="text-[10px] text-muted-foreground flex-shrink-0">@{msg.username}</span>
+          )}
+          {canRegister && (
+            isRegistering ? (
+              <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                ...
+              </span>
+            ) : (
+              <button
+                className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
+                onClick={() => onRegister(msg.userId, msg.classification?.activityType ?? undefined, msg.messageId)}
+              >
+                + دور
+              </button>
+            )
+          )}
+          <span className="mr-auto text-[10px] text-muted-foreground flex-shrink-0">
+            {formatTime(msg.createdAt)}
+          </span>
+        </div>
+
+        {/* Message text */}
+        {msg.messageText ? (
+          <p className="whitespace-pre-wrap leading-relaxed break-words">{msg.messageText}</p>
+        ) : (
+          <p className="text-muted-foreground italic text-xs">وسائط بدون نص</p>
+        )}
+
+        {/* Metadata badges */}
+        <div className="flex flex-wrap items-center gap-1 mt-2">
+          {/* Classification */}
+          {msg.classification === null ? (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+              لم تُصنَّف
+            </span>
+          ) : (
+            <>
+              {msg.classification.activityType ? (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
+                  msg.classification.activityType === 'تسميع'
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                }`}>
+                  {msg.classification.activityType}
+                </span>
+              ) : null}
+              {msg.classification.containsName && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  ✓ اسم
+                </span>
+              )}
+            </>
+          )}
+
+          {/* User profile */}
+          {msg.user === null ? (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+              غير مسجَّل
+            </span>
+          ) : msg.user.realName ? (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+              msg.user.realNameVerified
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-muted text-muted-foreground border-border'
+            }`}>
+              {msg.user.realNameVerified ? '✓ ' : '~ '}{msg.user.realName}
+            </span>
+          ) : (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+              بدون اسم حقيقي
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}, messageRowPropsAreEqual)
+
 export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: PostMessagesViewProps) {
   const messages = useQuery(api.queries.getMessagesForPost, { chatId, postId })
   const [loadingUsers, setLoadingUsers] = React.useState<Set<number>>(new Set())
@@ -49,6 +203,14 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
     () => localStorage.getItem(AUTO_REACT_STORAGE_KEY) === 'true'
   )
   const scrollRef = React.useRef<HTMLDivElement>(null)
+
+  // Mirrored in refs so handleRegister stays referentially stable — the memoized
+  // rows would re-render on every toggle or parent render otherwise.
+  const autoReactRef = React.useRef(autoReact)
+  autoReactRef.current = autoReact
+  const onAddToQueueRef = React.useRef(onAddToQueue)
+  onAddToQueueRef.current = onAddToQueue
+  const inFlightRef = React.useRef<Set<number>>(new Set())
 
   const handleAutoReactToggle = () => {
     setAutoReact(prev => {
@@ -58,15 +220,20 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
     })
   }
 
-  const comments = messages?.filter((m) => !m.isPost) ?? []
-  const postMessage = messages?.find((m) => m.isPost)
+  const comments = React.useMemo(
+    () => messages?.filter((m: PostMessage) => !m.isPost) ?? [],
+    [messages]
+  )
+  const postMessage = React.useMemo(
+    () => messages?.find((m: PostMessage) => m.isPost),
+    [messages]
+  )
 
   const virtualizer = useVirtualizer({
     count: comments.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 72,
     overscan: 8,
-    measureElement: (el) => el.getBoundingClientRect().height,
   })
 
   // Scroll to bottom when messages first load
@@ -76,19 +243,27 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
     }
   }, [messages !== undefined]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleRegister = async (userId: number, sessionType: string | undefined, messageId: number) => {
-    if (!onAddToQueue || loadingUsers.has(userId)) return
-    setLoadingUsers(prev => new Set(prev).add(userId))
-    try {
-      await onAddToQueue(userId, sessionType, messageId, autoReact)
-    } finally {
-      setLoadingUsers(prev => {
-        const next = new Set(prev)
-        next.delete(userId)
-        return next
-      })
-    }
-  }
+  const handleRegister = React.useCallback(
+    async (userId: number, sessionType: string | undefined, messageId: number) => {
+      const addToQueue = onAddToQueueRef.current
+      if (!addToQueue || inFlightRef.current.has(userId)) return
+      inFlightRef.current.add(userId)
+      setLoadingUsers(prev => new Set(prev).add(userId))
+      try {
+        await addToQueue(userId, sessionType, messageId, autoReactRef.current)
+      } finally {
+        inFlightRef.current.delete(userId)
+        setLoadingUsers(prev => {
+          const next = new Set(prev)
+          next.delete(userId)
+          return next
+        })
+      }
+    },
+    []
+  )
+
+  const canRegister = Boolean(onAddToQueue) && !isLocked
 
   return (
     <div className="flex flex-col h-full" dir="rtl">
@@ -155,12 +330,10 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
               {virtualizer.getVirtualItems().map((virtualItem) => {
                 const msg = comments[virtualItem.index]
                 const prev = comments[virtualItem.index - 1]
-                const isSameUser = prev?.userId === msg.userId
-                const senderName = `${msg.firstName}${msg.lastName ? ` ${msg.lastName}` : ''}`
 
                 return (
                   <div
-                    key={virtualItem.key}
+                    key={msg.messageId}
                     data-index={virtualItem.index}
                     ref={virtualizer.measureElement}
                     style={{
@@ -170,101 +343,17 @@ export function PostMessagesView({ chatId, postId, onAddToQueue, isLocked }: Pos
                       right: 0,
                       transform: `translateY(${virtualItem.start}px)`,
                     }}
-                    className={`flex items-start gap-2 pb-1 ${isSameUser ? 'mt-1' : 'mt-3'}`}
+                    // Spacing lives on the measured wrapper as padding: a margin on
+                    // the inner row would collapse out of the measured height.
+                    className={prev?.userId === msg.userId ? 'pt-1' : 'pt-3'}
                   >
-                    {/* Avatar */}
-                    <div className="flex-shrink-0 w-8 h-8">
-                      {!isSameUser ? (
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.userId)}`}
-                        >
-                          {getInitials(msg.firstName, msg.lastName)}
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8" />
-                      )}
-                    </div>
-
-                    {/* Card */}
-                    <div className="flex-1 min-w-0 bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 text-sm">
-                      {/* Header: name + actions + timestamp */}
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className="text-xs font-semibold text-foreground truncate">{senderName}</span>
-                        {msg.username && (
-                          <span className="text-[10px] text-muted-foreground flex-shrink-0">@{msg.username}</span>
-                        )}
-                        {onAddToQueue && !isLocked && (
-                          loadingUsers.has(msg.userId) ? (
-                            <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                              ...
-                            </span>
-                          ) : (
-                            <button
-                              className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-950/50"
-                              onClick={() => handleRegister(msg.userId, msg.classification?.activityType ?? undefined, msg.messageId)}
-                            >
-                              + دور
-                            </button>
-                          )
-                        )}
-                        <span className="mr-auto text-[10px] text-muted-foreground flex-shrink-0">
-                          {formatTime(msg.createdAt)}
-                        </span>
-                      </div>
-
-                      {/* Message text */}
-                      {msg.messageText ? (
-                        <p className="whitespace-pre-wrap leading-relaxed break-words">{msg.messageText}</p>
-                      ) : (
-                        <p className="text-muted-foreground italic text-xs">وسائط بدون نص</p>
-                      )}
-
-                      {/* Metadata badges */}
-                      <div className="flex flex-wrap items-center gap-1 mt-2">
-                        {/* Classification */}
-                        {msg.classification === null ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                            لم تُصنَّف
-                          </span>
-                        ) : (
-                          <>
-                            {msg.classification.activityType ? (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
-                                msg.classification.activityType === 'تسميع'
-                                  ? 'bg-green-50 text-green-700 border-green-200'
-                                  : 'bg-blue-50 text-blue-700 border-blue-200'
-                              }`}>
-                                {msg.classification.activityType}
-                              </span>
-                            ) : null}
-                            {msg.classification.containsName && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                                ✓ اسم
-                              </span>
-                            )}
-                          </>
-                        )}
-
-                        {/* User profile */}
-                        {msg.user === null ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                            غير مسجَّل
-                          </span>
-                        ) : msg.user.realName ? (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                            msg.user.realNameVerified
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-muted text-muted-foreground border-border'
-                          }`}>
-                            {msg.user.realNameVerified ? '✓ ' : '~ '}{msg.user.realName}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-                            بدون اسم حقيقي
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    <MessageRow
+                      msg={msg}
+                      isSameUser={prev?.userId === msg.userId}
+                      canRegister={canRegister}
+                      isRegistering={loadingUsers.has(msg.userId)}
+                      onRegister={handleRegister}
+                    />
                   </div>
                 )
               })}

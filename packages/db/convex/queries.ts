@@ -699,48 +699,58 @@ export const getMessagesForPost = query({
       .order("asc")
       .collect();
 
-    const enriched = await Promise.all(
-      messages.map(async (msg) => {
-        const [classification, user] = await Promise.all([
-          ctx.db
-            .query("messageClassifications")
-            .withIndex("by_chat_post_message", (q) =>
-              q.eq("chatId", args.chatId).eq("postId", args.postId).eq("messageId", msg.messageId)
-            )
-            .unique(),
-          ctx.db
-            .query("users")
-            .withIndex("by_user_id", (q) => q.eq("userId", msg.userId))
-            .unique(),
-        ]);
+    // Load every classification for the post in one index scan rather than a
+    // point read per message.
+    const classifications = await ctx.db
+      .query("messageClassifications")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
 
-        return {
-          messageId: msg.messageId,
-          userId: msg.userId,
-          firstName: msg.firstName,
-          lastName: msg.lastName,
-          username: msg.username,
-          messageText: msg.messageText,
-          createdAt: msg.createdAt,
-          isPost: msg.messageId === args.postId,
-          classification: classification
-            ? {
-                activityType: classification.activityType,
-                containsName: classification.containsName,
-              }
-            : null,
-          user: user
-            ? {
-                realName: user.realName,
-                realNameVerified: user.realNameVerified,
-                telegramName: user.telegramName,
-              }
-            : null,
-        };
-      })
+    const classificationByMessageId = new Map(
+      classifications.map((c) => [c.messageId, c])
     );
 
-    return enriched;
+    // Users repeat heavily across a post's messages, so read each one once.
+    const userIds = [...new Set(messages.map((m) => m.userId))];
+    const userDocs = await Promise.all(
+      userIds.map((userId) =>
+        ctx.db
+          .query("users")
+          .withIndex("by_user_id", (q) => q.eq("userId", userId))
+          .unique()
+      )
+    );
+    const userByUserId = new Map(userIds.map((userId, i) => [userId, userDocs[i]]));
+
+    return messages.map((msg) => {
+      const classification = classificationByMessageId.get(msg.messageId);
+      const user = userByUserId.get(msg.userId);
+
+      return {
+        messageId: msg.messageId,
+        userId: msg.userId,
+        firstName: msg.firstName,
+        lastName: msg.lastName,
+        username: msg.username,
+        messageText: msg.messageText,
+        createdAt: msg.createdAt,
+        isPost: msg.messageId === args.postId,
+        classification: classification
+          ? {
+              activityType: classification.activityType,
+              containsName: classification.containsName,
+            }
+          : null,
+        user: user
+          ? {
+              realName: user.realName,
+              realNameVerified: user.realNameVerified,
+            }
+          : null,
+      };
+    });
   },
 });
 
