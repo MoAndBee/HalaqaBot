@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Loader } from '~/components/Loader'
 import { useSelectedChannel } from '~/contexts/TelegramAuthContext'
 import { BulkScoreModal } from '~/components/BulkScoreModal'
+import { compareArabicNames } from '~/lib/arabic-sort'
 
 interface ExamRecord {
   entryId: string
@@ -77,10 +78,16 @@ function formatDate(timestamp: number): string {
 // Copy results as tab-separated text: pasting into Google Sheets or Excel
 // splits each tab into its own column and each line into its own row.
 // (File downloads don't work inside the Telegram Mini App WebView.)
+// Students arrive already in alphabetical order for the day, so «م» numbers
+// them from 1 per exam day.
 async function copyResults(students: ExamRecord[]) {
   const rows = [
-    ['الاسم', 'الدرجة'],
-    ...students.map((s) => [s.name, s.score != null ? s.score.toString() : '']),
+    ['م', 'الاسم', 'الدرجة'],
+    ...students.map((s, idx) => [
+      (idx + 1).toString(),
+      s.name,
+      s.score != null ? s.score.toString() : '',
+    ]),
   ]
   const tsv = rows
     .map((row) => row.map((cell) => cell.replace(/[\t\r\n]+/g, ' ')).join('\t'))
@@ -132,7 +139,7 @@ export default function ExamRecords() {
 
   // Day detail view: students and their scores
   if (selectedDay) {
-    const students = [...selectedDay.records].sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+    const students = [...selectedDay.records].sort((a, b) => compareArabicNames(a.name, b.name))
     const unscoredCount = students.filter((s) => s.score == null).length
 
     return (
