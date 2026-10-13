@@ -665,7 +665,7 @@ export default function PostDetail() {
     // Wait for keyboard to dismiss
     await new Promise(resolve => setTimeout(resolve, 300))
 
-    const carryOverCount = data.activeUsers.filter(user => !user.wasSkipped).length
+    const carryOverCount = data.activeUsers.length
 
     if (carryOverCount > 0) {
       const confirmed = await tgConfirm(

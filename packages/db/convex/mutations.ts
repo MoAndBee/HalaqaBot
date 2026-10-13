@@ -1550,9 +1550,9 @@ export const startNewSession = mutation({
         )
         .collect();
 
-      // Sort by position, excluding participants marked as skipped (🗣️)
+      // Sort by position. Skipped participants (🗣️) are carried over too,
+      // keeping their skip mark so they still show 🗣️ in the new session.
       const entriesToCarryOver = previousQueueEntries
-        .filter((entry) => !entry.wasSkipped)
         .sort((a, b) => a.position - b.position);
 
       // Copy to new session in turnQueue
@@ -1570,6 +1570,7 @@ export const startNewSession = mutation({
           sessionType: entry.sessionType,
           isCompensation: entry.isCompensation,
           compensatingForDates: entry.compensatingForDates,
+          wasSkipped: entry.wasSkipped,
         });
       }
     }
