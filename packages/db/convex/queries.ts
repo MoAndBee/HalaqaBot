@@ -685,61 +685,103 @@ export const getUserParticipations = query({
   },
 });
 
+type MessageAuthorDoc = Doc<"messageAuthors">;
+
+// Enrich a batch of messageAuthors rows with their classification and user info.
+// User lookups are deduped per batch since the same people post repeatedly.
+async function enrichMessages(
+  db: GenericDatabaseReader<DataModel>,
+  chatId: number,
+  postId: number,
+  messages: MessageAuthorDoc[]
+) {
+  const userIds = Array.from(new Set(messages.map((m) => m.userId)));
+  const users = await Promise.all(
+    userIds.map((userId) =>
+      db
+        .query("users")
+        .withIndex("by_user_id", (q) => q.eq("userId", userId))
+        .unique()
+    )
+  );
+  const userById = new Map(userIds.map((id, i) => [id, users[i]]));
+
+  return Promise.all(
+    messages.map(async (msg) => {
+      const classification = await db
+        .query("messageClassifications")
+        .withIndex("by_chat_post_message", (q) =>
+          q.eq("chatId", chatId).eq("postId", postId).eq("messageId", msg.messageId)
+        )
+        .unique();
+      const user = userById.get(msg.userId) ?? null;
+
+      return {
+        messageId: msg.messageId,
+        userId: msg.userId,
+        firstName: msg.firstName,
+        lastName: msg.lastName,
+        username: msg.username,
+        messageText: msg.messageText,
+        createdAt: msg.createdAt,
+        isPost: msg.messageId === postId,
+        classification: classification
+          ? {
+              activityType: classification.activityType,
+              containsName: classification.containsName,
+            }
+          : null,
+        user: user
+          ? {
+              realName: user.realName,
+              realNameVerified: user.realNameVerified,
+              telegramName: user.telegramName,
+            }
+          : null,
+      };
+    })
+  );
+}
+
+// Paginated comments for a post, newest first. The original channel post
+// (messageId === postId) is excluded here; fetch it with getPostMessage.
 export const getMessagesForPost = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    const comments = result.page.filter((m) => m.messageId !== args.postId);
+    const page = await enrichMessages(ctx.db, args.chatId, args.postId, comments);
+
+    return { ...result, page };
+  },
+});
+
+// The original channel post message for a post (single indexed read).
+export const getPostMessage = query({
   args: {
     chatId: v.number(),
     postId: v.number(),
   },
   handler: async (ctx, args) => {
-    const messages = await ctx.db
+    const msg = await ctx.db
       .query("messageAuthors")
-      .withIndex("by_chat_post", (q) =>
-        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      .withIndex("by_chat_post_message", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId).eq("messageId", args.postId)
       )
-      .order("asc")
-      .collect();
-
-    const enriched = await Promise.all(
-      messages.map(async (msg) => {
-        const [classification, user] = await Promise.all([
-          ctx.db
-            .query("messageClassifications")
-            .withIndex("by_chat_post_message", (q) =>
-              q.eq("chatId", args.chatId).eq("postId", args.postId).eq("messageId", msg.messageId)
-            )
-            .unique(),
-          ctx.db
-            .query("users")
-            .withIndex("by_user_id", (q) => q.eq("userId", msg.userId))
-            .unique(),
-        ]);
-
-        return {
-          messageId: msg.messageId,
-          userId: msg.userId,
-          firstName: msg.firstName,
-          lastName: msg.lastName,
-          username: msg.username,
-          messageText: msg.messageText,
-          createdAt: msg.createdAt,
-          isPost: msg.messageId === args.postId,
-          classification: classification
-            ? {
-                activityType: classification.activityType,
-                containsName: classification.containsName,
-              }
-            : null,
-          user: user
-            ? {
-                realName: user.realName,
-                realNameVerified: user.realNameVerified,
-                telegramName: user.telegramName,
-              }
-            : null,
-        };
-      })
-    );
-
+      .unique();
+    if (!msg) return null;
+    const [enriched] = await enrichMessages(ctx.db, args.chatId, args.postId, [msg]);
     return enriched;
   },
 });
