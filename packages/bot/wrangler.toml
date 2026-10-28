@@ -1,0 +1,23 @@
+name = "halaqabot"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set with `bunx wrangler secret put <NAME>`, never committed):
+#   BOT_TOKEN, GROQ_API_KEY, FORWARD_CHAT_ID, CONVEX_URL,
+#   TELEGRAM_WEBHOOK_SECRET, BOT_TASKS_SECRET
+#
+# Optional, with defaults in src/config/environment.ts:
+#   CHANNEL_ID, WEB_APP_URL, AUTO_REACTION_EMOJI, ALLOWED_REACTION_USER_IDS
+
+[triggers]
+# Channel registration + admin sync (previously a 5-minute setInterval).
+crons = ["*/5 * * * *"]
+
+[[rules]]
+type = "Data"
+globs = ["**/*.jpeg"]
+fallthrough = true
+
+[observability]
+enabled = true

@@ -160,6 +160,7 @@ export default defineSchema({
     processedAt: v.optional(v.number()), // timestamp when processed
   })
     .index("by_status", ["status"])
+    .index("by_status_processed", ["status", "processedAt"])
     .index("by_chat_post", ["chatId", "postId"]),
 
   // Unique posts (chatId + postId pairs) for efficient pagination

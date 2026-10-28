@@ -1,129 +1,45 @@
-import type { Bot } from "grammy";
-import { InputFile } from "grammy";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
+import type { Bot, InputFile } from "grammy";
+import { api, type ConvexHttpClient } from "@halakabot/db";
 import type { Config } from "../config/environment";
 import type { MessageService } from "./message.service";
 import type { ClassificationService } from "./classification.service";
 import { detectRealNameFromMessage } from "./name-detection.service";
 import { PostImportService } from "./post-import.service";
 
-const REGISTRATION_CLOSED_IMAGE_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "assets",
-  "registration-closed.jpeg"
-);
-
+/**
+ * Runs the tasks the web app queues for the bot (see convex/botTaskQueue.ts).
+ * Tasks are claimed one at a time through Convex, which keeps them in order and
+ * stops two runners — two Worker invocations, or the Worker and a local Bun
+ * bot — from processing the same task.
+ */
 export class BotTaskService {
-  private bot: Bot;
-  private convex: ConvexHttpClient;
-  private reactiveClient: ConvexClient;
-  private config: Config;
-  private messageService: MessageService;
-  private classificationService: ClassificationService;
-  private isProcessing = false;
-  private unsubscribe: (() => void) | null = null;
-  // Latest pending-tasks snapshot from the subscription, drained by processLoop
-  private pendingTasks: any[] = [];
-  // Tasks already picked up in this process — a subscription snapshot can lag
-  // behind our own status mutations and re-deliver a task we just handled
-  private handledTaskIds = new Set<string>();
-
   constructor(
-    bot: Bot,
-    convex: ConvexHttpClient,
-    reactiveClient: ConvexClient,
-    config: Config,
-    messageService: MessageService,
-    classificationService: ClassificationService,
-  ) {
-    this.bot = bot;
-    this.convex = convex;
-    this.reactiveClient = reactiveClient;
-    this.config = config;
-    this.messageService = messageService;
-    this.classificationService = classificationService;
-  }
+    private bot: Bot,
+    private convex: ConvexHttpClient,
+    private config: Config,
+    private messageService: MessageService,
+    private classificationService: ClassificationService,
+    // How the registration-closed image is read differs between Bun (a file
+    // path) and Workers (bundled bytes), so the runtime supplies it.
+    private registrationClosedPhoto: () => InputFile,
+  ) {}
 
   /**
-   * Start watching for pending bot tasks and process them reactively
+   * Process pending tasks until the queue is empty or another runner holds it.
+   * Returns how many tasks this call processed.
    */
-  start() {
-    console.log("Bot task service started, subscribing to pending tasks...");
-
-    // Subscribe to pending tasks - Convex will push updates when data changes
-    this.unsubscribe = this.reactiveClient.onUpdate(
-      api.queries.getPendingBotTasks,
-      {},
-      (tasks) => {
-        if (tasks === undefined) return; // Initial loading state
-        this.handleTasksUpdate(tasks);
-      }
-    );
-  }
-
-  /**
-   * Stop the task service and clean up subscription
-   */
-  stop() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-      console.log("Bot task service stopped");
-    }
-  }
-
-  private handleTasksUpdate(tasks: any[]) {
-    // Always record the latest snapshot; an update that arrives while a task
-    // is being processed must not be dropped, or the queued task sits pending
-    // until some unrelated database change re-fires the subscription.
-    this.pendingTasks = tasks;
-    void this.processLoop();
-  }
-
-  private async processLoop() {
-    if (this.isProcessing) return;
-
-    this.isProcessing = true;
-    try {
-      while (this.pendingTasks.length > 0) {
-        const tasks = this.pendingTasks;
-        this.pendingTasks = [];
-        for (const task of tasks) {
-          if (this.handledTaskIds.has(task._id)) continue;
-          this.handledTaskIds.add(task._id);
-          // Stale snapshots only ever re-deliver recent tasks; drop the
-          // oldest ids so the set doesn't grow for the life of the process
-          if (this.handledTaskIds.size > 1000) {
-            const oldest = this.handledTaskIds.values().next().value;
-            if (oldest !== undefined) this.handledTaskIds.delete(oldest);
-          }
-          await this.processTask(task);
-        }
-      }
-    } catch (error) {
-      console.error("Error processing bot tasks:", error);
-    } finally {
-      this.isProcessing = false;
-      // A snapshot may have arrived between the loop condition and the flag
-      // reset — re-enter instead of leaving those tasks stranded
-      if (this.pendingTasks.some((t) => !this.handledTaskIds.has(t._id))) {
-        void this.processLoop();
-      }
+  async drain(): Promise<number> {
+    let processed = 0;
+    while (true) {
+      const task = await this.convex.mutation(api.botTaskQueue.claimNextBotTask, {});
+      if (!task) return processed;
+      await this.processTask(task);
+      processed++;
     }
   }
 
   private async processTask(task: any) {
     console.log(`Processing bot task: ${task.type}`, task);
-
-    // Mark as processing
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "processing",
-    });
 
     try {
       if (task.type === "send_participant_list") {
@@ -470,7 +386,7 @@ export class BotTaskService {
     let registrationClosedImageMessageId: number | undefined;
     if (currentSession?.registrationClosed) {
       try {
-        const photoMessage = await this.bot.api.sendPhoto(chatId, new InputFile(REGISTRATION_CLOSED_IMAGE_PATH), {
+        const photoMessage = await this.bot.api.sendPhoto(chatId, this.registrationClosedPhoto(), {
           reply_to_message_id: postId,
         });
         registrationClosedImageMessageId = photoMessage.message_id;

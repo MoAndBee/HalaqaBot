@@ -1,89 +1,88 @@
-import { Bot } from "grammy"; // trigger redeploy
+/**
+ * Long-polling entry point, for local development under Bun. Production runs
+ * on Cloudflare Workers (worker.ts).
+ *
+ * Note: bot.start() deletes the bot's webhook, so running this against the
+ * production bot token takes the Worker offline until the webhook is set again
+ * (bun run webhook:set).
+ */
+import { InputFile } from "grammy";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { ConvexClient, api } from "@halakabot/db";
 import { loadConfig } from "./config/environment";
-import { ConvexHttpClient, ConvexClient } from "@halakabot/db";
-import { MessageService } from "./services/message.service";
-import { UserListService } from "./services/user-list.service";
-import { ClassificationService } from "./services/classification.service";
-import { BotTaskService } from "./services/bot-task.service";
-import { AdminSyncService } from "./services/admin-sync.service";
-import { registerMessageHandler } from "./handlers/message.handler";
-import { registerReactionHandler } from "./handlers/reaction.handler";
-import { registerAutoClassifyHandler } from "./handlers/auto-classify.handler";
-import { registerWebAppHandler } from "./handlers/webApp.handler";
-import { registerChatMemberHandler } from "./handlers/chatMember.handler";
-import { registerChannelDiscoveryHandler } from "./handlers/channelDiscovery.handler";
+import { ALLOWED_UPDATES, createBotApp } from "./bot";
+import { configureMenuButton } from "./handlers/webApp.handler";
 import { registerChannelFromChat } from "./services/channel-registry.service";
 
-// Load and validate configuration
-const config = loadConfig();
+const REGISTRATION_CLOSED_IMAGE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "assets",
+  "registration-closed.jpeg"
+);
 
-// Initialize Convex clients
-const convexUrl = process.env.CONVEX_URL || "http://localhost:3210";
-const convex = new ConvexHttpClient(convexUrl);
-const reactiveConvex = new ConvexClient(convexUrl);
-
-// Create bot instance first (needed for admin sync service)
-const bot = new Bot(config.botToken);
-
-// Initialize services
-const messageService = new MessageService(convex, config.forwardChatId);
-const userListService = new UserListService(convex);
-const classificationService = new ClassificationService();
-const adminSyncService = new AdminSyncService(convex, bot.api);
-
-// Register event handlers. Channel discovery goes first: it's pass-through
-// middleware that registers unknown channels/discussion groups from any
-// channel post or group message before the other handlers run.
-registerChannelDiscoveryHandler(bot, convex, adminSyncService);
-registerReactionHandler(bot, messageService, userListService, classificationService, convex, config);
-registerAutoClassifyHandler(bot, classificationService, messageService, userListService, convex, config);
-registerMessageHandler(bot, messageService, classificationService, convex);
-registerWebAppHandler(bot, convex, config);
-registerChatMemberHandler(bot, convex, adminSyncService);
-
-// Start bot task service with reactive subscriptions
-const botTaskService = new BotTaskService(bot, convex, reactiveConvex, config, messageService, classificationService);
-botTaskService.start();
-
-// Handle errors
-bot.catch((err) => {
-  console.error("Bot error:", err);
+const config = loadConfig(process.env);
+const app = createBotApp(config, {
+  registrationClosedPhoto: () => new InputFile(REGISTRATION_CLOSED_IMAGE_PATH),
 });
+const { bot, convex, adminSyncService, botTaskService } = app;
 
-// Ensure the configured channel is registered in the channels registry on
-// startup, so admins aren't locked out of the web app before auto-discovery
-// fires on the next channel post. Resolves the linked discussion group directly
-// from Telegram rather than depending on historical data.
-async function seedConfiguredChannel(): Promise<void> {
-  await registerChannelFromChat(bot.api, convex, config.channelId);
+// Watch the task queue over a Convex subscription. The Worker is notified by
+// Convex instead (see convex/botTaskQueue.ts); both claim tasks the same way,
+// so they can run side by side without processing a task twice.
+const reactiveConvex = new ConvexClient(config.convexUrl);
+let draining = false;
+let drainAgain = false;
+
+async function drainTasks() {
+  if (draining) {
+    // A task arrived mid-drain; go round once more when the current pass ends.
+    drainAgain = true;
+    return;
+  }
+  draining = true;
+  try {
+    do {
+      drainAgain = false;
+      await botTaskService.drain();
+    } while (drainAgain);
+  } catch (error) {
+    console.error("Error processing bot tasks:", error);
+  } finally {
+    draining = false;
+  }
 }
 
-// Start the bot
+const unsubscribe = reactiveConvex.onUpdate(api.queries.getPendingBotTasks, {}, (tasks) => {
+  if (tasks && tasks.length > 0) void drainTasks();
+});
+
 console.log("Starting bot...");
 bot.start({
-  allowed_updates: ["message", "message_reaction", "channel_post", "my_chat_member"],
+  allowed_updates: [...ALLOWED_UPDATES],
   drop_pending_updates: true,
   onStart: async (botInfo) => {
     console.log(`Bot @${botInfo.username} is running!`);
     console.log("Listening for reactions and channel posts...");
 
-    // Seed the configured channel before starting admin sync so the registry
-    // is populated immediately on deploy.
-    await seedConfiguredChannel();
+    await configureMenuButton(bot.api, config.webAppUrl);
 
-    // Start admin sync service across all registered channels. The configured
-    // channelId is passed as a fallback so it's synced even before any channel
-    // has been auto-discovered into the registry from traffic.
+    // Seed the configured channel before starting admin sync so the registry
+    // is populated immediately on start.
+    await registerChannelFromChat(bot.api, convex, config.channelId);
+
+    // The configured channelId is passed as a fallback so it's synced even
+    // before any channel has been auto-discovered into the registry.
     console.log(`🔄 Starting admin sync (seed channel ${config.channelId})...`);
     adminSyncService.startPeriodicSync([config.channelId]);
   },
 });
 
-// Handle graceful shutdown
 const shutdown = async () => {
   console.log("\nStopping bot...");
   adminSyncService.stopPeriodicSync();
-  botTaskService.stop();
+  unsubscribe();
   await reactiveConvex.close();
   bot.stop();
 };

@@ -1,5 +1,6 @@
 export interface Config {
   botToken: string;
+  convexUrl: string;
   forwardChatId: string;
   groqApiKey: string;
   autoReactionEmoji: "❤" | "👍" | "👎" | "🔥" | "🥰";
@@ -8,43 +9,47 @@ export interface Config {
   channelId: number;
 }
 
-export function loadConfig(): Config {
-  const botToken = process.env.BOT_TOKEN;
-  const forwardChatId = process.env.FORWARD_CHAT_ID;
-  const groqApiKey = process.env.GROQ_API_KEY;
-  const autoReactionEmoji = (process.env.AUTO_REACTION_EMOJI || "❤") as "❤" | "👍" | "👎" | "🔥" | "🥰";
-  const allowedReactionUserIds = process.env.ALLOWED_REACTION_USER_IDS
-    ? process.env.ALLOWED_REACTION_USER_IDS.split(",").map((id: string) => parseInt(id.trim(), 10))
+/** Raw configuration values: process.env under Bun, the Worker env on Cloudflare. */
+export type ConfigSource = Record<string, unknown>;
+
+function read(env: ConfigSource, name: string): string | undefined {
+  const value = env[name];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function required(env: ConfigSource, name: string, hint: string): string {
+  const value = read(env, name);
+  if (!value) {
+    throw new Error(`${name} is not set. ${hint}`);
+  }
+  return value;
+}
+
+export function loadConfig(env: ConfigSource): Config {
+  const botToken = required(env, "BOT_TOKEN", "Get your token from @BotFather on Telegram.");
+  const forwardChatId = required(
+    env,
+    "FORWARD_CHAT_ID",
+    "Set it to the chat ID where messages should be forwarded.",
+  );
+  const groqApiKey = required(
+    env,
+    "GROQ_API_KEY",
+    "Get your API key from https://console.groq.com/.",
+  );
+  const convexUrl = read(env, "CONVEX_URL") || "http://localhost:3210";
+  const autoReactionEmoji = (read(env, "AUTO_REACTION_EMOJI") || "❤") as Config["autoReactionEmoji"];
+  const allowedReactionUserIdsValue = read(env, "ALLOWED_REACTION_USER_IDS");
+  const allowedReactionUserIds = allowedReactionUserIdsValue
+    ? allowedReactionUserIdsValue.split(",").map((id: string) => parseInt(id.trim(), 10))
     : [5627601992, 1093520031];
-  const webAppUrl = process.env.WEB_APP_URL || "https://halakabot.app.thawabcoding.work";
-  const channelId = process.env.CHANNEL_ID ? parseInt(process.env.CHANNEL_ID, 10) : -1002081068866;
-
-  if (!botToken) {
-    console.error("Error: BOT_TOKEN environment variable is not set");
-    console.error(
-      "Please create a .env file or set BOT_TOKEN in your environment",
-    );
-    process.exit(1);
-  }
-
-  if (!forwardChatId) {
-    console.error("Error: FORWARD_CHAT_ID environment variable is not set");
-    console.error(
-      "Please set FORWARD_CHAT_ID to the chat ID where messages should be forwarded",
-    );
-    process.exit(1);
-  }
-
-  if (!groqApiKey) {
-    console.error("Error: GROQ_API_KEY environment variable is not set");
-    console.error(
-      "Please set GROQ_API_KEY to your Groq API key from https://console.groq.com/",
-    );
-    process.exit(1);
-  }
+  const webAppUrl = read(env, "WEB_APP_URL") || "https://halakabot.app.thawabcoding.work";
+  const channelIdValue = read(env, "CHANNEL_ID");
+  const channelId = channelIdValue ? parseInt(channelIdValue, 10) : -1002081068866;
 
   return {
     botToken,
+    convexUrl,
     forwardChatId,
     groqApiKey,
     autoReactionEmoji,

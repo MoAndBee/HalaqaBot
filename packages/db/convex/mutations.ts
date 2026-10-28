@@ -2,6 +2,7 @@ import { mutation, internalMutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
+import { enqueueBotTask } from "./botTaskQueue";
 
 /**
  * Parsing for Telegram message links (t.me/...).
@@ -1801,13 +1802,11 @@ export const setSessionRegistrationClosed = mutation({
         .first();
 
       if (lastListMessage?.registrationClosedImageMessageId) {
-        await ctx.db.insert("botTasks", {
+        await enqueueBotTask(ctx, {
           type: "delete_message",
           chatId: args.chatId,
           postId: args.postId,
           messageId: lastListMessage.registrationClosedImageMessageId,
-          status: "pending",
-          createdAt: Date.now(),
         });
 
         await ctx.db.patch(lastListMessage._id, {
@@ -1831,15 +1830,13 @@ export const createBotTask = mutation({
     flower: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const taskId = await ctx.db.insert("botTasks", {
+    const taskId = await enqueueBotTask(ctx, {
       type: args.type,
       chatId: args.chatId,
       postId: args.postId,
       messageId: args.messageId,
       sessionNumber: args.sessionNumber,
       flower: args.flower,
-      status: "pending",
-      createdAt: Date.now(),
     });
 
     return { taskId };
@@ -2381,15 +2378,13 @@ export const requestPostImport = mutation({
       createdAt: Date.now(),
     });
 
-    await ctx.db.insert("botTasks", {
+    await enqueueBotTask(ctx, {
       type: "import_post",
       chatId: args.chatId,
       // The task's postId is only known for certain once the link is resolved;
       // until then it holds the message id the link points at.
       postId: parsed.messageId,
       importId,
-      status: "pending",
-      createdAt: Date.now(),
     });
 
     return {
