@@ -1,83 +1,6 @@
 import { action } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import { api, internal } from "./_generated/api";
-
-/**
- * Creates a bot task to send the participant list as a message to the post
- */
-export const sendParticipantList = action({
-  args: {
-    chatId: v.number(),
-    postId: v.number(),
-    sessionNumber: v.optional(v.number()),
-    flower: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // A closed (locked) halaqa is final — don't publish its list again. Resolve
-    // the target session the same way the bot does when none is given: the most
-    // recent one for this post.
-    let sessionNumber = args.sessionNumber;
-    if (sessionNumber === undefined) {
-      const sessions = await ctx.runQuery(api.queries.getAvailableSessions, {
-        chatId: args.chatId,
-        postId: args.postId,
-      });
-      sessionNumber = sessions[0]?.sessionNumber;
-    }
-
-    if (sessionNumber !== undefined) {
-      const sessionInfo = await ctx.runQuery(api.queries.getSessionInfo, {
-        chatId: args.chatId,
-        postId: args.postId,
-        sessionNumber,
-      });
-
-      if (sessionInfo?.isLocked) {
-        throw new Error("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
-      }
-    }
-
-    // Query the user list first to ensure the cache is warmed up with fresh data
-    // This prevents the bot from hitting stale cached data when it processes the task
-    await ctx.runQuery(api.queries.getUserList, {
-      chatId: args.chatId,
-      postId: args.postId,
-      sessionNumber: args.sessionNumber,
-    });
-
-    // Create a task for the bot to process
-    const result = await ctx.runMutation(api.mutations.createBotTask, {
-      type: "send_participant_list",
-      chatId: args.chatId,
-      postId: args.postId,
-      sessionNumber: args.sessionNumber,
-      flower: args.flower,
-    });
-
-    return { success: true, taskId: result.taskId };
-  },
-});
-
-/**
- * Creates a bot task to react to a specific message with a heart emoji
- */
-export const reactToMessage = action({
-  args: {
-    chatId: v.number(),
-    postId: v.number(),
-    messageId: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const result = await ctx.runMutation(api.mutations.createBotTask, {
-      type: "react_to_message",
-      chatId: args.chatId,
-      postId: args.postId,
-      messageId: args.messageId,
-    });
-
-    return { success: true, taskId: result.taskId };
-  },
-});
+import { internal } from "./_generated/api";
 
 interface BulkScoreMatch {
   /** Client-supplied id of the matched student, or null when nothing matched */
@@ -461,29 +384,6 @@ Respond with ONLY a JSON object of this exact shape:
     });
 
     return { matches, otherStudentsSearched };
-  },
-});
-
-/**
- * Creates a bot task to detect the sender's real name from a message and store
- * it. Used by the web "add turn" (دور+) flow so adding a participant from a
- * message populates their real name the same way an admin 👌 reaction does.
- */
-export const detectNameFromMessage = action({
-  args: {
-    chatId: v.number(),
-    postId: v.number(),
-    messageId: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const result = await ctx.runMutation(api.mutations.createBotTask, {
-      type: "detect_name",
-      chatId: args.chatId,
-      postId: args.postId,
-      messageId: args.messageId,
-    });
-
-    return { success: true, taskId: result.taskId };
   },
 });
 

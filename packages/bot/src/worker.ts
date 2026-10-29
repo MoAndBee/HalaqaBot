@@ -1,32 +1,33 @@
 /**
  * Cloudflare Workers entry point.
  *
- *   POST /telegram  Telegram webhook. Acknowledged at once; the update is handled
- *                   in waitUntil so slow work (LLM calls, retries) never makes
- *                   Telegram time out and redeliver it.
- *   POST /tasks     Called by Convex when the web app queues a bot task (see
- *                   convex/botTaskQueue.ts). The queue is drained before
- *                   responding: Convex holds the request open, which allows far
- *                   longer than waitUntil would — post imports need it.
- *   scheduled       Cron Trigger: registers the configured channel and syncs
- *                   channel admins.
+ *   POST /telegram  Telegram webhook. The update is put on the job queue and
+ *                   acknowledged at once, so slow handlers (LLM calls, retries)
+ *                   never make Telegram time out and redeliver.
+ *   /api/*          The web app's calls to act in Telegram (see api.ts).
+ *   queue           Consumer for the job queue (see jobs.ts).
+ *   scheduled       Cron Trigger: registers the configured channel and
+ *                   reconciles channel admins, in case a chat_member update
+ *                   was missed.
  */
-import type { ExecutionContext, ScheduledController } from "@cloudflare/workers-types";
+import type { ExecutionContext, MessageBatch, Queue, ScheduledController } from "@cloudflare/workers-types";
 import { InputFile } from "grammy";
 import type { Update } from "grammy/types";
 import registrationClosedImage from "../assets/registration-closed.jpeg";
 import { loadConfig } from "./config/environment";
 import { createBotApp, syncChannels, type BotApp } from "./bot";
+import { handleApiRequest } from "./api";
+import { runJob, type BotJob } from "./jobs";
+import { timingSafeEqual } from "./telegram-auth";
 
 export interface Env {
+  JOBS: Queue<BotJob>;
   BOT_TOKEN: string;
   GROQ_API_KEY: string;
   FORWARD_CHAT_ID: string;
   CONVEX_URL: string;
   /** Sent by Telegram on every webhook call; set with scripts/set-webhook.ts. */
   TELEGRAM_WEBHOOK_SECRET: string;
-  /** Shared with the Convex deployment, which sends it to /tasks. */
-  BOT_TASKS_SECRET: string;
   CHANNEL_ID?: string;
   WEB_APP_URL?: string;
   AUTO_REACTION_EMOJI?: string;
@@ -55,63 +56,51 @@ function initBot(bot: BotApp["bot"]): Promise<void> {
   return botInit;
 }
 
-/** Compares secrets without leaking how much of the guess matched. */
-function secretMatches(received: string | null, expected: string | undefined): boolean {
-  if (!received || !expected || received.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) {
-    diff |= received.charCodeAt(i) ^ expected.charCodeAt(i);
-  }
-  return diff === 0;
-}
-
-async function handleTelegramUpdate(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  if (!secretMatches(request.headers.get("X-Telegram-Bot-Api-Secret-Token"), env.TELEGRAM_WEBHOOK_SECRET)) {
+async function handleTelegramUpdate(request: Request, env: Env): Promise<Response> {
+  const secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token") ?? "";
+  if (!env.TELEGRAM_WEBHOOK_SECRET || !timingSafeEqual(secret, env.TELEGRAM_WEBHOOK_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
 
   const update = (await request.json()) as Update;
-  const { bot } = getApp(env);
-
-  ctx.waitUntil(
-    (async () => {
-      await initBot(bot);
-      await bot.handleUpdate(update);
-    })().catch((error) => {
-      console.error("Bot error:", error);
-    }),
-  );
-
+  // If this fails Telegram gets an error and redelivers, so nothing is lost.
+  await env.JOBS.send({ type: "update", update });
   return new Response("OK");
 }
 
-async function handleTasks(request: Request, env: Env): Promise<Response> {
-  const authorization = request.headers.get("Authorization");
-  const token = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : null;
-  if (!secretMatches(token, env.BOT_TASKS_SECRET)) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  try {
-    const processed = await getApp(env).botTaskService.drain();
-    return Response.json({ processed });
-  } catch (error) {
-    console.error("Error processing bot tasks:", error);
-    return new Response("Error processing bot tasks", { status: 500 });
-  }
-}
-
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
 
     if (request.method === "POST" && pathname === "/telegram") {
-      return handleTelegramUpdate(request, env, ctx);
+      return handleTelegramUpdate(request, env);
     }
-    if (request.method === "POST" && pathname === "/tasks") {
-      return handleTasks(request, env);
+    if (pathname.startsWith("/api/")) {
+      return handleApiRequest(request, {
+        app: getApp(env),
+        enqueue: async (job) => {
+          await env.JOBS.send(job);
+        },
+      });
     }
     return new Response("Not found", { status: 404 });
+  },
+
+  async queue(batch: MessageBatch<BotJob>, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const app = getApp(env);
+    await initBot(app.bot);
+
+    for (const message of batch.messages) {
+      try {
+        await runJob(app, message.body);
+      } catch (error) {
+        // Like long polling: a failed update is logged and skipped rather than
+        // retried, since handlers aren't safe to run twice. The queue only
+        // redelivers if the consumer itself dies mid-batch.
+        console.error(`❌ ${message.body.type} job failed:`, error);
+      }
+      message.ack();
+    }
   },
 
   async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {

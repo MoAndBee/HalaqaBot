@@ -150,3 +150,4 @@ packages/db/convex/*.map
 # Cloudflare Workers
 .wrangler/
 .dev.vars*
+!.dev.vars.example

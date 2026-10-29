@@ -7,6 +7,8 @@ import type { AdminSyncService } from "../services/admin-sync.service";
 const PRESENT_STATUSES = new Set(["member", "administrator", "creator"]);
 // Statuses that mean the bot has been removed from the chat.
 const ABSENT_STATUSES = new Set(["left", "kicked"]);
+// Statuses that grant access to the web app.
+const ADMIN_STATUSES = new Set(["administrator", "creator"]);
 
 /**
  * Register the bot's own membership-change handler. When the bot is added to (or
@@ -55,5 +57,24 @@ export function registerChatMemberHandler(
     } catch (error) {
       console.error("❌ Error handling my_chat_member update:", error);
     }
+  });
+
+  // Someone else's membership changed. Channel admins are the web app's access
+  // list, so resync it whenever a channel admin is added or removed. Telegram
+  // only sends these updates to a bot that is an admin of the chat, and only if
+  // "chat_member" is in allowed_updates.
+  bot.on("chat_member", async (ctx: Context) => {
+    const update = ctx.chatMember;
+    if (!update || update.chat.type !== "channel") return;
+
+    const wasAdmin = ADMIN_STATUSES.has(update.old_chat_member.status);
+    const isAdmin = ADMIN_STATUSES.has(update.new_chat_member.status);
+    if (wasAdmin === isAdmin) return;
+
+    console.log(
+      `👤 Admin ${isAdmin ? "added to" : "removed from"} channel ${update.chat.id}: ` +
+        `user ${update.new_chat_member.user.id}`,
+    );
+    await adminSyncService.fetchAndSync(update.chat.id);
   });
 }

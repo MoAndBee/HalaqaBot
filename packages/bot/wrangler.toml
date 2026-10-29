@@ -4,15 +4,27 @@ compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
 
 # Secrets (set with `bunx wrangler secret put <NAME>`, never committed):
-#   BOT_TOKEN, GROQ_API_KEY, FORWARD_CHAT_ID, CONVEX_URL,
-#   TELEGRAM_WEBHOOK_SECRET, BOT_TASKS_SECRET
+#   BOT_TOKEN, GROQ_API_KEY, FORWARD_CHAT_ID, CONVEX_URL, TELEGRAM_WEBHOOK_SECRET
 #
 # Optional, with defaults in src/config/environment.ts:
-#   CHANNEL_ID, WEB_APP_URL, AUTO_REACTION_EMOJI, ALLOWED_REACTION_USER_IDS
+#   CHANNEL_ID, WEB_APP_URL (also the only origin allowed to call /api/*),
+#   AUTO_REACTION_EMOJI, ALLOWED_REACTION_USER_IDS
+
+# Telegram updates and post imports run here, one job at a time (see src/jobs.ts).
+[[queues.producers]]
+binding = "JOBS"
+queue = "halaqabot-jobs"
+
+[[queues.consumers]]
+queue = "halaqabot-jobs"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 2
 
 [triggers]
-# Channel registration + admin sync (previously a 5-minute setInterval).
-crons = ["*/5 * * * *"]
+# Channel registration + admin reconciliation. Admin changes normally arrive as
+# chat_member updates; this catches any that were missed.
+crons = ["17 * * * *"]
 
 [[rules]]
 type = "Data"

@@ -7,8 +7,6 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run src/index.ts",
-    "start": "bun run src/index.ts",
     "dev:bot": "bun --filter @halakabot/bot dev",
     "dev:web": "bun --filter @halakabot/web dev",
     "dev:all": "bun --filter @halakabot/bot dev & bun --filter @halakabot/web dev",

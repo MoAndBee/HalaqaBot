@@ -2,7 +2,6 @@ import { mutation, internalMutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
-import { enqueueBotTask } from "./botTaskQueue";
 
 /**
  * Parsing for Telegram message links (t.me/...).
@@ -1781,7 +1780,7 @@ export const setSessionRegistrationClosed = mutation({
     // A locked (ended) halaqa can't have its registration state changed — the
     // menu item is greyed out for the same reason.
     if (session.isLocked) {
-      throw new Error("لا يمكن تغيير حالة التسجيل: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
+      throw new ConvexError("لا يمكن تغيير حالة التسجيل: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
     }
 
     const wasClosed = session.registrationClosed === true;
@@ -1791,8 +1790,10 @@ export const setSessionRegistrationClosed = mutation({
       registrationClosed: willBeClosed,
     });
 
-    // When transitioning from closed -> open, delete the closed-registration
-    // image that's still in the chat (if any) and clear its tracked message ID.
+    // When transitioning from closed -> open, the closed-registration image is
+    // still in the chat. Stop tracking it and hand its message ID back so the
+    // caller (the bot's web API) deletes it.
+    let deleteMessageId: number | undefined;
     if (wasClosed && !willBeClosed) {
       const lastListMessage = await ctx.db
         .query("lastListMessages")
@@ -1802,13 +1803,7 @@ export const setSessionRegistrationClosed = mutation({
         .first();
 
       if (lastListMessage?.registrationClosedImageMessageId) {
-        await enqueueBotTask(ctx, {
-          type: "delete_message",
-          chatId: args.chatId,
-          postId: args.postId,
-          messageId: lastListMessage.registrationClosedImageMessageId,
-        });
-
+        deleteMessageId = lastListMessage.registrationClosedImageMessageId;
         await ctx.db.patch(lastListMessage._id, {
           registrationClosedImageMessageId: undefined,
           updatedAt: Date.now(),
@@ -1816,47 +1811,7 @@ export const setSessionRegistrationClosed = mutation({
       }
     }
 
-    return { success: true };
-  },
-});
-
-export const createBotTask = mutation({
-  args: {
-    type: v.string(),
-    chatId: v.number(),
-    postId: v.number(),
-    messageId: v.optional(v.number()),
-    sessionNumber: v.optional(v.number()),
-    flower: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const taskId = await enqueueBotTask(ctx, {
-      type: args.type,
-      chatId: args.chatId,
-      postId: args.postId,
-      messageId: args.messageId,
-      sessionNumber: args.sessionNumber,
-      flower: args.flower,
-    });
-
-    return { taskId };
-  },
-});
-
-export const updateBotTask = mutation({
-  args: {
-    taskId: v.id("botTasks"),
-    status: v.string(),
-    resultMessageId: v.optional(v.number()),
-    error: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.taskId, {
-      status: args.status,
-      resultMessageId: args.resultMessageId,
-      error: args.error,
-      processedAt: Date.now(),
-    });
+    return { success: true, deleteMessageId };
   },
 });
 
@@ -2378,15 +2333,6 @@ export const requestPostImport = mutation({
       createdAt: Date.now(),
     });
 
-    await enqueueBotTask(ctx, {
-      type: "import_post",
-      chatId: args.chatId,
-      // The task's postId is only known for certain once the link is resolved;
-      // until then it holds the message id the link points at.
-      postId: parsed.messageId,
-      importId,
-    });
-
     return {
       importId,
       status: "pending" as const,
@@ -2397,7 +2343,7 @@ export const requestPostImport = mutation({
 });
 
 /**
- * Marks a post import as started, so a retried task does not run it twice.
+ * Marks a post import as started, so a redelivered job does not run it twice.
  */
 export const startPostImport = mutation({
   args: { importId: v.id("postImports") },

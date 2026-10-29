@@ -3,12 +3,10 @@
   "version": "1.0.0",
   "description": "Telegram bot using Grammy framework, deployed on Cloudflare Workers",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./src/worker.ts",
   "scripts": {
-    "dev": "bun run src/index.ts",
-    "start": "bun run src/index.ts",
+    "dev": "wrangler dev",
     "build": "tsc --build",
-    "worker:dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "webhook:set": "bun run scripts/set-webhook.ts"
   },

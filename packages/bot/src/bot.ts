@@ -4,7 +4,7 @@ import type { Config } from "./config/environment";
 import { MessageService } from "./services/message.service";
 import { UserListService } from "./services/user-list.service";
 import { ClassificationService } from "./services/classification.service";
-import { BotTaskService } from "./services/bot-task.service";
+import { BotActionsService } from "./services/bot-actions.service";
 import { AdminSyncService } from "./services/admin-sync.service";
 import { registerMessageHandler } from "./handlers/message.handler";
 import { registerReactionHandler } from "./handlers/reaction.handler";
@@ -14,26 +14,31 @@ import { registerChatMemberHandler } from "./handlers/chatMember.handler";
 import { registerChannelDiscoveryHandler } from "./handlers/channelDiscovery.handler";
 import { registerChannelFromChat } from "./services/channel-registry.service";
 
-/** Update types the bot handles; passed to Telegram when polling or setting the webhook. */
-export const ALLOWED_UPDATES = ["message", "message_reaction", "channel_post", "my_chat_member"] as const;
+/**
+ * Update types the bot handles, registered with Telegram by scripts/set-webhook.ts.
+ * Changing this list only takes effect after re-running that script.
+ */
+export const ALLOWED_UPDATES = [
+  "message",
+  "message_reaction",
+  "channel_post",
+  "my_chat_member",
+  "chat_member",
+] as const;
 
 export interface BotApp {
   bot: Bot;
   convex: ConvexHttpClient;
   config: Config;
   adminSyncService: AdminSyncService;
-  botTaskService: BotTaskService;
+  botActions: BotActionsService;
 }
 
 export interface BotAppOptions {
   registrationClosedPhoto: () => InputFile;
 }
 
-/**
- * Builds the bot with all handlers and services wired up. Runtime-neutral: the
- * Bun entry (index.ts) polls with it, the Worker entry (worker.ts) feeds it
- * webhook updates.
- */
+/** Builds the bot with all handlers and services wired up. */
 export function createBotApp(config: Config, options: BotAppOptions): BotApp {
   const convex = new ConvexHttpClient(config.convexUrl);
   const bot = new Bot(config.botToken);
@@ -42,7 +47,7 @@ export function createBotApp(config: Config, options: BotAppOptions): BotApp {
   const userListService = new UserListService(convex);
   const classificationService = new ClassificationService(config.groqApiKey);
   const adminSyncService = new AdminSyncService(convex, bot.api);
-  const botTaskService = new BotTaskService(
+  const botActions = new BotActionsService(
     bot,
     convex,
     config,
@@ -65,7 +70,7 @@ export function createBotApp(config: Config, options: BotAppOptions): BotApp {
     console.error("Bot error:", err);
   });
 
-  return { bot, convex, config, adminSyncService, botTaskService };
+  return { bot, convex, config, adminSyncService, botActions };
 }
 
 /**

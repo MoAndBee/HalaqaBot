@@ -1,83 +1,31 @@
 import type { Bot, InputFile } from "grammy";
-import { api, type ConvexHttpClient } from "@halakabot/db";
+import { api, type ConvexHttpClient, type Id } from "@halakabot/db";
 import type { Config } from "../config/environment";
 import type { MessageService } from "./message.service";
 import type { ClassificationService } from "./classification.service";
 import { detectRealNameFromMessage } from "./name-detection.service";
 import { PostImportService } from "./post-import.service";
+import { UserFacingError } from "../errors";
 
 /**
- * Runs the tasks the web app queues for the bot (see convex/botTaskQueue.ts).
- * Tasks are claimed one at a time through Convex, which keeps them in order and
- * stops two runners — two Worker invocations, or the Worker and a local Bun
- * bot — from processing the same task.
+ * Telegram actions the web app asks the bot to perform (see api.ts). Each one
+ * runs to completion within the request, so the caller learns whether it
+ * worked; post imports, which can run long, go through the job queue instead.
  */
-export class BotTaskService {
+export class BotActionsService {
   constructor(
     private bot: Bot,
     private convex: ConvexHttpClient,
     private config: Config,
     private messageService: MessageService,
     private classificationService: ClassificationService,
-    // How the registration-closed image is read differs between Bun (a file
-    // path) and Workers (bundled bytes), so the runtime supplies it.
     private registrationClosedPhoto: () => InputFile,
   ) {}
 
-  /**
-   * Process pending tasks until the queue is empty or another runner holds it.
-   * Returns how many tasks this call processed.
-   */
-  async drain(): Promise<number> {
-    let processed = 0;
-    while (true) {
-      const task = await this.convex.mutation(api.botTaskQueue.claimNextBotTask, {});
-      if (!task) return processed;
-      await this.processTask(task);
-      processed++;
-    }
-  }
-
-  private async processTask(task: any) {
-    console.log(`Processing bot task: ${task.type}`, task);
-
-    try {
-      if (task.type === "send_participant_list") {
-        await this.handleSendParticipantList(task);
-      } else if (task.type === "react_to_message") {
-        await this.handleReactToMessage(task);
-      } else if (task.type === "detect_name") {
-        await this.handleDetectName(task);
-      } else if (task.type === "delete_message") {
-        await this.handleDeleteMessage(task);
-      } else if (task.type === "import_post") {
-        await this.handleImportPost(task);
-      } else {
-        throw new Error(`Unknown task type: ${task.type}`);
-      }
-    } catch (error) {
-      console.error(`Failed to process task ${task._id}:`, error);
-
-      // Mark as failed
-      await this.convex.mutation(api.mutations.updateBotTask, {
-        taskId: task._id,
-        status: "failed",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
-
-  private async handleReactToMessage(task: any) {
-    const { chatId, messageId } = task;
-
+  async reactToMessage(chatId: number, messageId: number) {
     await this.bot.api.setMessageReaction(chatId, messageId, [
       { type: "emoji", emoji: this.config.autoReactionEmoji },
     ]);
-
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "completed",
-    });
 
     console.log(`✅ Reacted to message ${messageId} in chat ${chatId}`);
   }
@@ -88,9 +36,7 @@ export class BotTaskService {
    * their real name the same way an admin 👌 reaction does. The user has already
    * been added to the queue by the web mutation, so this only resolves the name.
    */
-  private async handleDetectName(task: any) {
-    const { chatId, postId, messageId } = task;
-
+  async detectName(chatId: number, postId: number, messageId: number) {
     // Resolve the message author (from storage, or via forwarding).
     const messageAuthor = await this.messageService.getMessageAuthor(
       this.bot.api,
@@ -101,7 +47,6 @@ export class BotTaskService {
 
     if (!messageAuthor || messageAuthor.id === 0) {
       console.log(`⏭️  detect_name: no resolvable author for message ${messageId}, skipping`);
-      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
       return;
     }
 
@@ -125,7 +70,6 @@ export class BotTaskService {
 
     if (!realName) {
       console.log(`ℹ️  detect_name: no name detected in message ${messageId}, leaving user's name unchanged`);
-      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
       return;
     }
 
@@ -135,7 +79,6 @@ export class BotTaskService {
       console.log(
         `ℹ️  detect_name: user ${messageAuthor.id} already has verified realName "${existingUser.realName}", keeping it`,
       );
-      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
       return;
     }
 
@@ -155,7 +98,6 @@ export class BotTaskService {
     });
 
     console.log(`✅ detect_name: set realName for user ${messageAuthor.id} to "${realName}"`);
-    await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
   }
 
   /**
@@ -164,31 +106,19 @@ export class BotTaskService {
    * to it, so they have to be located through the Telegram API — see
    * PostImportService for how.
    */
-  private async handleImportPost(task: any) {
-    if (!task.importId) {
-      throw new Error("import_post task has no importId");
-    }
-
-    const importRecord = await this.convex.query(api.queries.getPostImport, {
-      importId: task.importId,
-    });
+  async importPost(importId: Id<"postImports">) {
+    const importRecord = await this.convex.query(api.queries.getPostImport, { importId });
 
     if (!importRecord) {
-      throw new Error(`Post import ${task.importId} not found`);
+      throw new Error(`Post import ${importId} not found`);
     }
 
-    // A failed task may be retried; skip an import that already ran.
+    // The queue may redeliver a job; skip an import that already ran.
     if (importRecord.status === "completed") {
-      await this.convex.mutation(api.mutations.updateBotTask, {
-        taskId: task._id,
-        status: "completed",
-      });
       return;
     }
 
-    await this.convex.mutation(api.mutations.startPostImport, {
-      importId: task.importId,
-    });
+    await this.convex.mutation(api.mutations.startPostImport, { importId });
 
     const importService = new PostImportService(
       this.bot.api,
@@ -196,17 +126,11 @@ export class BotTaskService {
       this.config.forwardChatId,
     );
     // Resolution reports its own outcome on the import record, including
-    // failures the admin can act on, so the task itself always completes.
+    // failures the admin can act on.
     await importService.run(importRecord);
-
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "completed",
-    });
   }
 
-  private async handleDeleteMessage(task: any) {
-    const { chatId, messageId } = task;
+  async deleteMessage(chatId: number, messageId: number) {
 
     try {
       await this.bot.api.deleteMessage(chatId, messageId);
@@ -215,17 +139,17 @@ export class BotTaskService {
       // Telegram returns an error if the message is already gone — treat as success
       console.error(`Failed to delete message ${messageId} in chat ${chatId}:`, error);
     }
-
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "completed",
-    });
   }
 
-  private async handleSendParticipantList(task: any) {
-    const { chatId, postId } = task;
-    let { sessionNumber } = task;
-    const flower = task.flower || '🌸'; // Default to 🌸 if not specified
+  async sendParticipantList(args: {
+    chatId: number;
+    postId: number;
+    sessionNumber?: number;
+    flower?: string;
+  }): Promise<{ messageId: number }> {
+    const { chatId, postId } = args;
+    let { sessionNumber } = args;
+    const flower = args.flower || '🌸'; // Default to 🌸 if not specified
 
     // Get the latest session if not specified
     if (sessionNumber === undefined) {
@@ -239,6 +163,16 @@ export class BotTaskService {
       } else {
         sessionNumber = allSessions[0].sessionNumber;
       }
+    }
+
+    // A closed (locked) halaqa is final — don't publish its list again.
+    const sessionInfo = await this.convex.query(api.queries.getSessionInfo, {
+      chatId,
+      postId,
+      sessionNumber,
+    });
+    if (sessionInfo?.isLocked) {
+      throw new UserFacingError("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
     }
 
     // Get session details (for teacher name)
@@ -404,13 +338,7 @@ export class BotTaskService {
       registrationClosedImageMessageId,
     });
 
-    // Mark task as completed
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "completed",
-      resultMessageId: sentMessage.message_id,
-    });
-
     console.log(`✅ Sent participant list message ${sentMessage.message_id}`);
+    return { messageId: sentMessage.message_id };
   }
 }

@@ -1,153 +1,103 @@
 # HalakaBot
 
-A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh/) that listens to message reactions and manages user lists with Convex.
+A Telegram bot for running Quran study circles (halaqas), built with
+[grammY](https://grammy.dev/) on [Cloudflare Workers](https://developers.cloudflare.com/workers/),
+with a Telegram Mini App admin panel. Data lives in [Convex](https://convex.dev).
 
-## Prerequisites
+## How it fits together
 
-- [Bun](https://bun.sh/) installed on your system
-- A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- A [Convex](https://convex.dev) account and project
-
-## Setup
-
-1. **Clone the repository** (if you haven't already):
-   ```bash
-   git clone <your-repo-url>
-   cd halakabot
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   bun install
-   ```
-
-3. **Set up Convex**:
-   - Install Convex CLI: `bun add -g convex`
-   - Initialize Convex: `cd packages/db && bunx convex dev`
-   - Follow the CLI prompts to authenticate and create a project
-   - See `packages/db/SETUP.md` for detailed instructions
-
-4. **Get a bot token from BotFather**:
-   - Open Telegram and search for [@BotFather](https://t.me/BotFather)
-   - Send `/newbot` and follow the instructions
-   - Copy the bot token you receive
-
-5. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   ```
-   Then edit `.env` and add your credentials:
-   ```
-   BOT_TOKEN=your_actual_bot_token_here
-   CONVEX_URL=your_convex_deployment_url
-   ```
-
-6. **Enable reactions for your bot** (Important!):
-   - Go to [@BotFather](https://t.me/BotFather)
-   - Send `/mybots`
-   - Select your bot
-   - Go to "Bot Settings" → "Group Privacy"
-   - Disable privacy mode (or add the bot as an admin) to receive reaction updates
-
-## Running the Bot
-
-Start the bot in development mode:
-```bash
-bun run dev
+```
+Telegram ──webhook──▶ Worker /telegram ──▶ Queue ──▶ bot handlers ──▶ Convex
+Mini App (web) ──────▶ Worker /api/*   ──▶ Telegram + Convex
+Mini App (web) ──────▶ Convex (data, live queries)
 ```
 
-Or use:
-```bash
-bun start
-```
+- **`packages/bot`** is the Worker (`src/worker.ts`):
+  - **`POST /telegram`:** Telegram's webhook. Each update goes on a Cloudflare
+    Queue, which runs one job at a time, so updates are handled in order and
+    can take up to 15 minutes (LLM calls, retries).
+  - **`/api/*`:** what the web app calls when the bot must act in Telegram:
+    sending the list, reacting, opening/closing registration, importing an old
+    post. Requests are signed with the Mini App's `initData`, which the Worker
+    verifies with the bot token, and the caller must administer the channel.
+    Post imports are long, so they run on the queue too.
+  - **Cron (hourly):** registers the configured channel and reconciles channel
+    admins. Admin changes normally arrive straight away as `chat_member` updates.
+- **`packages/db`** holds the Convex schema and functions. Convex never calls
+  the bot; the Worker and the web app call Convex.
+- **`packages/web`** is the Mini App.
 
-The bot will start and log "Bot @your_bot_name is running!" when ready.
+## Development
 
-Long polling is for local development. Starting it deletes the bot's webhook,
-so don't run it with the production bot token while the Worker is live.
+Prerequisites: [Bun](https://bun.sh/), a Cloudflare account, a Convex project,
+and a separate **test bot** from [@BotFather](https://t.me/BotFather), so
+setting its webhook doesn't affect the production bot.
 
-## Deploying the Bot to Cloudflare Workers
+1. `bun install`
+2. Copy `.env.example` to `.env` (web app) and `packages/bot/.dev.vars.example`
+   to `packages/bot/.dev.vars` (Worker), and fill them in.
+3. Run the Worker (`bun run dev:bot`, on http://localhost:8787) and the web app
+   (`bun run dev:web`).
+4. Telegram can't reach localhost. To receive updates, expose the Worker (e.g.
+   `cloudflared tunnel --url http://localhost:8787`) and point the test bot at
+   it with `bun run webhook:set` from `packages/bot`.
 
-In production the bot runs on Cloudflare Workers (`packages/bot/src/worker.ts`):
+The bot needs reaction updates: either disable privacy mode in @BotFather
+(Bot Settings → Group Privacy) or make it an admin.
 
-- Telegram delivers updates to `POST /telegram` (webhook).
-- When the web app queues a bot task, Convex calls `POST /tasks` and the Worker
-  works through the queue (`packages/db/convex/botTaskQueue.ts`). A Convex cron
-  re-sends the call if a task has been waiting over a minute.
-- A Cron Trigger registers the configured channel and syncs channel admins
-  every 5 minutes.
+## Deploying
 
-A paid Workers plan is recommended: the free plan's 10 ms CPU limit per request
-is likely too tight for LLM response parsing and bot startup.
+Run from `packages/bot` unless noted. A paid Workers plan is recommended: the
+free plan's 10 ms CPU limit per request is likely too tight for LLM response
+parsing and bot startup.
 
-### First deploy / cutover from the Docker bot
+### First deploy (cutover from the Docker bot)
 
-Run these from `packages/bot`.
+The order matters. The new Worker works with the Convex functions currently
+deployed, but the new Convex functions remove what the old web app and the
+Docker bot rely on. So the Worker goes first, then Convex and the web app
+back-to-back.
 
-1. **Deploy the Convex changes** (`bun run deploy:convex` from the repo root).
-   This is safe while the Docker bot is still running. Convex only notifies the
-   Worker once `BOT_WORKER_URL` is set in step 5.
-
-2. **Set the Worker secrets.** Generate the two shared secrets with
-   `openssl rand -hex 32`, then:
+1. **Create the queue:** `bunx wrangler queues create halaqabot-jobs`
+2. **Set the Worker secrets.** Generate `TELEGRAM_WEBHOOK_SECRET` with
+   `openssl rand -hex 32`.
    ```bash
    bunx wrangler secret put BOT_TOKEN
    bunx wrangler secret put GROQ_API_KEY
    bunx wrangler secret put FORWARD_CHAT_ID
    bunx wrangler secret put CONVEX_URL
    bunx wrangler secret put TELEGRAM_WEBHOOK_SECRET
-   bunx wrangler secret put BOT_TASKS_SECRET
    ```
    `CHANNEL_ID`, `WEB_APP_URL`, `AUTO_REACTION_EMOJI` and
-   `ALLOWED_REACTION_USER_IDS` are optional; see `src/config/environment.ts`
-   for their defaults.
-
-3. **Deploy the Worker:** `bun run deploy`. Note the `*.workers.dev` URL it prints.
-
+   `ALLOWED_REACTION_USER_IDS` are optional (defaults in
+   `src/config/environment.ts`). `WEB_APP_URL` is also the only origin allowed
+   to call `/api/*`.
+3. **Deploy the Worker:** `bun run deploy`. Note the `*.workers.dev` URL.
 4. **Stop the Docker bot**, then point Telegram at the Worker:
    ```bash
    BOT_TOKEN=... WORKER_URL=https://halaqabot.<account>.workers.dev \
    TELEGRAM_WEBHOOK_SECRET=... bun run webhook:set
    ```
+5. **Deploy Convex** (`bun run deploy:convex` from the repo root), then
+   immediately **deploy the web app** built with `VITE_BOT_API_URL` set to the
+   Worker URL.
 
-5. **Route bot tasks to the Worker** by setting two environment variables on the
-   Convex deployment (dashboard → Settings → Environment Variables, or
-   `bunx convex env set`):
-   - `BOT_WORKER_URL`: the Worker URL from step 3
-   - `BOT_TASKS_SECRET`: the same value as the Worker secret
+Re-run `bun run webhook:set` whenever `ALLOWED_UPDATES` in `src/bot.ts`
+changes; Telegram only sends the update types registered with the webhook.
 
-To roll back, unset `BOT_WORKER_URL` in Convex and start the Docker bot again.
-Long polling removes the webhook on start.
+To roll back, redeploy the previous commit's Convex functions and web app, and
+start the previous bot.
 
 Logs: `bunx wrangler tail`, or the Workers dashboard (observability is enabled).
 
-## Features
-
-- Listens to individual message reactions (`message_reaction` updates)
-- Listens to reaction count updates (`message_reaction_count` updates)
-- Logs all reaction data to the console with details about:
-  - User who reacted
-  - Chat information
-  - Old and new reactions
-  - Timestamps
-
-## Testing
-
-1. Add your bot to a Telegram chat or group
-2. Send a message in the chat
-3. Add a reaction to the message
-4. Check your console to see the logged reaction data
-
-## Deployment & CI/CD
-
-### Setting up CI/CD (Netlify, Vercel, etc.)
+### Web app CI/CD (Netlify, Vercel, etc.)
 
 The project uses Convex for the database, which requires deploying functions before building. The build process automatically handles this.
 
 **Required Environment Variables for CI:**
 - `CONVEX_DEPLOY_KEY` - Deploy key from your Convex dashboard
-- `CONVEX_URL` - Your Convex deployment URL
-- `BOT_TOKEN` - Your Telegram bot token
+- `VITE_CONVEX_URL` - Your Convex deployment URL
+- `VITE_BOT_API_URL` - The bot Worker's URL
 
 **Getting your Convex Deploy Key:**
 1. Go to your Convex dashboard: https://dashboard.convex.dev
@@ -166,22 +116,3 @@ This will:
 2. Build the database package
 3. Build the bot package
 4. Build the web package
-
-## Project Structure
-
-```
-halakabot/
-├── src/
-│   └── index.ts          # Main bot implementation
-├── .env                  # Environment variables (create from .env.example)
-├── .env.example          # Example environment variables
-├── package.json          # Dependencies and scripts
-├── tsconfig.json         # TypeScript configuration
-└── README.md            # This file
-```
-
-## Technologies
-
-- **Bun**: Fast JavaScript runtime
-- **Grammy**: Telegram bot framework
-- **TypeScript**: Type-safe development

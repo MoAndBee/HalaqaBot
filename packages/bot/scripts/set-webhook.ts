@@ -28,6 +28,9 @@ const webhookUrl = new URL("/telegram", workerUrl).toString();
 await api.setWebhook(webhookUrl, {
   secret_token: secret,
   allowed_updates: [...ALLOWED_UPDATES],
+  // One request at a time, so updates reach the job queue in the order they
+  // happened. The webhook only enqueues, so this costs no throughput to speak of.
+  max_connections: 1,
 });
 console.log(`✅ Webhook set to ${webhookUrl}`);
 

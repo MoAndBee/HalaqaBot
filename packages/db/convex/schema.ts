@@ -145,6 +145,10 @@ export default defineSchema({
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
 
+  // Legacy: the queue the web app used to hand work to a long-polling bot. The
+  // bot now runs on Cloudflare Workers and the web app calls it directly, so
+  // nothing reads or writes this table. Kept so existing rows still validate;
+  // drop it once they are cleared.
   botTasks: defineTable({
     type: v.string(), // "send_participant_list" | "react_to_message" | "delete_message"
     chatId: v.number(),
@@ -160,7 +164,6 @@ export default defineSchema({
     processedAt: v.optional(v.number()), // timestamp when processed
   })
     .index("by_status", ["status"])
-    .index("by_status_processed", ["status", "processedAt"])
     .index("by_chat_post", ["chatId", "postId"]),
 
   // Unique posts (chatId + postId pairs) for efficient pagination

@@ -910,47 +910,6 @@ export const getUsersByIds = query({
   },
 });
 
-export const getPendingBotTasks = query({
-  args: {},
-  handler: async (ctx) => {
-    const tasks = await ctx.db
-      .query("botTasks")
-      .withIndex("by_status", (q) => q.eq("status", "pending"))
-      .collect();
-
-    return tasks.map((task) => ({
-      _id: task._id,
-      type: task.type,
-      chatId: task.chatId,
-      postId: task.postId,
-      messageId: task.messageId,
-      sessionNumber: task.sessionNumber,
-      flower: task.flower,
-      importId: task.importId,
-      status: task.status,
-      createdAt: task.createdAt,
-    }));
-  },
-});
-
-/**
- * Status of a single bot task, for the web app to track a queued task (e.g.
- * a participant list send) through to actual completion by the bot.
- */
-export const getBotTaskStatus = query({
-  args: {
-    taskId: v.id("botTasks"),
-  },
-  handler: async (ctx, args) => {
-    const task = await ctx.db.get(args.taskId);
-    if (!task) return null;
-    return {
-      status: task.status,
-      error: task.error,
-    };
-  },
-});
-
 export const getParticipationSummary = query({
   args: {
     chatId: v.number(),
