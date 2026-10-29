@@ -8,33 +8,24 @@
  *
  * TELEGRAM_WEBHOOK_SECRET must match the Worker secret of the same name.
  * WEB_APP_URL is optional and defaults to the production web app.
+ * TELEGRAM_API_ROOT points it at the Telegram simulator instead of Telegram.
  */
 import { Api } from "grammy";
-import { ALLOWED_UPDATES } from "../src/bot";
-import { configureMenuButton } from "../src/handlers/webApp.handler";
+import { configureTelegram } from "../src/setup";
 
 const botToken = process.env.BOT_TOKEN;
 const workerUrl = process.env.WORKER_URL;
 const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
 const webAppUrl = process.env.WEB_APP_URL || "https://halakabot.app.thawabcoding.work";
+const apiRoot = process.env.TELEGRAM_API_ROOT;
 
 if (!botToken || !workerUrl || !secret) {
   throw new Error("BOT_TOKEN, WORKER_URL and TELEGRAM_WEBHOOK_SECRET must all be set");
 }
 
-const api = new Api(botToken);
-const webhookUrl = new URL("/telegram", workerUrl).toString();
-
-await api.setWebhook(webhookUrl, {
-  secret_token: secret,
-  allowed_updates: [...ALLOWED_UPDATES],
-  // One request at a time, so updates reach the job queue in the order they
-  // happened. The webhook only enqueues, so this costs no throughput to speak of.
-  max_connections: 1,
-});
+const api = new Api(botToken, apiRoot ? { apiRoot } : undefined);
+const webhookUrl = await configureTelegram(api, { workerUrl, secret, webAppUrl });
 console.log(`✅ Webhook set to ${webhookUrl}`);
-
-await configureMenuButton(api, webAppUrl);
 
 const info = await api.getWebhookInfo();
 console.log("Webhook info:", {

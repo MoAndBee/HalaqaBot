@@ -4,24 +4,38 @@
 // Requests are signed with the Mini App's initData, which the bot verifies with
 // its token, so they only work inside Telegram (not with VITE_DEV_USER_ID).
 
+// The Worker's origin, e.g. https://halaqabot.<account>.workers.dev
 const botApiUrl = import.meta.env.VITE_BOT_API_URL as string | undefined
+
+// Long enough for sending the list with its image; a hung request must not
+// leave the UI waiting forever.
+const TIMEOUT_MS = 30_000
 
 export class BotApiError extends Error {}
 
 export async function callBot<T = unknown>(path: string, body: unknown): Promise<T> {
   if (!botApiUrl) {
-    throw new BotApiError('VITE_BOT_API_URL is not set')
+    console.error('VITE_BOT_API_URL is not set')
+    throw new BotApiError('')
   }
 
   const initData = window.Telegram?.WebApp?.initData ?? ''
-  const response = await fetch(new URL(path, botApiUrl), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `tma ${initData}`,
-    },
-    body: JSON.stringify(body),
-  })
+  let response: Response
+  try {
+    response = await fetch(new URL(path, botApiUrl), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `tma ${initData}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (error) {
+    // Offline, timed out, or blocked by CORS: let the caller's own message show.
+    console.error(`Bot API ${path} unreachable:`, error)
+    throw new BotApiError('')
+  }
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {

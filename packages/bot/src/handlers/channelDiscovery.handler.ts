@@ -8,6 +8,12 @@ import type { AdminSyncService } from "../services/admin-sync.service";
 // ignored forever.
 const RECHECK_SKIPPED_AFTER_MS = 10 * 60 * 1000;
 
+// Module-level so they outlive a single request: the Worker builds a new bot
+// for every request, but a warm isolate keeps these, sparing a getChat call per
+// message. Plain data only — safe to share across requests.
+const registeredChatIds = new Set<number>();
+const skippedCheckedAt = new Map<number, number>();
+
 /**
  * Passive channel discovery from live traffic.
  *
@@ -28,9 +34,6 @@ export function registerChannelDiscoveryHandler(
   convex: ConvexHttpClient,
   adminSyncService: AdminSyncService,
 ) {
-  const registeredChatIds = new Set<number>();
-  const skippedCheckedAt = new Map<number, number>();
-
   const discover = async (ctx: Context, next: NextFunction) => {
     const chat = ctx.chat;
     const isDiscoverable =

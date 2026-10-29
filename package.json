@@ -15,7 +15,9 @@
     "build:bot": "bun --filter @halakabot/bot build",
     "build:web": "bun --filter @halakabot/web build",
     "deploy:convex": "bun --filter @halakabot/db deploy",
-    "deploy:bot": "bun --filter @halakabot/bot deploy"
+    "deploy:bot": "bun --filter @halakabot/bot deploy",
+    "test": "bun --filter @halakabot/testing test",
+    "sim": "bun --filter @halakabot/testing sim"
   },
   "keywords": ["telegram", "bot", "grammy", "bun", "monorepo"],
   "author": "",

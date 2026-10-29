@@ -330,13 +330,30 @@ export class BotActionsService {
     }
 
     // Store the new message ID with session number
-    await this.convex.mutation(api.mutations.setLastListMessage, {
+    const replaced = await this.convex.mutation(api.mutations.setLastListMessage, {
       chatId,
       postId,
       messageId: sentMessage.message_id,
       sessionNumber,
       registrationClosedImageMessageId,
     });
+
+    // Another send for this session ran alongside this one (two admins at once)
+    // and its list landed after we looked: remove it so only one list remains.
+    if (
+      replaced &&
+      replaced.sessionNumber === sessionNumber &&
+      replaced.messageId !== lastListMessage?.messageId
+    ) {
+      for (const messageId of [replaced.messageId, replaced.registrationClosedImageMessageId]) {
+        if (messageId === undefined) continue;
+        try {
+          await this.bot.api.deleteMessage(chatId, messageId);
+        } catch (error) {
+          console.error('Failed to delete concurrently sent list message:', error);
+        }
+      }
+    }
 
     console.log(`✅ Sent participant list message ${sentMessage.message_id}`);
     return { messageId: sentMessage.message_id };

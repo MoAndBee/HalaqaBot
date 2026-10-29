@@ -125,9 +125,9 @@ export default function PostDetail() {
     currentScore?: number | null
     userName: string
   } | null>(null)
-  // Set while a participant list send is in flight, so a second click can't
-  // post the list twice
-  const sendingListRef = React.useRef(false)
+  // The participant list send in flight, if any. A new send waits for it, so
+  // two sends never race; each replaces the previous list, so the newest stays.
+  const sendingListRef = React.useRef<Promise<boolean> | null>(null)
   const [isCompensationModalOpen, setIsCompensationModalOpen] = React.useState(false)
   const [compensationModalState, setCompensationModalState] = React.useState<{
     entryId: string
@@ -205,25 +205,30 @@ export default function PostDetail() {
   // Sends the list through the bot. Resolves once it's posted in the chat;
   // returns false (after reporting why) if that failed.
   const sendParticipantList = async (sessionNumber: number): Promise<boolean> => {
-    // A send already in flight will deliver the list
-    if (sendingListRef.current) return true
-    sendingListRef.current = true
-    toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
+    const previous = sendingListRef.current
+    const send = (async () => {
+      await previous
+      toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
+      try {
+        await callBot('/api/participant-list', {
+          chatId,
+          postId,
+          sessionNumber,
+          flower: selectedFlower,
+        })
+        toast.success('تم إرسال قائمة الأسماء!', { id: SEND_LIST_TOAST_ID })
+        return true
+      } catch (error: any) {
+        toast.error(error?.message || 'فشل إرسال قائمة الأسماء', { id: SEND_LIST_TOAST_ID })
+        console.error('Send participant list failed:', error)
+        return false
+      }
+    })()
+    sendingListRef.current = send
     try {
-      await callBot('/api/participant-list', {
-        chatId,
-        postId,
-        sessionNumber,
-        flower: selectedFlower,
-      })
-      toast.success('تم إرسال قائمة الأسماء!', { id: SEND_LIST_TOAST_ID })
-      return true
-    } catch (error: any) {
-      toast.error(error?.message || 'فشل إرسال قائمة الأسماء', { id: SEND_LIST_TOAST_ID })
-      console.error('Send participant list failed:', error)
-      return false
+      return await send
     } finally {
-      sendingListRef.current = false
+      if (sendingListRef.current === send) sendingListRef.current = null
     }
   }
 

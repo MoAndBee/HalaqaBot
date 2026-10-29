@@ -556,6 +556,16 @@ export const setLastListMessage = mutation({
         updatedAt: Date.now(),
       });
     }
+
+    // What this replaced, so a sender racing another one can clean up the
+    // list the other sent (see BotActionsService.sendParticipantList).
+    return existing
+      ? {
+          messageId: existing.messageId,
+          sessionNumber: existing.sessionNumber,
+          registrationClosedImageMessageId: existing.registrationClosedImageMessageId,
+        }
+      : null;
   },
 });
 
@@ -2281,8 +2291,9 @@ export const upsertPostRecord = internalMutation({
  * Posts published before the bot became a channel admin never arrived as an
  * automatic forward, so nothing registered them. The admin pastes the post's
  * link here; the actual lookup needs the Telegram API, so this only records the
- * request and queues a bot task. The bot resolves the link to the post's
- * message id in the discussion group and calls completePostImport.
+ * request. The bot's /api/import-post endpoint calls this and queues the lookup;
+ * the bot resolves the link to the post's message id in the discussion group and
+ * calls completePostImport.
  *
  * A link to the discussion-group copy already carries that message id, but a
  * link copied from the channel carries the channel's own id, which the bot has

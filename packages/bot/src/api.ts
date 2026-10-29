@@ -5,8 +5,7 @@
  * act on chats linked to a channel they administer.
  */
 import { z } from "zod";
-import { ConvexError } from "convex/values";
-import { api } from "@halakabot/db";
+import { api, ConvexError } from "@halakabot/db";
 import type { BotApp } from "./bot";
 import type { BotJob } from "./jobs";
 import { UserFacingError } from "./errors";
@@ -15,6 +14,8 @@ import { verifyInitData, type TelegramWebAppUser } from "./telegram-auth";
 export interface ApiDeps {
   app: BotApp;
   enqueue: (job: BotJob) => Promise<void>;
+  /** Keeps work running if the client disconnects (ExecutionContext.waitUntil). */
+  waitUntil: (promise: Promise<unknown>) => void;
 }
 
 const chatPost = { chatId: z.number().int(), postId: z.number().int() };
@@ -70,12 +71,15 @@ async function authenticate(request: Request, botToken: string): Promise<Telegra
   return user;
 }
 
-/** Admins may act on a discussion group only if they administer its channel. */
-async function authorize(app: BotApp, userId: number, chatId: number): Promise<void> {
+/**
+ * Admins may act on a discussion group only if they administer its channel.
+ * Returns that channel's ID.
+ */
+async function authorize(app: BotApp, userId: number, chatId: number): Promise<number> {
   const channels = await app.convex.query(api.queries.getMyChannels, { userId });
-  if (!channels.some((channel) => channel.chatId === chatId)) {
-    throw new HttpError(403, "Forbidden");
-  }
+  const channel = channels.find((c) => c.chatId === chatId);
+  if (!channel) throw new HttpError(403, "Forbidden");
+  return channel.channelId;
 }
 
 async function handle(
@@ -88,7 +92,7 @@ async function handle(
   if (!parsed.success) throw new HttpError(400, "Invalid request");
   const args = parsed.data as any;
 
-  await authorize(app, user.id, args.chatId);
+  const channelId = await authorize(app, user.id, args.chatId);
 
   switch (route) {
     case "/api/participant-list":
@@ -111,14 +115,29 @@ async function handle(
     }
 
     case "/api/import-post": {
+      // The importer reads whichever channel it's given, so it must be the one
+      // the admin was just authorized for, not one named in the request.
+      if (args.channelId !== undefined && args.channelId !== channelId) {
+        throw new HttpError(403, "Forbidden");
+      }
       const result = await app.convex.mutation(api.mutations.requestPostImport, {
         ...args,
+        channelId,
         requestedBy: user.id,
       });
       // Finding an old post can take many rate-limited Telegram calls, so it
-      // runs on the queue; the web app follows progress on the import record.
+      // runs on its own queue; the web app follows progress on the import record.
       if (result.importId) {
-        await enqueue({ type: "import_post", importId: result.importId });
+        try {
+          await enqueue({ type: "import_post", importId: result.importId });
+        } catch (error) {
+          // Otherwise the import would sit "pending" forever.
+          await app.convex.mutation(api.mutations.failPostImport, {
+            importId: result.importId,
+            error: "تعذر بدء الاستيراد. حاولي مرة أخرى.",
+          });
+          throw error;
+        }
       }
       return result;
     }
@@ -141,7 +160,11 @@ export async function handleApiRequest(request: Request, deps: ApiDeps): Promise
   try {
     const user = await authenticate(request, deps.app.config.botToken);
     const body = await request.json().catch(() => null);
-    return json(200, await handle(pathname as Route, body, user, deps));
+    // Closing the Mini App mid-request must not cut an action off halfway
+    // (e.g. the old list deleted but the new one not yet sent).
+    const work = handle(pathname as Route, body, user, deps);
+    deps.waitUntil(work.catch(() => {}));
+    return json(200, await work);
   } catch (error) {
     if (error instanceof HttpError) return json(error.status, { error: error.message });
     // Messages written for the admin, from the bot or a Convex mutation.

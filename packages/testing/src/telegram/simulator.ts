@@ -1,0 +1,695 @@
+/**
+ * An in-memory Telegram for one bot: users, channels with discussion groups,
+ * messages and reactions, the slice of the Bot API the bot calls, and webhook
+ * delivery that behaves like Telegram's (allowed_updates filtering, the secret
+ * token header, max_connections, retries).
+ *
+ * Runtime-neutral (fetch + Web Crypto only), so it runs under Bun locally and
+ * inside a Worker for preview deployments. Drive it through the methods below,
+ * or over HTTP via server.ts.
+ */
+import type { Message, ReactionType, Update, User } from "grammy/types";
+import { signInitData } from "./init-data";
+
+export type MemberStatus = "creator" | "administrator" | "member" | "left" | "kicked";
+type ChatKind = "private" | "group" | "supergroup" | "channel";
+
+export interface SimUser extends User {
+  /** "Forwarded messages" privacy: forwards show only the sender's name. */
+  hideForwards?: boolean;
+}
+
+interface ChatInfo {
+  id: number;
+  type: ChatKind;
+  title?: string;
+  username?: string;
+  linked_chat_id?: number;
+  has_protected_content?: true;
+}
+
+interface ChatState {
+  info: ChatInfo;
+  members: Map<number, MemberStatus>;
+  messages: Map<number, Message & { deleted?: boolean }>;
+  nextMessageId: number;
+  /** messageId -> userId -> that user's reactions */
+  reactions: Map<number, Map<number, ReactionType[]>>;
+  /** messageId -> the bot's own reaction */
+  botReactions: Map<number, ReactionType[]>;
+}
+
+export interface WebhookConfig {
+  url: string;
+  secretToken?: string;
+  allowedUpdates?: string[];
+  maxConnections: number;
+}
+
+export interface ApiCall {
+  method: string;
+  params: Record<string, unknown>;
+  ok: boolean;
+  description?: string;
+}
+
+export interface Delivery {
+  updateId: number;
+  type: string;
+  attempts: number;
+  status: "delivered" | "failed";
+  lastError?: string;
+}
+
+/** A Bot API error, returned to the bot as Telegram would. */
+export class TelegramApiError extends Error {
+  constructor(
+    readonly errorCode: number,
+    readonly description: string,
+  ) {
+    super(description);
+  }
+}
+
+/** Telegram's service account; automatic forwards into discussion groups come "from" it. */
+const TELEGRAM_SERVICE_USER: User = { id: 777000, is_bot: false, first_name: "Telegram" };
+
+/** Updates Telegram withholds unless a webhook lists them in allowed_updates. */
+const OPT_IN_UPDATES = new Set(["chat_member", "message_reaction", "message_reaction_count"]);
+
+const ADMIN = new Set<MemberStatus>(["creator", "administrator"]);
+const PRESENT = new Set<MemberStatus>(["creator", "administrator", "member"]);
+
+export interface SimulatorOptions {
+  botToken: string;
+  botUsername?: string;
+  /** Delay before re-sending an update the webhook rejected (ms). */
+  retryDelayMs?: number;
+  /** Attempts per update before it is dropped. */
+  maxDeliveryAttempts?: number;
+  /** Seconds since epoch; override to make tests deterministic. */
+  now?: () => number;
+  /**
+   * Where user and chat IDs start. Runs against a persistent database (a real
+   * Convex deployment) pick fresh ranges so they don't meet earlier runs' data.
+   */
+  firstUserId?: number;
+  firstChatId?: number;
+}
+
+export class TelegramSimulator {
+  readonly botToken: string;
+  readonly bot: User;
+  readonly users = new Map<number, SimUser>();
+  readonly chats = new Map<number, ChatState>();
+  readonly apiCalls: ApiCall[] = [];
+  readonly deliveries: Delivery[] = [];
+  webhook: WebhookConfig | null = null;
+  menuButton: unknown = null;
+
+  private nextUserId: number;
+  private nextChannelId: number;
+  private nextUpdateId = 1;
+  private pending: Update[] = [];
+  private inFlight = 0;
+  private idleWaiters: Array<() => void> = [];
+  private readonly retryDelayMs: number;
+  private readonly maxDeliveryAttempts: number;
+  private readonly now: () => number;
+
+  constructor(options: SimulatorOptions) {
+    this.botToken = options.botToken;
+    const botId = Number(options.botToken.split(":")[0]);
+    if (!Number.isSafeInteger(botId)) throw new Error("Bot token must look like <id>:<secret>");
+    this.bot = { id: botId, is_bot: true, first_name: "Halaqa Bot", username: options.botUsername ?? "halaqa_sim_bot" };
+    this.users.set(botId, this.bot);
+    this.retryDelayMs = options.retryDelayMs ?? 200;
+    this.maxDeliveryAttempts = options.maxDeliveryAttempts ?? 5;
+    this.now = options.now ?? (() => Math.floor(Date.now() / 1000));
+    this.nextUserId = options.firstUserId ?? 100001;
+    this.nextChannelId = options.firstChatId ?? -1001000000001;
+  }
+
+  // ---------------------------------------------------------------- world
+
+  addUser(user: { first_name: string; last_name?: string; username?: string; id?: number; hideForwards?: boolean }): SimUser {
+    const created: SimUser = { is_bot: false, ...user, id: user.id ?? this.nextUserId++ };
+    this.users.set(created.id, created);
+    return created;
+  }
+
+  /**
+   * A channel and, by default, its linked discussion group, with the bot as an
+   * admin of both and `ownerId` as their creator. Channel admins are made admins
+   * of the group too, as is usual.
+   */
+  createChannel(options: {
+    title: string;
+    ownerId: number;
+    adminIds?: number[];
+    discussionGroup?: boolean;
+    protectedContent?: boolean;
+    username?: string;
+  }): { channelId: number; groupId?: number } {
+    const channelId = this.nextChannelId--;
+    const channel = this.addChat({
+      id: channelId,
+      type: "channel",
+      title: options.title,
+      username: options.username,
+      ...(options.protectedContent ? { has_protected_content: true } : {}),
+    });
+    channel.members.set(options.ownerId, "creator");
+    channel.members.set(this.bot.id, "administrator");
+    for (const id of options.adminIds ?? []) channel.members.set(id, "administrator");
+
+    if (options.discussionGroup === false) return { channelId };
+
+    const groupId = this.nextChannelId--;
+    const group = this.addChat({
+      id: groupId,
+      type: "supergroup",
+      title: `${options.title} – النقاش`,
+      linked_chat_id: channelId,
+      ...(options.protectedContent ? { has_protected_content: true } : {}),
+    });
+    channel.info.linked_chat_id = groupId;
+    for (const [id, status] of channel.members) group.members.set(id, status);
+    return { channelId, groupId };
+  }
+
+  /** The private chat between a user and the bot (its ID is the user's, as on Telegram). */
+  privateChat(userId: number): number {
+    const user = this.user(userId);
+    if (!this.chats.has(userId)) {
+      const chat = this.addChat({ id: userId, type: "private" });
+      chat.members.set(userId, "member");
+      chat.members.set(this.bot.id, "member");
+      (chat.info as any).first_name = user.first_name;
+    }
+    return userId;
+  }
+
+  /** A group the bot can post in, e.g. the scratch chat it forwards messages to. */
+  createGroup(options: { title: string; ownerId: number }): number {
+    const id = this.nextChannelId--;
+    const group = this.addChat({ id, type: "supergroup", title: options.title });
+    group.members.set(options.ownerId, "creator");
+    group.members.set(this.bot.id, "administrator");
+    return id;
+  }
+
+  /**
+   * Publishes a channel post. Telegram sends the bot a channel_post, then copies
+   * the post into the linked discussion group as an automatic forward.
+   *
+   * `silent` publishes it as if before the bot became an admin: the messages
+   * exist, but the bot is never told about them (what post imports are for).
+   */
+  postToChannel(
+    channelId: number,
+    text: string,
+    options: { silent?: boolean } = {},
+  ): { channelMessage: Message; groupMessage?: Message } {
+    const channel = this.chat(channelId);
+    if (channel.info.type !== "channel") throw new Error(`${channelId} is not a channel`);
+    const channelMessage = this.store(channel, { sender_chat: this.chatRef(channel), text } as Partial<Message>);
+    if (!options.silent) this.emit(channel, { channel_post: channelMessage } as Partial<Update>);
+
+    const groupId = channel.info.linked_chat_id;
+    if (groupId === undefined) return { channelMessage };
+    const group = this.chat(groupId);
+    const groupMessage = this.store(group, {
+      from: TELEGRAM_SERVICE_USER,
+      sender_chat: this.chatRef(channel),
+      is_automatic_forward: true,
+      forward_origin: {
+        type: "channel",
+        chat: this.chatRef(channel),
+        message_id: channelMessage.message_id,
+        date: channelMessage.date,
+      },
+      text,
+    } as Partial<Message>);
+    if (!options.silent) this.emit(group, { message: groupMessage } as Partial<Update>);
+    return { channelMessage, groupMessage };
+  }
+
+  /** A user sends a message (joining the chat if needed), optionally as a reply. */
+  sendUserMessage(chatId: number, userId: number, text: string, options: { replyTo?: number } = {}): Message {
+    const chat = this.chat(chatId);
+    const user = this.user(userId);
+    if (!PRESENT.has(chat.members.get(userId) ?? "left")) chat.members.set(userId, "member");
+    // Telegram marks a leading /command so bots can route it.
+    const command = text.match(/^\/[A-Za-z0-9_]+(@[A-Za-z0-9_]+)?/);
+    const message = this.store(chat, {
+      from: this.userRef(user),
+      text,
+      ...(command ? { entities: [{ type: "bot_command", offset: 0, length: command[0].length }] } : {}),
+      ...(options.replyTo !== undefined ? { reply_to_message: this.replyTarget(chat, options.replyTo) } : {}),
+    } as Partial<Message>);
+    this.emit(chat, { message } as Partial<Update>);
+    return message;
+  }
+
+  /** A user sets their reactions on a message (an empty list removes them). */
+  react(chatId: number, messageId: number, userId: number, emojis: string[]): void {
+    const chat = this.chat(chatId);
+    const user = this.user(userId);
+    this.message(chat, messageId);
+    const byUser = chat.reactions.get(messageId) ?? new Map<number, ReactionType[]>();
+    chat.reactions.set(messageId, byUser);
+    const oldReaction = byUser.get(userId) ?? [];
+    const newReaction = emojis.map((emoji) => ({ type: "emoji", emoji }) as ReactionType);
+    byUser.set(userId, newReaction);
+    this.emit(chat, {
+      message_reaction: {
+        chat: this.chatRef(chat),
+        message_id: messageId,
+        user: this.userRef(user),
+        date: this.now(),
+        old_reaction: oldReaction,
+        new_reaction: newReaction,
+      },
+    } as Partial<Update>);
+  }
+
+  /**
+   * Changes a member's status. Telegram reports changes to the bot itself as
+   * my_chat_member and everyone else's as chat_member.
+   */
+  setMemberStatus(chatId: number, userId: number, status: MemberStatus, byUserId?: number): void {
+    const chat = this.chat(chatId);
+    const user = this.user(userId);
+    const oldStatus = chat.members.get(userId) ?? "left";
+    chat.members.set(userId, status);
+    const by = byUserId ?? [...chat.members].find(([, s]) => s === "creator")?.[0] ?? userId;
+    const change = {
+      chat: this.chatRef(chat),
+      from: this.userRef(this.user(by)),
+      date: this.now(),
+      old_chat_member: this.memberObject(user, oldStatus),
+      new_chat_member: this.memberObject(user, status),
+    };
+    this.emit(chat, userId === this.bot.id ? { my_chat_member: change } : { chat_member: change }, {
+      // Telegram tells the bot about its own membership even after removal.
+      evenIfBotAbsent: userId === this.bot.id,
+    });
+  }
+
+  /** Signed initData for opening the Mini App as `userId`. */
+  async miniAppInitData(userId: number): Promise<string> {
+    const { id, first_name, last_name, username } = this.user(userId);
+    return signInitData(this.botToken, { id, first_name, last_name, username }, this.now());
+  }
+
+  /** Messages currently in a chat, oldest first (deleted ones left out). */
+  history(chatId: number): Message[] {
+    return [...this.chat(chatId).messages.values()].filter((m) => !m.deleted);
+  }
+
+  botReactionsOn(chatId: number, messageId: number): ReactionType[] {
+    return this.chat(chatId).botReactions.get(messageId) ?? [];
+  }
+
+  /** Resolves once every queued update has been delivered (or given up on). */
+  whenDelivered(): Promise<void> {
+    if (this.pending.length === 0 && this.inFlight === 0) return Promise.resolve();
+    return new Promise((resolve) => this.idleWaiters.push(resolve));
+  }
+
+  get pendingUpdateCount(): number {
+    return this.pending.length + this.inFlight;
+  }
+
+  // -------------------------------------------------------------- Bot API
+
+  /** Executes a Bot API method as the bot. Throws TelegramApiError for API errors. */
+  async callApi(method: string, params: Record<string, unknown>): Promise<unknown> {
+    const call: ApiCall = { method, params, ok: true };
+    this.apiCalls.push(call);
+    try {
+      const handler = (this.methods as Record<string, ((p: any) => unknown) | undefined>)[method];
+      if (!handler) throw new TelegramApiError(404, "Not Found: method not found");
+      return await handler(params);
+    } catch (error) {
+      call.ok = false;
+      call.description = error instanceof TelegramApiError ? error.description : String(error);
+      throw error;
+    }
+  }
+
+  private methods = {
+    getMe: () => ({
+      ...this.bot,
+      can_join_groups: true,
+      can_read_all_group_messages: true,
+      supports_inline_queries: false,
+      can_connect_to_business: false,
+      has_main_web_app: false,
+    }),
+
+    setWebhook: (p: { url: string; secret_token?: string; allowed_updates?: string[]; max_connections?: number; drop_pending_updates?: boolean }) => {
+      if (!p.url) {
+        this.webhook = null;
+        return true;
+      }
+      this.webhook = {
+        url: p.url,
+        secretToken: p.secret_token,
+        allowedUpdates: p.allowed_updates,
+        maxConnections: p.max_connections ?? 40,
+      };
+      if (p.drop_pending_updates) this.pending = [];
+      this.pump();
+      return true;
+    },
+
+    deleteWebhook: (p: { drop_pending_updates?: boolean }) => {
+      this.webhook = null;
+      if (p.drop_pending_updates) this.pending = [];
+      return true;
+    },
+
+    getWebhookInfo: () => {
+      const lastFailure = [...this.deliveries].reverse().find((d) => d.lastError);
+      return {
+        url: this.webhook?.url ?? "",
+        has_custom_certificate: false,
+        pending_update_count: this.pendingUpdateCount,
+        max_connections: this.webhook?.maxConnections,
+        allowed_updates: this.webhook?.allowedUpdates,
+        ...(lastFailure ? { last_error_date: this.now(), last_error_message: lastFailure.lastError } : {}),
+      };
+    },
+
+    setChatMenuButton: (p: { menu_button?: unknown }) => {
+      this.menuButton = p.menu_button ?? null;
+      return true;
+    },
+
+    getChat: (p: { chat_id: number | string }) => {
+      const chat = this.resolveChat(p.chat_id);
+      return { ...chat.info, accent_color_id: 0, max_reaction_count: 11, accepted_gift_types: {} };
+    },
+
+    getChatMember: (p: { chat_id: number | string; user_id: number }) => {
+      const chat = this.resolveChat(p.chat_id);
+      this.requireBotPresent(chat);
+      const user = this.users.get(p.user_id);
+      if (!user) throw new TelegramApiError(400, "Bad Request: user not found");
+      return this.memberObject(user, chat.members.get(user.id) ?? "left");
+    },
+
+    getChatAdministrators: (p: { chat_id: number | string }) => {
+      const chat = this.resolveChat(p.chat_id);
+      this.requireBotPresent(chat);
+      return [...chat.members]
+        .filter(([, status]) => ADMIN.has(status))
+        .map(([id, status]) => this.memberObject(this.user(id), status));
+    },
+
+    sendMessage: (p: { chat_id: number | string; text?: string; reply_markup?: unknown } & ReplyParams) => {
+      const chat = this.resolveChat(p.chat_id);
+      this.requireBotCanPost(chat);
+      if (!p.text || !String(p.text).trim()) throw new TelegramApiError(400, "Bad Request: message text is empty");
+      return this.storeBotMessage(
+        chat,
+        { text: String(p.text), ...(p.reply_markup ? { reply_markup: p.reply_markup } : {}) } as Partial<Message>,
+        p,
+      );
+    },
+
+    sendPhoto: (p: { chat_id: number | string; photo?: unknown; caption?: string } & ReplyParams) => {
+      const chat = this.resolveChat(p.chat_id);
+      this.requireBotCanPost(chat);
+      const size = p.photo instanceof Uint8Array ? p.photo.byteLength : undefined;
+      if (p.photo === undefined || (typeof p.photo !== "string" && size === undefined)) {
+        throw new TelegramApiError(400, "Bad Request: there is no photo in the request");
+      }
+      const fileId = typeof p.photo === "string" ? p.photo : `sim-photo-${crypto.randomUUID()}`;
+      return this.storeBotMessage(
+        chat,
+        {
+          photo: [{ file_id: fileId, file_unique_id: fileId, width: 800, height: 600, file_size: size }],
+          ...(p.caption ? { caption: p.caption } : {}),
+        },
+        p,
+      );
+    },
+
+    deleteMessage: (p: { chat_id: number | string; message_id: number }) => {
+      const chat = this.resolveChat(p.chat_id);
+      this.requireBotPresent(chat);
+      const message = chat.messages.get(p.message_id);
+      if (!message || message.deleted) throw new TelegramApiError(400, "Bad Request: message to delete not found");
+      const own = message.from?.id === this.bot.id;
+      if (!own && !ADMIN.has(chat.members.get(this.bot.id) ?? "left")) {
+        throw new TelegramApiError(400, "Bad Request: message can't be deleted");
+      }
+      message.deleted = true;
+      return true;
+    },
+
+    setMessageReaction: (p: { chat_id: number | string; message_id: number; reaction?: ReactionType[] }) => {
+      const chat = this.resolveChat(p.chat_id);
+      this.requireBotPresent(chat);
+      const message = chat.messages.get(p.message_id);
+      if (!message || message.deleted) throw new TelegramApiError(400, "Bad Request: MESSAGE_ID_INVALID");
+      chat.botReactions.set(p.message_id, p.reaction ?? []);
+      return true;
+    },
+
+    forwardMessage: (p: { chat_id: number | string; from_chat_id: number | string; message_id: number }) => {
+      const source = this.resolveChat(p.from_chat_id);
+      this.requireBotPresent(source);
+      const target = this.resolveChat(p.chat_id);
+      this.requireBotCanPost(target);
+      const original = source.messages.get(p.message_id);
+      if (!original || original.deleted) throw new TelegramApiError(400, "Bad Request: message to forward not found");
+      if (source.info.has_protected_content) {
+        throw new TelegramApiError(400, "Bad Request: message can't be forwarded");
+      }
+      return this.storeBotMessage(target, {
+        forward_origin: this.forwardOrigin(source, original),
+        ...(original.text !== undefined ? { text: original.text } : {}),
+        ...(original.caption !== undefined ? { caption: original.caption } : {}),
+        ...(original.photo ? { photo: original.photo } : {}),
+      } as Partial<Message>);
+    },
+  };
+
+  // -------------------------------------------------------------- helpers
+
+  private addChat(info: ChatInfo): ChatState {
+    const state: ChatState = {
+      info,
+      members: new Map(),
+      messages: new Map(),
+      nextMessageId: 1,
+      reactions: new Map(),
+      botReactions: new Map(),
+    };
+    this.chats.set(info.id, state);
+    return state;
+  }
+
+  chat(chatId: number): ChatState {
+    const chat = this.chats.get(chatId);
+    if (!chat) throw new Error(`No simulated chat ${chatId}`);
+    return chat;
+  }
+
+  user(userId: number): SimUser {
+    const user = this.users.get(userId);
+    if (!user) throw new Error(`No simulated user ${userId}`);
+    return user;
+  }
+
+  private resolveChat(chatId: number | string): ChatState {
+    const chat =
+      typeof chatId === "string" && chatId.startsWith("@")
+        ? [...this.chats.values()].find((c) => c.info.username === chatId.slice(1))
+        : this.chats.get(Number(chatId));
+    if (!chat) throw new TelegramApiError(400, "Bad Request: chat not found");
+    return chat;
+  }
+
+  private requireBotPresent(chat: ChatState): void {
+    if (!PRESENT.has(chat.members.get(this.bot.id) ?? "left")) {
+      throw new TelegramApiError(
+        403,
+        `Forbidden: bot is not a member of the ${chat.info.type === "channel" ? "channel" : "supergroup"} chat`,
+      );
+    }
+  }
+
+  private requireBotCanPost(chat: ChatState): void {
+    this.requireBotPresent(chat);
+    if (chat.info.type === "channel" && !ADMIN.has(chat.members.get(this.bot.id) ?? "left")) {
+      throw new TelegramApiError(400, "Bad Request: need administrator rights in the channel chat");
+    }
+  }
+
+  private message(chat: ChatState, messageId: number): Message {
+    const message = chat.messages.get(messageId);
+    if (!message || message.deleted) throw new Error(`No message ${messageId} in chat ${chat.info.id}`);
+    return message;
+  }
+
+  private chatRef(chat: ChatState) {
+    const { id, type, title, username } = chat.info;
+    return { id, type, ...(title ? { title } : {}), ...(username ? { username } : {}) } as any;
+  }
+
+  private userRef(user: SimUser): User {
+    const { hideForwards: _hidden, ...ref } = user;
+    return ref;
+  }
+
+  private memberObject(user: SimUser, status: MemberStatus): any {
+    const base = { user: this.userRef(user), status };
+    if (status === "administrator") {
+      return {
+        ...base,
+        can_be_edited: false,
+        is_anonymous: false,
+        can_manage_chat: true,
+        can_delete_messages: true,
+        can_manage_video_chats: true,
+        can_restrict_members: true,
+        can_promote_members: false,
+        can_change_info: true,
+        can_invite_users: true,
+        can_post_stories: false,
+        can_edit_stories: false,
+        can_delete_stories: false,
+      };
+    }
+    if (status === "creator") return { ...base, is_anonymous: false };
+    if (status === "kicked") return { ...base, until_date: 0 };
+    return base;
+  }
+
+  /** The replied-to message as Telegram embeds it: one level deep. */
+  private replyTarget(chat: ChatState, messageId: number): Message {
+    const { reply_to_message: _nested, deleted: _deleted, ...target } = this.message(chat, messageId) as any;
+    return target;
+  }
+
+  private forwardOrigin(source: ChatState, original: Message): any {
+    if (original.forward_origin) return original.forward_origin;
+    if (source.info.type === "channel") {
+      return { type: "channel", chat: this.chatRef(source), message_id: original.message_id, date: original.date };
+    }
+    const sender = original.from ? this.users.get(original.from.id) : undefined;
+    if (sender?.hideForwards) {
+      return { type: "hidden_user", sender_user_name: [sender.first_name, sender.last_name].filter(Boolean).join(" "), date: original.date };
+    }
+    return { type: "user", sender_user: original.from, date: original.date };
+  }
+
+  private store(chat: ChatState, fields: Partial<Message>): Message {
+    const message = {
+      message_id: chat.nextMessageId++,
+      date: this.now(),
+      chat: this.chatRef(chat),
+      ...fields,
+      ...(chat.info.has_protected_content ? { has_protected_content: true } : {}),
+    } as Message;
+    chat.messages.set(message.message_id, message);
+    return message;
+  }
+
+  private storeBotMessage(chat: ChatState, fields: Partial<Message>, reply: ReplyParams = {}): Message {
+    const replyTo = reply.reply_parameters?.message_id ?? reply.reply_to_message_id;
+    let replyTarget: Message | undefined;
+    if (replyTo !== undefined) {
+      const target = chat.messages.get(Number(replyTo));
+      if (target && !target.deleted) {
+        replyTarget = this.replyTarget(chat, Number(replyTo));
+      } else if (!(reply.reply_parameters?.allow_sending_without_reply ?? reply.allow_sending_without_reply)) {
+        throw new TelegramApiError(400, "Bad Request: message to be replied not found");
+      }
+    }
+    return this.store(chat, {
+      from: this.userRef(this.bot),
+      ...fields,
+      ...(replyTarget ? { reply_to_message: replyTarget } : {}),
+    } as Partial<Message>);
+  }
+
+  // ------------------------------------------------------------- delivery
+
+  /** Queues an update for the bot, if Telegram would send it. */
+  private emit(chat: ChatState, payload: Partial<Update>, options: { evenIfBotAbsent?: boolean } = {}): void {
+    const type = Object.keys(payload)[0]!;
+    const botStatus = chat.members.get(this.bot.id) ?? "left";
+    if (!options.evenIfBotAbsent && !PRESENT.has(botStatus)) return;
+    // Bots see channel posts, reactions and others' membership changes only as admins.
+    const needsAdmin = type === "channel_post" || type === "message_reaction" || type === "chat_member";
+    if (needsAdmin && !ADMIN.has(botStatus)) return;
+    if (this.webhook && !this.allows(type)) return;
+
+    this.pending.push({ update_id: this.nextUpdateId++, ...payload } as Update);
+    this.pump();
+  }
+
+  private allows(type: string): boolean {
+    const allowed = this.webhook?.allowedUpdates;
+    if (!allowed || allowed.length === 0) return !OPT_IN_UPDATES.has(type);
+    return allowed.includes(type);
+  }
+
+  private pump(): void {
+    const webhook = this.webhook;
+    while (webhook && this.inFlight < webhook.maxConnections && this.pending.length > 0) {
+      const update = this.pending.shift()!;
+      this.inFlight++;
+      void this.deliver(webhook, update).finally(() => {
+        this.inFlight--;
+        this.pump();
+        if (this.pending.length === 0 && this.inFlight === 0) {
+          for (const resolve of this.idleWaiters.splice(0)) resolve();
+        }
+      });
+    }
+  }
+
+  private async deliver(webhook: WebhookConfig, update: Update): Promise<void> {
+    const record: Delivery = {
+      updateId: update.update_id,
+      type: Object.keys(update).find((k) => k !== "update_id")!,
+      attempts: 0,
+      status: "failed",
+    };
+    this.deliveries.push(record);
+    while (record.attempts < this.maxDeliveryAttempts) {
+      record.attempts++;
+      try {
+        const response = await fetch(webhook.url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(webhook.secretToken ? { "X-Telegram-Bot-Api-Secret-Token": webhook.secretToken } : {}),
+          },
+          body: JSON.stringify(update),
+        });
+        if (response.ok) {
+          record.status = "delivered";
+          return;
+        }
+        record.lastError = `Wrong response from the webhook: ${response.status} ${response.statusText}`;
+      } catch (error) {
+        record.lastError = `Connection failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+      await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs * record.attempts));
+    }
+  }
+}
+
+interface ReplyParams {
+  reply_to_message_id?: number;
+  allow_sending_without_reply?: boolean;
+  reply_parameters?: { message_id: number; allow_sending_without_reply?: boolean };
+}

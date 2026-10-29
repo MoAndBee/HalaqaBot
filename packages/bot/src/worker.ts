@@ -1,18 +1,18 @@
 /**
  * Cloudflare Workers entry point.
  *
- *   POST /telegram  Telegram webhook. The update is put on the job queue and
+ *   POST /telegram  Telegram webhook. The update is put on the updates queue and
  *                   acknowledged at once, so slow handlers (LLM calls, retries)
  *                   never make Telegram time out and redeliver.
  *   /api/*          The web app's calls to act in Telegram (see api.ts).
- *   queue           Consumer for the job queue (see jobs.ts).
+ *   queue           Consumer for the updates and imports queues (see jobs.ts).
  *   scheduled       Cron Trigger: registers the configured channel and
  *                   reconciles channel admins, in case a chat_member update
  *                   was missed.
  */
 import type { ExecutionContext, MessageBatch, Queue, ScheduledController } from "@cloudflare/workers-types";
 import { InputFile } from "grammy";
-import type { Update } from "grammy/types";
+import type { Update, UserFromGetMe } from "grammy/types";
 import registrationClosedImage from "../assets/registration-closed.jpeg";
 import { loadConfig } from "./config/environment";
 import { createBotApp, syncChannels, type BotApp } from "./bot";
@@ -21,7 +21,8 @@ import { runJob, type BotJob } from "./jobs";
 import { timingSafeEqual } from "./telegram-auth";
 
 export interface Env {
-  JOBS: Queue<BotJob>;
+  UPDATES: Queue<BotJob>;
+  IMPORTS: Queue<BotJob>;
   BOT_TOKEN: string;
   GROQ_API_KEY: string;
   FORWARD_CHAT_ID: string;
@@ -34,26 +35,25 @@ export interface Env {
   ALLOWED_REACTION_USER_IDS?: string;
 }
 
-// One bot per isolate: handlers and services are wired once, then reused by
-// every request the isolate serves.
-let app: BotApp | undefined;
-let botInit: Promise<void> | undefined;
+// The app is built for each request and queue batch, never shared: objects that
+// do I/O must not outlive the request that uses them (Convex's HTTP client, for
+// one, queues mutations, and another request's promise would hang this one).
+// Only plain data is cached across requests in an isolate.
+let botInfo: UserFromGetMe | undefined;
 
-function getApp(env: Env): BotApp {
-  app ??= createBotApp(loadConfig({ ...env }), {
+function createApp(env: Env): BotApp {
+  return createBotApp(loadConfig({ ...env }), {
+    botInfo,
     registrationClosedPhoto: () =>
       new InputFile(new Uint8Array(registrationClosedImage), "registration-closed.jpeg"),
   });
-  return app;
 }
 
 /** grammY needs the bot's own info (getMe) before it can route updates. */
-function initBot(bot: BotApp["bot"]): Promise<void> {
-  botInit ??= bot.init().catch((error) => {
-    botInit = undefined;
-    throw error;
-  });
-  return botInit;
+async function initBot(bot: BotApp["bot"]): Promise<void> {
+  if (botInfo) return;
+  await bot.init();
+  botInfo = bot.botInfo;
 }
 
 async function handleTelegramUpdate(request: Request, env: Env): Promise<Response> {
@@ -64,12 +64,12 @@ async function handleTelegramUpdate(request: Request, env: Env): Promise<Respons
 
   const update = (await request.json()) as Update;
   // If this fails Telegram gets an error and redelivers, so nothing is lost.
-  await env.JOBS.send({ type: "update", update });
+  await env.UPDATES.send({ type: "update", update });
   return new Response("OK");
 }
 
 export default {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
 
     if (request.method === "POST" && pathname === "/telegram") {
@@ -77,17 +77,18 @@ export default {
     }
     if (pathname.startsWith("/api/")) {
       return handleApiRequest(request, {
-        app: getApp(env),
+        app: createApp(env),
         enqueue: async (job) => {
-          await env.JOBS.send(job);
+          await (job.type === "update" ? env.UPDATES : env.IMPORTS).send(job);
         },
+        waitUntil: (promise) => ctx.waitUntil(promise),
       });
     }
     return new Response("Not found", { status: 404 });
   },
 
   async queue(batch: MessageBatch<BotJob>, env: Env, _ctx: ExecutionContext): Promise<void> {
-    const app = getApp(env);
+    const app = createApp(env);
     await initBot(app.bot);
 
     for (const message of batch.messages) {
@@ -104,6 +105,6 @@ export default {
   },
 
   async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    await syncChannels(getApp(env));
+    await syncChannels(createApp(env));
   },
 };

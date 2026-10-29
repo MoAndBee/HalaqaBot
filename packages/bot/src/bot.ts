@@ -1,4 +1,5 @@
 import { Bot, type InputFile } from "grammy";
+import type { UserFromGetMe } from "grammy/types";
 import { ConvexHttpClient } from "@halakabot/db";
 import type { Config } from "./config/environment";
 import { MessageService } from "./services/message.service";
@@ -36,16 +37,21 @@ export interface BotApp {
 
 export interface BotAppOptions {
   registrationClosedPhoto: () => InputFile;
+  /** The bot's own getMe result, if already known; spares a call on startup. */
+  botInfo?: UserFromGetMe;
 }
 
 /** Builds the bot with all handlers and services wired up. */
 export function createBotApp(config: Config, options: BotAppOptions): BotApp {
   const convex = new ConvexHttpClient(config.convexUrl);
-  const bot = new Bot(config.botToken);
+  const bot = new Bot(config.botToken, {
+    botInfo: options.botInfo,
+    client: config.telegramApiRoot ? { apiRoot: config.telegramApiRoot } : undefined,
+  });
 
   const messageService = new MessageService(convex, config.forwardChatId);
   const userListService = new UserListService(convex);
-  const classificationService = new ClassificationService(config.groqApiKey);
+  const classificationService = new ClassificationService(config.groqApiKey, config.groqBaseUrl);
   const adminSyncService = new AdminSyncService(convex, bot.api);
   const botActions = new BotActionsService(
     bot,
@@ -62,8 +68,10 @@ export function createBotApp(config: Config, options: BotAppOptions): BotApp {
   registerChannelDiscoveryHandler(bot, convex, adminSyncService);
   registerReactionHandler(bot, messageService, userListService, classificationService, convex, config);
   registerAutoClassifyHandler(bot, classificationService, messageService, userListService, convex, config);
-  registerMessageHandler(bot, messageService, classificationService, convex);
+  // Commands before the catch-all message handler, which doesn't pass messages
+  // on: registered after it, /admin never ran.
   registerWebAppHandler(bot, convex, config);
+  registerMessageHandler(bot, messageService, classificationService, convex);
   registerChatMemberHandler(bot, convex, adminSyncService);
 
   bot.catch((err) => {

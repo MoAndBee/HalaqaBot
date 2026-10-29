@@ -443,3 +443,20 @@ export const backfillPosts = action({
     return { totalUpserted };
   },
 });
+
+/**
+ * Removed: the web app now asks the bot Worker directly (packages/bot/src/api.ts).
+ * Kept for one release so a Mini App still running an old cached bundle tells
+ * the admin to reopen it instead of failing silently. Delete afterwards.
+ */
+// No args validator: old clients pass their old arguments, which must reach the
+// handler so the admin sees the message rather than a validation error.
+const outdatedApp = () =>
+  action({
+    handler: async () => {
+      throw new ConvexError("يرجى إغلاق التطبيق وفتحه من جديد للحصول على آخر تحديث.");
+    },
+  });
+export const sendParticipantList = outdatedApp();
+export const reactToMessage = outdatedApp();
+export const detectNameFromMessage = outdatedApp();

@@ -7,6 +7,13 @@ export interface Config {
   allowedReactionUserIds: number[];
   webAppUrl: string;
   channelId: number;
+  /**
+   * Bot API server to talk to. Unset means Telegram's; local runs and previews
+   * point it at the Telegram simulator (packages/testing).
+   */
+  telegramApiRoot?: string;
+  /** Groq-compatible API to use for classification; unset means Groq's. */
+  groqBaseUrl?: string;
 }
 
 /** Raw configuration values: process.env under Bun, the Worker env on Cloudflare. */
@@ -56,5 +63,7 @@ export function loadConfig(env: ConfigSource): Config {
     allowedReactionUserIds,
     webAppUrl,
     channelId,
+    telegramApiRoot: read(env, "TELEGRAM_API_ROOT"),
+    groqBaseUrl: read(env, "GROQ_BASE_URL"),
   };
 }

@@ -42,8 +42,8 @@ export class ClassificationService {
 
   private groq: GroqProvider;
 
-  constructor(apiKey: string) {
-    this.groq = createGroq({ apiKey });
+  constructor(apiKey: string, baseURL?: string) {
+    this.groq = createGroq({ apiKey, baseURL });
   }
 
   /**
