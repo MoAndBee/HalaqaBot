@@ -118,7 +118,7 @@ export async function createConvexEmulator(options: ConvexEmulatorOptions = {}):
 
     // Like a deployment: a token that doesn't check out is refused outright,
     // no token means an anonymous call.
-    let caller: ConvexTestInstance = t;
+    let caller: Pick<ConvexTestInstance, "query" | "mutation" | "action"> = t;
     const authorization = request.headers.get("Authorization") ?? "";
     if (authorization.startsWith("Bearer ")) {
       const subject = options.authPublicKey

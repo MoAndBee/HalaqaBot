@@ -8,8 +8,7 @@
     "dev": "wrangler dev",
     "build": "tsc --build",
     "deploy": "wrangler deploy",
-    "webhook:set": "bun run scripts/set-webhook.ts",
-    "deploy:preview": "wrangler deploy --env preview"
+    "webhook:set": "bun run scripts/set-webhook.ts"
   },
   "dependencies": {
     "@ai-sdk/groq": "^2.0.28",

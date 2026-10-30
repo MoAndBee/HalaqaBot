@@ -111,6 +111,19 @@ describe("webhook delivery", () => {
 });
 
 describe("Bot API", () => {
+  test("a channel the bot was just added to is announced to it, as Telegram does", async () => {
+    const { sim, channelId } = world();
+    sim.announceBot(channelId);
+    const updates = (await sim.callApi("getUpdates", { allowed_updates: ["my_chat_member"] })) as any[];
+    expect(updates.map((u) => u.my_chat_member)).toMatchObject([
+      {
+        chat: { id: channelId, type: "channel" },
+        old_chat_member: { status: "left", user: { id: sim.bot.id } },
+        new_chat_member: { status: "administrator", user: { id: sim.bot.id } },
+      },
+    ]);
+  });
+
   test("forwarding reveals the sender, unless they hide forwards or the chat is protected", async () => {
     const { sim, owner, groupId } = world();
     const scratch = sim.createGroup({ title: "scratch", ownerId: owner.id });

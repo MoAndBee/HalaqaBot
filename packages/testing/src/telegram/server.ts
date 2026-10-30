@@ -211,7 +211,7 @@ export function createSimulatorHandler(sim: TelegramSimulator, options: Simulato
     if (pathname.startsWith("/groq/")) return groq.handle(request);
     if (pathname.startsWith("/sim/")) return control(request, pathname.slice("/sim/".length));
     if (pathname === "/" && request.method === "GET") {
-      return new Response(renderDashboard({ needsToken: Boolean(options.controlToken) }), {
+      return new Response(renderDashboard({ needsToken: Boolean(options.controlToken), hasMiniApp: Boolean(options.webAppUrl), canReset: Boolean(options.reset) }), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }

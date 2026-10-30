@@ -53,37 +53,5 @@ fallthrough = true
 [observability]
 enabled = true
 
-# A preview of the bot that talks to the Telegram simulator instead of Telegram
-# (packages/testing, deployed as halaqabot-telegram-sim), with its own queues.
-# Deploy with `bun run deploy:preview`. Its secrets are set per environment
-# (`bunx wrangler secret put <NAME> --env preview`): the same as production,
-# with BOT_TOKEN matching the simulator's SIM_BOT_TOKEN and CONVEX_URL a dev or
-# preview deployment, plus
-#   TELEGRAM_API_ROOT = https://halaqabot-telegram-sim.<account>.workers.dev
-#   GROQ_BASE_URL     = https://halaqabot-telegram-sim.<account>.workers.dev/groq/openai/v1
-[env.preview]
-name = "halaqabot-preview"
-
-[[env.preview.queues.producers]]
-binding = "UPDATES"
-queue = "halaqabot-preview-updates"
-
-[[env.preview.queues.producers]]
-binding = "IMPORTS"
-queue = "halaqabot-preview-imports"
-
-[[env.preview.queues.consumers]]
-queue = "halaqabot-preview-updates"
-max_batch_size = 1
-max_concurrency = 1
-max_retries = 2
-retry_delay = 10
-dead_letter_queue = "halaqabot-preview-dead-letters"
-
-[[env.preview.queues.consumers]]
-queue = "halaqabot-preview-imports"
-max_batch_size = 1
-max_concurrency = 1
-max_retries = 2
-retry_delay = 10
-dead_letter_queue = "halaqabot-preview-dead-letters"
+# Previews (the bot against the Telegram simulator, one per pull request) are
+# deployed by packages/testing/scripts/preview.ts with a generated config.

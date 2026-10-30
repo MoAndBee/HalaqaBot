@@ -388,6 +388,27 @@ export class TelegramSimulator {
     });
   }
 
+  /**
+   * Tells the bot it was just added to a chat, as Telegram does when someone
+   * adds it: a my_chat_member update from "left" to its current status. A
+   * freshly deployed preview uses this so the bot registers the channel at
+   * once rather than at its next cron run.
+   */
+  announceBot(chatId: number): void {
+    const chat = this.chat(chatId);
+    const status = chat.members.get(this.bot.id) ?? "left";
+    const by = [...chat.members].find(([, s]) => s === "creator")?.[0] ?? this.bot.id;
+    this.emit(chat, {
+      my_chat_member: {
+        chat: this.chatRef(chat),
+        from: this.userRef(this.user(by)),
+        date: this.now(),
+        old_chat_member: this.memberObject(this.user(this.bot.id), "left"),
+        new_chat_member: this.memberObject(this.user(this.bot.id), status),
+      },
+    } as Partial<Update>);
+  }
+
   /** Changes (or with undefined, lifts) the flood limit; see SimulatorOptions.rateLimit. */
   setRateLimit(limit: { sends: number; windowMs: number } | undefined): void {
     this.rateLimit = limit;

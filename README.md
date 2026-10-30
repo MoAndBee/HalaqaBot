@@ -209,59 +209,70 @@ Logs: `bunx wrangler tail`, or the Workers dashboard (observability is enabled).
 2. Set the JWKS holding both keys on Convex.
 3. Set the new `CONVEX_AUTH_PRIVATE_KEY` on the Worker.
 4. After an hour, when the old tokens have expired, set the new key's JWKS
-   alone. The maintenance scripts
-in `packages/bot/scripts` sign in as the bot, so they need
-`CONVEX_AUTH_PRIVATE_KEY` in their environment.
+   alone.
+
+The maintenance scripts in `packages/bot/scripts` sign in as the bot, so they
+need `CONVEX_AUTH_PRIVATE_KEY` in their environment.
 
 ### Previews
 
-A preview runs the whole system without touching real Telegram: the Telegram
-simulator deployed as a Worker, a preview of the bot pointed at it, a Convex
-dev or preview deployment, and the web app built against both.
+Every pull request gets a preview that needs no Telegram account
+(`.github/workflows/preview.yml`). It includes:
+- the bot;
+- a simulated Telegram in its place;
+- the web app;
+- a Convex deployment of its own.
 
-1. **Simulator** (from `packages/testing`): set its secrets, then deploy.
-   `SIM_BOT_TOKEN` is any `<digits>:<text>`; `SIM_CONTROL_TOKEN` protects its
-   control API and dashboard.
-   ```bash
-   bunx wrangler secret put SIM_BOT_TOKEN
-   bunx wrangler secret put SIM_CONTROL_TOKEN
-   bun run deploy
-   ```
-2. **Bot preview** (from `packages/bot`): create the preview queues
-   (`halaqabot-preview-updates`, `halaqabot-preview-imports`,
-   `halaqabot-preview-dead-letters`), then set its secrets with
-   `bunx wrangler secret put <NAME> --env preview`:
+The PR gets a comment linking to the simulator's dashboard. There you act as
+the owner, an admin or a student, publish posts, comment and react. The Mini
+App runs alongside, signed in as whoever you're acting as. A strip shows each
+update the bot received and what it did. Closing the PR removes the preview.
 
-   | Secret | Value |
-   | --- | --- |
-   | `BOT_TOKEN` | the simulator's `SIM_BOT_TOKEN` |
-   | `TELEGRAM_API_ROOT` | `https://halaqabot-telegram-sim.<account>.workers.dev` |
-   | `GROQ_BASE_URL` | the same, plus `/groq/openai/v1` |
-   | `GROQ_API_KEY` | anything (the fake Groq ignores it) |
-   | `CONVEX_URL` | the dev or preview Convex deployment |
-   | `TELEGRAM_WEBHOOK_SECRET` | a random string |
-   | `CHANNEL_ID` | `-1001000000001` (the simulated channel) |
-   | `FORWARD_CHAT_ID` | `-1001000000003` (the simulated scratch group) |
-   | `WEB_APP_URL` | the preview web app's origin |
-   | `CONVEX_AUTH_PRIVATE_KEY` | a key pair of its own; set the public half as that Convex deployment's `CONVEX_AUTH_JWKS` |
+**One-time setup:**
+1. Generate a key pair with `bun packages/bot/scripts/generate-auth-key.ts`.
+2. In the Convex dashboard, under project settings, set `CONVEX_AUTH_JWKS` to
+   the key's JWKS as a default environment variable for **preview**
+   deployments.
+3. Add these repository secrets:
+   - `CLOUDFLARE_API_TOKEN` (Workers Scripts and Queues: Edit)
+   - `CLOUDFLARE_ACCOUNT_ID`
+   - `CONVEX_PREVIEW_DEPLOY_KEY`
+   - `PREVIEW_CONVEX_AUTH_PRIVATE_KEY` (the private key)
+   - `PREVIEW_CONTROL_TOKEN` (any long random string)
 
-   Then `bun run deploy:preview` and point the simulator at it:
-   ```bash
-   BOT_TOKEN=<SIM_BOT_TOKEN> WORKER_URL=https://halaqabot-preview.<account>.workers.dev \
-   TELEGRAM_WEBHOOK_SECRET=... WEB_APP_URL=<preview web app> \
-   TELEGRAM_API_ROOT=https://halaqabot-telegram-sim.<account>.workers.dev \
-   bun run webhook:set
-   ```
-3. **Web app**: build it with `VITE_CONVEX_URL` (the preview deployment) and
-   `VITE_BOT_API_URL` (the bot preview's URL), deploy it wherever previews go,
-   and set the simulator's `SIM_WEB_APP_URL` var to it so its dashboard can
-   open the Mini App.
+Per-PR Convex deployments need Convex's preview deploy keys. With a dev deploy
+key instead, previews share that dev deployment: each still gets its own
+simulated channel, but the PR deployed last decides which functions run there.
 
-The simulator keeps its world in a Durable Object's storage, so it survives
-idle periods. `POST /sim/reset` starts a fresh one (and forgets the webhook:
-run `webhook:set` again). Use long random values for `SIM_BOT_TOKEN` and
-`SIM_CONTROL_TOKEN`: the control token is all that stands between the
-internet and driving the preview bot.
+**What a preview is**, for PR 12 (`packages/testing/scripts/preview.ts`):
+
+| Part | |
+| --- | --- |
+| `halaqabot-pr-12` | the bot Worker, with its own queues. It also serves the web app, so `/api` is same-origin. |
+| `halaqabot-sim-pr-12` | the simulator Worker: Bot API, fake Groq and the dashboard. Its world lives in a Durable Object. |
+| Convex `pr-12` | the PR's Convex functions. |
+
+After deploying, the script runs a smoke test against the live preview:
+- the bot registered the simulated channel;
+- a sign-up reaches the list;
+- the Mini App signs in;
+- the web app is served.
+
+On a fresh world it leaves that example halaqa in place. "Reset world" starts
+over with new IDs and keeps the bot connected.
+
+**To run a preview locally**, with the same configs and checks under
+`wrangler dev`:
+
+```bash
+cd packages/testing
+CONVEX_DEPLOY_KEY=<dev key> PREVIEW_CONVEX_AUTH_PRIVATE_KEY='<private JWK>' \
+PREVIEW_CONTROL_TOKEN=anything bun run preview local mine
+```
+
+Previews can't show what the simulator doesn't model (see
+`packages/testing/README.md`), so check against a real test bot before
+releasing.
 
 ### Web app CI/CD (Netlify, Vercel, etc.)
 

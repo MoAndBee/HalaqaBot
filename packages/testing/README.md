@@ -27,6 +27,7 @@ wires them to the real bot Worker running under `wrangler dev`.
 | `src/world.ts` | The standard cast: an owner, an admin, three students, a channel and its group. |
 | `src/cli.ts` | `bun run sim`. |
 | `src/sim-worker.ts` | The simulator as a Worker + Durable Object, for previews. |
+| `scripts/preview.ts` | Deploys (or runs locally) a whole preview: bot, simulator, web app, Convex. See the root README's "Previews". |
 
 ## Commands
 

@@ -5,7 +5,8 @@
  *
  * One Durable Object holds the simulated world, saved to its storage after
  * every change so it survives the object being evicted while idle. POST
- * /sim/reset starts a fresh world (the bot's data in Convex is not touched).
+ * /sim/reset starts a fresh world, still connected to the bot. The bot's data
+ * in Convex stays, so each new world takes new user and chat IDs.
  */
 import { TelegramSimulator, type SimulatorSnapshot } from "./telegram/simulator";
 import { createSimulatorHandler } from "./telegram/server";
@@ -30,6 +31,11 @@ interface Env {
   SIM_CONTROL_TOKEN: string;
   /** The preview web app, opened by "Open Mini App as this user". */
   SIM_WEB_APP_URL?: string;
+  /**
+   * Shifts this world's user and chat IDs, so previews that share one Convex
+   * deployment don't share channels (e.g. the PR number times a million).
+   */
+  SIM_ID_OFFSET?: string;
 }
 
 export class Simulator {
@@ -41,20 +47,43 @@ export class Simulator {
     private env: Env,
   ) {
     void state.blockConcurrencyWhile(async () => {
+      this.generation = (await state.storage.get<number>("generation")) ?? 0;
       this.start(await state.storage.get<SimulatorSnapshot>("world"));
     });
   }
 
-  private start(saved?: SimulatorSnapshot): void {
-    const sim = new TelegramSimulator({ botToken: this.env.SIM_BOT_TOKEN });
+  /** How many times the world was reset: each world gets IDs of its own. */
+  private generation = 0;
+
+  private start(saved?: SimulatorSnapshot, previous?: TelegramSimulator): void {
+    const offset = Number(this.env.SIM_ID_OFFSET ?? 0) + this.generation * 1000;
+    const sim = new TelegramSimulator({
+      botToken: this.env.SIM_BOT_TOKEN,
+      firstUserId: 100001 + offset,
+      firstChatId: -1001000000001 - offset,
+    });
     if (saved) sim.load(saved);
-    else createWorld(sim);
+    else {
+      const { channelId } = createWorld(sim);
+      // A reset world stays connected to the bot.
+      if (previous) {
+        sim.webhook = previous.webhook;
+        sim.menuButton = previous.menuButton;
+      }
+      // As if someone had just added the bot to the channel: it registers the
+      // channel and its admins as soon as it can hear about it.
+      sim.announceBot(channelId);
+    }
     this.sim = sim;
     this.handle = createSimulatorHandler(sim, {
       controlToken: this.env.SIM_CONTROL_TOKEN,
       webAppUrl: this.env.SIM_WEB_APP_URL,
       awaitDelivery: true,
-      reset: () => this.start(),
+      reset: () => {
+        this.generation++;
+        void this.state.storage.put("generation", this.generation);
+        this.start(undefined, this.sim);
+      },
     }).handle;
   }
 

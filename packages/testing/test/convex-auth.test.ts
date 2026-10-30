@@ -83,9 +83,9 @@ describe("a channel admin", () => {
 
     const list = await admin.query(api.queries.getUserList, { chatId: world.groupId, postId });
     expect(list.activeUsers).toHaveLength(1);
-    await admin.mutation(api.mutations.updateTurnQueueNotes, { entryId: list.activeUsers[0].entryId, notes: "ممتازة" });
+    await admin.mutation(api.mutations.updateTurnQueueNotes, { entryId: list.activeUsers[0]!.entryId, notes: "ممتازة" });
     const updated = await admin.query(api.queries.getUserList, { chatId: world.groupId, postId });
-    expect(updated.activeUsers[0].notes).toBe("ممتازة");
+    expect(updated.activeUsers[0]!.notes).toBe("ممتازة");
   });
 
   test("can't call the bot's own functions", async () => {
@@ -120,7 +120,7 @@ describe("a channel admin", () => {
         paginationOpts: { numItems: 10, cursor: null },
       })),
     ).toBe(DENIED);
-    expect(await failure(outsider.mutation(api.mutations.removeUserFromList, { entryId: entry.entryId }))).toBe(DENIED);
+    expect(await failure(outsider.mutation(api.mutations.removeUserFromList, { entryId: entry!.entryId }))).toBe(DENIED);
     expect((await turnQueue(stack, postId)).activeUsers).toHaveLength(1);
   });
 

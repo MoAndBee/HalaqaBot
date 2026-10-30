@@ -105,3 +105,10 @@ export async function verifyToken(
   if (typeof claims.exp !== "number" || claims.exp <= now) return null;
   return typeof claims.sub === "string" ? claims.sub : null;
 }
+
+/** The CONVEX_AUTH_JWKS (data: URI) matching a CONVEX_AUTH_PRIVATE_KEY. */
+export function jwksForPrivateKey(privateJwk: string): string {
+  const { kty, crv, x, y, kid } = JSON.parse(privateJwk) as Record<string, string>;
+  const jwks = JSON.stringify({ keys: [{ kty, crv, x, y, kid, alg: "ES256", use: "sig" }] });
+  return `data:text/plain;charset=utf-8;base64,${btoa(jwks)}`;
+}
