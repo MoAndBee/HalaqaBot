@@ -42,13 +42,17 @@ export async function requireBot(ctx: AuthCtx): Promise<void> {
 
 /** Channels a user administers (by channelId). */
 async function adminChannelIds(ctx: Ctx, userId: number): Promise<Set<number>> {
-  const rows = await ctx.db.query("channelAdmins").collect();
-  return new Set(rows.filter((row) => row.userId === userId).map((row) => row.channelId));
+  const rows = await ctx.db
+    .query("channelAdmins")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  return new Set(rows.map((row) => row.channelId));
 }
 
 /**
- * The bot, or an admin of at least one active channel. For data that isn't
- * kept per chat (students' profiles, the LLM score matcher).
+ * The bot, or an admin of at least one active channel. Only for what touches
+ * no channel's data (the LLM score matcher): anyone can become an admin of
+ * some channel by adding the bot to one of their own.
  */
 export async function requireAnyAdmin(ctx: Ctx): Promise<Caller> {
   const caller = await getCaller(ctx);
@@ -104,6 +108,42 @@ export async function requireEntryAccess(
     throw new ConvexError("Entry not found");
   }
   return requireChatAccess(ctx, entry.chatId);
+}
+
+/**
+ * A student's profile and history, through a chat the caller administers that
+ * the student belongs to: queued or took a turn there, or was registered into
+ * it. The bot may read anyone's, with or without a chat.
+ */
+export async function requireStudentAccess(
+  ctx: Ctx,
+  userId: number,
+  chatId: number | undefined,
+): Promise<Caller> {
+  const caller = await getCaller(ctx);
+  if (caller.kind === "bot") return caller;
+  if (chatId === undefined) denied();
+  await requireChatAccess(ctx, chatId);
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_user_id", (q) => q.eq("userId", userId))
+    .first();
+  // Registered by hand before homeChatId existed: shown in every channel
+  // (see searchUsers), so reachable from every channel too.
+  const legacyManual = userId < 0 && user !== null && user.homeChatId === undefined;
+  if (user?.homeChatId === chatId || legacyManual) return caller;
+  const history = await ctx.db
+    .query("participationHistory")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  if (history.some((row) => row.chatId === chatId)) return caller;
+  const queued = await ctx.db
+    .query("turnQueue")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  if (queued.some((row) => row.chatId === chatId)) return caller;
+  denied();
 }
 
 /**

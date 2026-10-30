@@ -160,7 +160,7 @@ hours), and delivers them once the webhook is set, so nothing is lost.
    bunx wrangler secret put CONVEX_AUTH_PRIVATE_KEY   # the private JWK
    ```
    Give Convex the public half (from `packages/db`, with the production deploy
-   key). The deploy below fails without it:
+   key) before deploying it. It takes effect at once:
    ```bash
    bunx convex env set CONVEX_AUTH_JWKS '<data: URI>' --prod
    ```
@@ -184,6 +184,13 @@ hours), and delivers them once the webhook is set, so nothing is lost.
    pass `VITE_CONVEX_URL` today.) A web app built without it shows an error
    for every action that goes through the bot.
 
+**If the Worker from before the Convex lockdown is already live**, there's no
+Docker bot to stop, but the old Worker can't call the new Convex functions and
+the new Worker's tokens need the new auth config. So pause Telegram's deliveries
+instead: remove the webhook with Telegram's `deleteWebhook` method (Telegram
+then holds updates). Deploy Convex, then the Worker, then run
+`bun run webhook:set`. Web app actions fail for the minute in between.
+
 Re-run `bun run webhook:set` whenever `ALLOWED_UPDATES` in `src/bot.ts`
 changes; Telegram only sends the update types registered with the webhook.
 
@@ -197,9 +204,12 @@ To roll back:
 
 Logs: `bunx wrangler tail`, or the Workers dashboard (observability is enabled).
 
-**Rotating the Convex signing key.** Generate a new pair, then set
-`CONVEX_AUTH_JWKS` and `CONVEX_AUTH_PRIVATE_KEY` one after the other. Calls
-fail in between, and open Mini Apps must be reopened. The maintenance scripts
+**Rotating the Convex signing key** without downtime:
+1. Run `bun scripts/generate-auth-key.ts '<current CONVEX_AUTH_JWKS>'`.
+2. Set the JWKS holding both keys on Convex.
+3. Set the new `CONVEX_AUTH_PRIVATE_KEY` on the Worker.
+4. After an hour, when the old tokens have expired, set the new key's JWKS
+   alone. The maintenance scripts
 in `packages/bot/scripts` sign in as the bot, so they need
 `CONVEX_AUTH_PRIVATE_KEY` in their environment.
 

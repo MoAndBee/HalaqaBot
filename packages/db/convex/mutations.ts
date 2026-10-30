@@ -2,7 +2,14 @@ import { mutation, internalMutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
-import { requireAnyAdmin, requireBot, requireChatAccess, requireEntryAccess } from "./auth";
+import {
+  requireAnyAdmin,
+  requireBot,
+  requireChannelAccess,
+  requireChatAccess,
+  requireEntryAccess,
+  requireStudentAccess,
+} from "./auth";
 
 /**
  * Parsing for Telegram message links (t.me/...).
@@ -1068,9 +1075,11 @@ export const updateUserRealName = mutation({
   args: {
     userId: v.number(),
     realName: v.string(),
+    // The chat the admin is editing from; required for everyone but the bot.
+    chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireAnyAdmin(ctx);
+    await requireStudentAccess(ctx, args.userId, args.chatId);
     // Find the user in the users table
     const user = await ctx.db
       .query("users")
@@ -2004,6 +2013,8 @@ export const updateAdminPreferredName = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    // The name is stored on the channel's admin row, so that channel must be theirs too.
+    await requireChannelAccess(ctx, args.channelId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2266,7 +2277,7 @@ export const registerUser = mutation({
   },
   handler: async (ctx, args) => {
     if (args.chatId !== undefined) await requireChatAccess(ctx, args.chatId);
-    else await requireAnyAdmin(ctx);
+    else await requireBot(ctx);
     // Validate passcode (same as unlockSession)
     const REGISTER_PASSCODE = "adminunlock311225";
 

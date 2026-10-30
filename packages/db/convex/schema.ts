@@ -61,7 +61,8 @@ export default defineSchema({
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
     .index("by_chat_post_position", ["chatId", "postId", "position"])
     .index("by_chat_post", ["chatId", "postId"])
-    .index("by_channel_post", ["channelId", "postId"]),
+    .index("by_channel_post", ["channelId", "postId"])
+    .index("by_user", ["userId"]),
 
   // Historical record of all completed participations
   participationHistory: defineTable({
@@ -209,7 +210,8 @@ export default defineSchema({
     updatedAt: v.number(), // Last sync timestamp
   })
     .index("by_channel", ["channelId"])
-    .index("by_channel_user", ["channelId", "userId"]),
+    .index("by_channel_user", ["channelId", "userId"])
+    .index("by_user", ["userId"]),
 
   // Registry of channels the bot serves. Maps a Telegram channel to its linked
   // discussion group (chatId), where posts/turns/history actually live. Rows are

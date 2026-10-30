@@ -119,9 +119,15 @@ and every Convex function answered anyone with the deployment's URL. Now:
   bot-only, such as registering channels and syncing admins. The others need an
   admin of the channel the chat or row belongs to. A test fails if a public
   function doesn't start with a check.
-- **Within the boundary.** Student profiles aren't kept per channel, so any
-  channel's admin can read them, as before. Admins of the same channel share
-  everything in it.
+- **Each admin is confined to their own channel.** This matters because anyone
+  can become an admin of *some* channel, just by adding the bot to one of their
+  own.
+  - A student's profile, history, and the rename action are reachable only
+    through a chat the caller administers that the student belongs to.
+  - Search is per chat.
+  - Only the LLM score matcher just needs "an admin somewhere", and it touches
+    no data.
+  - Admins of the same channel share everything in it.
 
 ## Where the old design was better
 

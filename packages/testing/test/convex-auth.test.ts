@@ -138,6 +138,53 @@ describe("a channel admin", () => {
   });
 });
 
+describe("an admin of another channel", () => {
+  // Anyone can be one: adding the bot to a channel of your own registers it.
+  test("can't read or rename students who never came to their channel", async () => {
+    const { world } = stack;
+    const fatima = world.students[0]!.id;
+    const outsider = await stack.convexAs(other.ownerId);
+    for (const chatId of [undefined, other.groupId]) {
+      expect(await failure(outsider.query(api.queries.getUser, { userId: fatima, chatId }))).toBe(DENIED);
+      expect(await failure(outsider.query(api.queries.getUserParticipations, { userId: fatima, chatId }))).toBe(DENIED);
+      expect(
+        await failure(outsider.mutation(api.mutations.updateUserRealName, { userId: fatima, realName: "x", chatId })),
+      ).toBe(DENIED);
+    }
+    expect(await failure(outsider.query(api.queries.searchUsers, { query: "فاطمة" }))).toBe(DENIED);
+    expect(await outsider.query(api.queries.searchUsers, { query: "فاطمة", chatId: other.groupId })).toEqual([]);
+
+    // Her own channel's admin can.
+    const admin = await stack.convexAs(world.admin.id);
+    expect(await admin.query(api.queries.getUser, { userId: fatima, chatId: world.groupId })).not.toBeNull();
+    expect((await admin.query(api.queries.searchUsers, { query: "فاطمة", chatId: world.groupId })).length).toBe(1);
+  });
+
+  test("can't rename another channel's supervisor", async () => {
+    const { world } = stack;
+    const outsider = await stack.convexAs(other.ownerId);
+    expect(
+      await failure(
+        outsider.mutation(api.mutations.updateAdminPreferredName, {
+          channelId: world.channelId,
+          userId: world.admin.id,
+          preferredName: "x",
+          chatId: other.groupId,
+          postId: 999_999,
+          sessionNumber: 1,
+        }),
+      ),
+    ).toBe(DENIED);
+  });
+
+  test("the LLM score matcher needs an admin", async () => {
+    const anonymous = await stack.convexAs(null);
+    expect(
+      await failure(anonymous.action(api.actions.matchBulkScores, { text: "فاطمة ١٠", roster: [], otherStudents: [] })),
+    ).toBe(NOT_SIGNED_IN);
+  });
+});
+
 describe("a student", () => {
   test("is signed in but sees nothing", async () => {
     const { world } = stack;
@@ -168,21 +215,37 @@ describe("the Worker's token endpoint", () => {
   });
 });
 
-test("every public Convex function starts with an access check", () => {
+test("every public Convex function starts with an access check", async () => {
   const dir = path.resolve(import.meta.dir, "../../db/convex");
+  // A check, possibly per item or per branch: `for (...) await requireEntryAccess(...)`.
+  const checks = /^((if|for) \(.*?\) )?(await )?require\w*\(|getCaller\(|internal\.auth\.|ctx\.db\.get\(args\.importId\)/;
+  const checked = new Set<string>();
   const unchecked: string[] = [];
-  let found = 0;
   for (const file of ["queries.ts", "mutations.ts", "actions.ts"]) {
+    // Each definition on its own, so one function's check can't count for another.
     const source = readFileSync(path.join(dir, file), "utf8");
-    const definitions = source.matchAll(
-      /export const (\w+) = (?:query|mutation|action)\(\{[\s\S]*?handler: async \([^)]*\)[^{]*\{\n\s*(.+)/g,
-    );
-    for (const [, name, firstLine] of definitions) {
-      found++;
-      const checked = /require\w*\(|getCaller\(|internal\.auth\.|ctx\.db\.get\(args\.importId\)/.test(firstLine!);
-      if (!checked) unchecked.push(`${file}: ${name}`);
+    for (const chunk of source.split(/^(?=export const )/m)) {
+      const name = chunk.match(/^export const (\w+) = (?:query|mutation|action)\(\{/)?.[1];
+      if (!name) continue;
+      const handler = chunk.indexOf("handler:");
+      const body = chunk.indexOf("=> {\n", handler);
+      const firstLine = chunk.slice(body + "=> {\n".length).split("\n").find((line) => line.trim() !== "" && !line.trim().startsWith("//"));
+      const id = `${file.replace(".ts", "")}:${name}`;
+      if (handler >= 0 && body >= 0 && checks.test(firstLine?.trim() ?? "")) checked.add(id);
+      else unchecked.push(id);
     }
   }
-  expect(found).toBeGreaterThan(80); // the pattern still finds them all
   expect(unchecked).toEqual([]);
+
+  // And the parse saw every function Convex registers as public.
+  const registered: string[] = [];
+  for (const file of ["queries", "mutations", "actions"]) {
+    const module = await import(path.join(dir, `${file}.ts`));
+    for (const [name, fn] of Object.entries(module)) {
+      if ((fn as { isPublic?: boolean })?.isPublic) registered.push(`${file}:${name}`);
+    }
+  }
+  // The stubs left for stale web clients only throw.
+  const stubs = ["actions:sendParticipantList", "actions:reactToMessage", "actions:detectNameFromMessage"];
+  expect(registered.filter((id) => !stubs.includes(id)).sort()).toEqual([...checked].sort());
 });

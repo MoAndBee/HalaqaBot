@@ -352,7 +352,7 @@ export default function PostDetail() {
   }
 
   const handleUpdateDisplayName = async (userId: number, realName: string) => {
-    await updateUserRealName({ userId, realName })
+    await updateUserRealName({ userId, realName, chatId })
   }
 
   const handleOpenEditNotes = (entryId: string, currentNotes?: string | null) => {

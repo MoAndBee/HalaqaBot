@@ -44,12 +44,17 @@ async function loadModules(): Promise<Record<string, () => Promise<any>>> {
  * sends the value itself; decode it so clients see what production sends.
  */
 function errorData(error: ConvexError<any>): Value {
-  if (typeof error.data !== "string") return error.data;
-  try {
-    return JSON.parse(error.data);
-  } catch {
-    return error.data;
+  let data: Value = error.data;
+  // Once per function boundary it crossed: an error from a runQuery inside an
+  // action arrives encoded twice.
+  for (let first = true; typeof data === "string" && (first || data.startsWith('"')); first = false) {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      break;
+    }
   }
+  return data;
 }
 
 /** STATUS_CODE_UDF_FAILED in convex/browser: a function threw. */

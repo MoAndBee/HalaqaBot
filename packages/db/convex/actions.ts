@@ -103,9 +103,11 @@ export const matchBulkScores = action({
     ),
   },
   handler: async (
-    _ctx,
+    ctx,
     args
   ): Promise<{ matches: BulkScoreMatch[]; otherStudentsSearched: boolean }> => {
+    // A paid LLM call: admins only.
+    await ctx.runQuery(internal.auth.checkAnyAdmin, {});
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       throw bulkScoreError({
@@ -398,7 +400,6 @@ Respond with ONLY a JSON object of this exact shape:
 export const backfillPosts = internalAction({
   args: {},
   handler: async (ctx) => {
-    await ctx.runQuery(internal.auth.checkAnyAdmin, {});
     // Collect unique chatId+postId pairs with earliest timestamp
     const postMap = new Map<string, { chatId: number; postId: number; createdAt: number }>();
 

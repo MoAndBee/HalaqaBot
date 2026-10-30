@@ -4,11 +4,11 @@ import { paginationOptsValidator, type GenericDatabaseReader } from "convex/serv
 import type { DataModel, Doc } from "./_generated/dataModel";
 import {
   getCaller,
-  requireAnyAdmin,
   requireBot,
   requireChannelAccess,
   requireChatAccess,
   requireSelf,
+  requireStudentAccess,
 } from "./auth";
 
 export const getMessageAuthor = query({
@@ -661,9 +661,11 @@ export const getAllUsers = query({
 export const getUser = query({
   args: {
     userId: v.number(),
+    // The chat the admin is looking from; required for everyone but the bot.
+    chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireAnyAdmin(ctx);
+    await requireStudentAccess(ctx, args.userId, args.chatId);
     const user = await ctx.db
       .query("users")
       .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
@@ -686,14 +688,18 @@ export const getUser = query({
 export const getUserParticipations = query({
   args: {
     userId: v.number(),
+    // Only this chat's participations; required for everyone but the bot.
+    chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireAnyAdmin(ctx);
+    await requireStudentAccess(ctx, args.userId, args.chatId);
     // Get all participations for this user
-    const participations = await ctx.db
-      .query("participationHistory")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
+    const participations = (
+      await ctx.db
+        .query("participationHistory")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .collect()
+    ).filter((p) => args.chatId === undefined || p.chatId === args.chatId);
 
     // Sort by completedAt (newest first)
     participations.sort((a, b) => b.completedAt - a.completedAt);
@@ -865,8 +871,9 @@ export const searchUsers = query({
     chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Only the bot may search everyone; admins search their own chat.
     if (args.chatId !== undefined) await requireChatAccess(ctx, args.chatId);
-    else await requireAnyAdmin(ctx);
+    else await requireBot(ctx);
     if (!args.query.trim()) {
       return [];
     }
