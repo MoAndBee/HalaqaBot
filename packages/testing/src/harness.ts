@@ -40,6 +40,8 @@ export interface StackOptions {
   workerPort?: number;
   /** Echo the Worker's log to stdout. */
   verbose?: boolean;
+  /** Telegram flood limits for the simulator (see SimulatorOptions.rateLimit). */
+  rateLimit?: { sends: number; windowMs: number };
 }
 
 export interface Stack {
@@ -85,6 +87,7 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
   const sim = new TelegramSimulator({
     botToken,
     retryDelayMs: 100,
+    rateLimit: options.rateLimit,
     firstUserId: 100001 + offset,
     firstChatId: -1001000000001 - offset,
   });

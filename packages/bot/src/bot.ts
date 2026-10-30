@@ -1,4 +1,5 @@
 import { Bot, type InputFile } from "grammy";
+import { autoRetry } from "@grammyjs/auto-retry";
 import type { UserFromGetMe } from "grammy/types";
 import { ConvexHttpClient } from "@halakabot/db";
 import type { Config } from "./config/environment";
@@ -48,6 +49,10 @@ export function createBotApp(config: Config, options: BotAppOptions): BotApp {
     botInfo: options.botInfo,
     client: config.telegramApiRoot ? { apiRoot: config.telegramApiRoot } : undefined,
   });
+  // Telegram rate-limits bursts (e.g. about 20 messages a minute into one
+  // group, which post-import probes can reach): wait out its retry_after
+  // instead of failing the call. Also retries Telegram's own 5xx errors.
+  bot.api.config.use(autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 60 }));
 
   const messageService = new MessageService(convex, config.forwardChatId);
   const userListService = new UserListService(convex);

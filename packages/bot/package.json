@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ai-sdk/groq": "^2.0.28",
+    "@grammyjs/auto-retry": "2.0.2",
     "@halakabot/db": "workspace:*",
     "ai": "^5.0.89",
     "convex": "^1.29.0",

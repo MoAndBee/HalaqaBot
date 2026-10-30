@@ -66,6 +66,7 @@ export class TelegramApiError extends Error {
   constructor(
     readonly errorCode: number,
     readonly description: string,
+    readonly parameters?: { retry_after?: number },
   ) {
     super(description);
   }
@@ -97,6 +98,12 @@ export interface SimulatorOptions {
   /** Seconds since epoch; override to make tests deterministic. */
   now?: () => number;
   /**
+   * Telegram-style flood limit on what the bot sends into one chat (messages,
+   * photos, forwards): beyond `sends` per `windowMs`, calls fail with 429 and
+   * a retry_after. Off by default.
+   */
+  rateLimit?: { sends: number; windowMs: number };
+  /**
    * Where user and chat IDs start. Runs against a persistent database (a real
    * Convex deployment) pick fresh ranges so they don't meet earlier runs' data.
    */
@@ -125,6 +132,9 @@ export class TelegramSimulator {
   private readonly retryDelayMs: number;
   private readonly maxDeliveryAttempts: number;
   private readonly now: () => number;
+  private readonly rateLimit?: { sends: number; windowMs: number };
+  /** chatId -> times (ms) of the bot's recent sends into it, for rateLimit. */
+  private recentSends = new Map<number, number[]>();
 
   constructor(options: SimulatorOptions) {
     this.botToken = options.botToken;
@@ -135,6 +145,7 @@ export class TelegramSimulator {
     this.retryDelayMs = options.retryDelayMs ?? 200;
     this.maxDeliveryAttempts = options.maxDeliveryAttempts ?? 5;
     this.now = options.now ?? (() => Math.floor(Date.now() / 1000));
+    this.rateLimit = options.rateLimit;
     this.nextUserId = options.firstUserId ?? 100001;
     this.nextChannelId = options.firstChatId ?? -1001000000001;
   }
@@ -677,6 +688,16 @@ export class TelegramSimulator {
 
   private requireBotCanPost(chat: ChatState): void {
     this.requireBotPresent(chat);
+    if (this.rateLimit) {
+      const now = Date.now();
+      const recent = (this.recentSends.get(chat.info.id) ?? []).filter((t) => now - t < this.rateLimit!.windowMs);
+      if (recent.length >= this.rateLimit.sends) {
+        const retryAfter = Math.max(1, Math.ceil((recent[0]! + this.rateLimit.windowMs - now) / 1000));
+        throw new TelegramApiError(429, `Too Many Requests: retry after ${retryAfter}`, { retry_after: retryAfter });
+      }
+      recent.push(now);
+      this.recentSends.set(chat.info.id, recent);
+    }
     if (chat.info.type === "channel" && !ADMIN.has(chat.members.get(this.bot.id) ?? "left")) {
       throw new TelegramApiError(400, "Bad Request: need administrator rights in the channel chat");
     }

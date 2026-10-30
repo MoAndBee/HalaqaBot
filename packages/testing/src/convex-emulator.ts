@@ -64,6 +64,8 @@ export interface ConvexEmulator {
   handle(request: Request): Promise<Response>;
   /** Every function call the emulator served, in order. */
   calls: Array<{ kind: string; path: string; args: unknown; error?: string }>;
+  /** Simulates an outage: every call fails with 503 until set back to false. */
+  setUnavailable(unavailable: boolean): void;
 }
 
 export async function createConvexEmulator(): Promise<ConvexEmulator> {
@@ -81,7 +83,10 @@ export async function createConvexEmulator(): Promise<ConvexEmulator> {
   }
   const calls: ConvexEmulator["calls"] = [];
 
+  let unavailable = false;
+
   async function handle(request: Request): Promise<Response> {
+    if (unavailable) return new Response("Service Unavailable", { status: 503 });
     const kind = ROUTES[new URL(request.url).pathname as keyof typeof ROUTES];
     if (!kind || request.method !== "POST") {
       return new Response("Not found", { status: 404 });
@@ -109,5 +114,5 @@ export async function createConvexEmulator(): Promise<ConvexEmulator> {
     }
   }
 
-  return { t, handle, calls };
+  return { t, handle, calls, setUnavailable: (value) => (unavailable = value) };
 }

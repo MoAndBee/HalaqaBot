@@ -87,7 +87,12 @@ export function createSimulatorHandler(sim: TelegramSimulator, options: Simulato
     } catch (error) {
       if (error instanceof TelegramApiError) {
         return Response.json(
-          { ok: false, error_code: error.errorCode, description: error.description },
+          {
+            ok: false,
+            error_code: error.errorCode,
+            description: error.description,
+            ...(error.parameters ? { parameters: error.parameters } : {}),
+          },
           { status: error.errorCode },
         );
       }
