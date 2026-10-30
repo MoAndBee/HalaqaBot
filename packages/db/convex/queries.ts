@@ -312,7 +312,7 @@ export const getLatestActivityTypeForUser = query({
     }
 
     // Get all classifications for these messages that have an activityType
-    const allClassifications = [];
+    const allClassifications: Doc<"messageClassifications">[] = [];
     for (const msg of userMessages) {
       const classification = await ctx.db
         .query("messageClassifications")

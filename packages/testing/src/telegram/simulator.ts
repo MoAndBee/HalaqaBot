@@ -73,6 +73,13 @@ export class TelegramApiError extends Error {
 
 /** Telegram's service account; automatic forwards into discussion groups come "from" it. */
 const TELEGRAM_SERVICE_USER: User = { id: 777000, is_bot: false, first_name: "Telegram" };
+/** Sender of an anonymous admin's messages, posting as the group itself. */
+const GROUP_ANONYMOUS_BOT: User = { id: 1087968824, is_bot: true, first_name: "Group", username: "GroupAnonymousBot" };
+/** Sender of messages someone posts as one of their channels. */
+const CHANNEL_BOT: User = { id: 136817688, is_bot: true, first_name: "Channel", username: "Channel_Bot" };
+
+const MAX_TEXT_LENGTH = 4096;
+const MAX_CAPTION_LENGTH = 1024;
 
 /** Updates Telegram withholds unless a webhook lists them in allowed_updates. */
 const OPT_IN_UPDATES = new Set(["chat_member", "message_reaction", "message_reaction_count"]);
@@ -112,6 +119,8 @@ export class TelegramSimulator {
   private nextUpdateId = 1;
   private pending: Update[] = [];
   private inFlight = 0;
+  /** allowed_updates from the last getUpdates call, for bots that poll. */
+  private pollingAllowedUpdates?: string[];
   private idleWaiters: Array<() => void> = [];
   private readonly retryDelayMs: number;
   private readonly maxDeliveryAttempts: number;
@@ -235,21 +244,75 @@ export class TelegramSimulator {
     return { channelMessage, groupMessage };
   }
 
-  /** A user sends a message (joining the chat if needed), optionally as a reply. */
-  sendUserMessage(chatId: number, userId: number, text: string, options: { replyTo?: number } = {}): Message {
+  /**
+   * A user sends a message (joining the chat if needed), optionally as a reply.
+   * `deferred` stores it without telling the bot yet — call releaseDeferred() later to
+   * have the update arrive late, e.g. after a reaction to it.
+   */
+  sendUserMessage(
+    chatId: number,
+    userId: number,
+    text: string,
+    options: { replyTo?: number; deferred?: boolean } = {},
+  ): Message {
     const chat = this.chat(chatId);
     const user = this.user(userId);
     if (!PRESENT.has(chat.members.get(userId) ?? "left")) chat.members.set(userId, "member");
+    return this.postMessage(chat, { from: this.userRef(user) }, text, options);
+  }
+
+  /**
+   * A message sent as a chat rather than a person: as the group itself (an
+   * anonymous admin; Telegram sends it from GroupAnonymousBot) or as a channel
+   * the sender owns (from Channel_Bot).
+   */
+  sendAsChat(chatId: number, senderChatId: number, text: string, options: { replyTo?: number } = {}): Message {
+    const chat = this.chat(chatId);
+    const sender = this.chat(senderChatId);
+    return this.postMessage(
+      chat,
+      { from: senderChatId === chatId ? GROUP_ANONYMOUS_BOT : CHANNEL_BOT, sender_chat: this.chatRef(sender) },
+      text,
+      options,
+    );
+  }
+
+  /** Tells the bot about a message stored with `deferred`. */
+  releaseDeferred(chatId: number, messageId: number): void {
+    const chat = this.chat(chatId);
+    this.emit(chat, { message: this.message(chat, messageId) } as Partial<Update>);
+  }
+
+  private postMessage(
+    chat: ChatState,
+    sender: Partial<Message>,
+    text: string,
+    options: { replyTo?: number; deferred?: boolean },
+  ): Message {
     // Telegram marks a leading /command so bots can route it.
     const command = text.match(/^\/[A-Za-z0-9_]+(@[A-Za-z0-9_]+)?/);
     const message = this.store(chat, {
-      from: this.userRef(user),
+      ...sender,
       text,
       ...(command ? { entities: [{ type: "bot_command", offset: 0, length: command[0].length }] } : {}),
-      ...(options.replyTo !== undefined ? { reply_to_message: this.replyTarget(chat, options.replyTo) } : {}),
+      ...this.replyFields(chat, options.replyTo),
     } as Partial<Message>);
-    this.emit(chat, { message } as Partial<Update>);
+    if (!options.deferred) this.emit(chat, { message } as Partial<Update>);
     return message;
+  }
+
+  /**
+   * reply_to_message, plus message_thread_id for comments: in a discussion
+   * group, replies under a channel post share the post's thread.
+   */
+  private replyFields(chat: ChatState, replyTo: number | undefined): Partial<Message> {
+    if (replyTo === undefined) return {};
+    const target = this.message(chat, replyTo);
+    const thread = target.is_automatic_forward ? target.message_id : target.message_thread_id;
+    return {
+      reply_to_message: this.replyTarget(chat, replyTo),
+      ...(thread !== undefined ? { message_thread_id: thread } : {}),
+    } as Partial<Message>;
   }
 
   /** A user sets their reactions on a message (an empty list removes them). */
@@ -262,6 +325,22 @@ export class TelegramSimulator {
     const oldReaction = byUser.get(userId) ?? [];
     const newReaction = emojis.map((emoji) => ({ type: "emoji", emoji }) as ReactionType);
     byUser.set(userId, newReaction);
+    if (chat.info.type === "channel") {
+      // Channel reactions are anonymous: only the new totals are reported.
+      const totals = new Map<string, number>();
+      for (const reactions of byUser.values()) {
+        for (const r of reactions) if (r.type === "emoji") totals.set(r.emoji, (totals.get(r.emoji) ?? 0) + 1);
+      }
+      this.emit(chat, {
+        message_reaction_count: {
+          chat: this.chatRef(chat),
+          message_id: messageId,
+          date: this.now(),
+          reactions: [...totals].map(([emoji, total_count]) => ({ type: { type: "emoji", emoji }, total_count })),
+        },
+      } as Partial<Update>);
+      return;
+    }
     this.emit(chat, {
       message_reaction: {
         chat: this.chatRef(chat),
@@ -312,7 +391,7 @@ export class TelegramSimulator {
     return this.chat(chatId).botReactions.get(messageId) ?? [];
   }
 
-  /** Resolves once every queued update has been delivered (or given up on). */
+  /** Resolves once every queued update has been delivered or fetched (or given up on). */
   whenDelivered(): Promise<void> {
     if (this.pending.length === 0 && this.inFlight === 0) return Promise.resolve();
     return new Promise((resolve) => this.idleWaiters.push(resolve));
@@ -357,7 +436,8 @@ export class TelegramSimulator {
       this.webhook = {
         url: p.url,
         secretToken: p.secret_token,
-        allowedUpdates: p.allowed_updates,
+        // Telegram keeps the previous list when a call doesn't name one.
+        allowedUpdates: p.allowed_updates ?? this.webhook?.allowedUpdates,
         maxConnections: p.max_connections ?? 40,
       };
       if (p.drop_pending_updates) this.pending = [];
@@ -369,6 +449,25 @@ export class TelegramSimulator {
       this.webhook = null;
       if (p.drop_pending_updates) this.pending = [];
       return true;
+    },
+
+    getUpdates: async (p: { offset?: number; limit?: number; timeout?: number; allowed_updates?: string[] }) => {
+      if (this.webhook) {
+        throw new TelegramApiError(
+          409,
+          "Conflict: can't use getUpdates method while webhook is active; use deleteWebhook to delete the webhook first",
+        );
+      }
+      if (p.allowed_updates) this.pollingAllowedUpdates = p.allowed_updates;
+      const deadline = Date.now() + (p.timeout ?? 0) * 1000;
+      while (true) {
+        // Fetching with an offset confirms everything before it.
+        if (p.offset !== undefined) this.pending = this.pending.filter((u) => u.update_id >= p.offset!);
+        this.pending = this.pending.filter((u) => this.allowsType(updateType(u), this.pollingAllowedUpdates));
+        this.notifyIfIdle();
+        if (this.pending.length > 0 || Date.now() >= deadline) return this.pending.slice(0, p.limit ?? 100);
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
     },
 
     getWebhookInfo: () => {
@@ -390,6 +489,10 @@ export class TelegramSimulator {
 
     getChat: (p: { chat_id: number | string }) => {
       const chat = this.resolveChat(p.chat_id);
+      // A private chat is invisible to a bot that isn't in it; public ones aren't.
+      if (!chat.info.username && !PRESENT.has(chat.members.get(this.bot.id) ?? "left")) {
+        throw new TelegramApiError(400, "Bad Request: chat not found");
+      }
       return { ...chat.info, accent_color_id: 0, max_reaction_count: 11, accepted_gift_types: {} };
     },
 
@@ -413,6 +516,7 @@ export class TelegramSimulator {
       const chat = this.resolveChat(p.chat_id);
       this.requireBotCanPost(chat);
       if (!p.text || !String(p.text).trim()) throw new TelegramApiError(400, "Bad Request: message text is empty");
+      if (String(p.text).length > MAX_TEXT_LENGTH) throw new TelegramApiError(400, "Bad Request: message is too long");
       return this.storeBotMessage(
         chat,
         { text: String(p.text), ...(p.reply_markup ? { reply_markup: p.reply_markup } : {}) } as Partial<Message>,
@@ -426,6 +530,9 @@ export class TelegramSimulator {
       const size = p.photo instanceof Uint8Array ? p.photo.byteLength : undefined;
       if (p.photo === undefined || (typeof p.photo !== "string" && size === undefined)) {
         throw new TelegramApiError(400, "Bad Request: there is no photo in the request");
+      }
+      if (p.caption && String(p.caption).length > MAX_CAPTION_LENGTH) {
+        throw new TelegramApiError(400, "Bad Request: message caption is too long");
       }
       const fileId = typeof p.photo === "string" ? p.photo : `sim-photo-${crypto.randomUUID()}`;
       return this.storeBotMessage(
@@ -478,6 +585,50 @@ export class TelegramSimulator {
       } as Partial<Message>);
     },
   };
+
+  // ------------------------------------------------------------- snapshots
+
+  /** Everything needed to rebuild this world later (pending deliveries aside). */
+  snapshot(): SimulatorSnapshot {
+    return {
+      users: [...this.users.values()],
+      chats: [...this.chats.values()].map((c) => ({
+        info: c.info,
+        members: [...c.members],
+        messages: [...c.messages.values()],
+        nextMessageId: c.nextMessageId,
+        reactions: [...c.reactions].map(([id, byUser]) => [id, [...byUser]] as const),
+        botReactions: [...c.botReactions],
+      })),
+      nextUserId: this.nextUserId,
+      nextChannelId: this.nextChannelId,
+      nextUpdateId: this.nextUpdateId,
+      webhook: this.webhook,
+      menuButton: this.menuButton,
+    };
+  }
+
+  /** Replaces this world with a snapshot's. */
+  load(snapshot: SimulatorSnapshot): void {
+    this.users.clear();
+    for (const user of snapshot.users) this.users.set(user.id, user);
+    this.chats.clear();
+    for (const c of snapshot.chats) {
+      this.chats.set(c.info.id, {
+        info: c.info,
+        members: new Map(c.members),
+        messages: new Map(c.messages.map((m) => [m.message_id, m])),
+        nextMessageId: c.nextMessageId,
+        reactions: new Map(c.reactions.map(([id, byUser]) => [id, new Map(byUser)])),
+        botReactions: new Map(c.botReactions),
+      });
+    }
+    this.nextUserId = snapshot.nextUserId;
+    this.nextChannelId = snapshot.nextChannelId;
+    this.nextUpdateId = snapshot.nextUpdateId;
+    this.webhook = snapshot.webhook;
+    this.menuButton = snapshot.menuButton;
+  }
 
   // -------------------------------------------------------------- helpers
 
@@ -603,11 +754,11 @@ export class TelegramSimulator {
 
   private storeBotMessage(chat: ChatState, fields: Partial<Message>, reply: ReplyParams = {}): Message {
     const replyTo = reply.reply_parameters?.message_id ?? reply.reply_to_message_id;
-    let replyTarget: Message | undefined;
+    let replyFields: Partial<Message> = {};
     if (replyTo !== undefined) {
       const target = chat.messages.get(Number(replyTo));
       if (target && !target.deleted) {
-        replyTarget = this.replyTarget(chat, Number(replyTo));
+        replyFields = this.replyFields(chat, Number(replyTo));
       } else if (!(reply.reply_parameters?.allow_sending_without_reply ?? reply.allow_sending_without_reply)) {
         throw new TelegramApiError(400, "Bad Request: message to be replied not found");
       }
@@ -615,7 +766,7 @@ export class TelegramSimulator {
     return this.store(chat, {
       from: this.userRef(this.bot),
       ...fields,
-      ...(replyTarget ? { reply_to_message: replyTarget } : {}),
+      ...replyFields,
     } as Partial<Message>);
   }
 
@@ -636,9 +787,18 @@ export class TelegramSimulator {
   }
 
   private allows(type: string): boolean {
-    const allowed = this.webhook?.allowedUpdates;
+    return this.allowsType(type, this.webhook?.allowedUpdates);
+  }
+
+  private allowsType(type: string, allowed: string[] | undefined): boolean {
     if (!allowed || allowed.length === 0) return !OPT_IN_UPDATES.has(type);
     return allowed.includes(type);
+  }
+
+  private notifyIfIdle(): void {
+    if (this.pending.length === 0 && this.inFlight === 0) {
+      for (const resolve of this.idleWaiters.splice(0)) resolve();
+    }
   }
 
   private pump(): void {
@@ -649,9 +809,7 @@ export class TelegramSimulator {
       void this.deliver(webhook, update).finally(() => {
         this.inFlight--;
         this.pump();
-        if (this.pending.length === 0 && this.inFlight === 0) {
-          for (const resolve of this.idleWaiters.splice(0)) resolve();
-        }
+        this.notifyIfIdle();
       });
     }
   }
@@ -659,7 +817,7 @@ export class TelegramSimulator {
   private async deliver(webhook: WebhookConfig, update: Update): Promise<void> {
     const record: Delivery = {
       updateId: update.update_id,
-      type: Object.keys(update).find((k) => k !== "update_id")!,
+      type: updateType(update),
       attempts: 0,
       status: "failed",
     };
@@ -686,6 +844,27 @@ export class TelegramSimulator {
       await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs * record.attempts));
     }
   }
+}
+
+export interface SimulatorSnapshot {
+  users: SimUser[];
+  chats: Array<{
+    info: ChatInfo;
+    members: Array<[number, MemberStatus]>;
+    messages: Array<Message & { deleted?: boolean }>;
+    nextMessageId: number;
+    reactions: ReadonlyArray<readonly [number, Array<[number, ReactionType[]]>]>;
+    botReactions: Array<[number, ReactionType[]]>;
+  }>;
+  nextUserId: number;
+  nextChannelId: number;
+  nextUpdateId: number;
+  webhook: WebhookConfig | null;
+  menuButton: unknown;
+}
+
+function updateType(update: Update): string {
+  return Object.keys(update).find((key) => key !== "update_id")!;
 }
 
 interface ReplyParams {

@@ -1,6 +1,7 @@
 import { action } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
+import type { RegisteredAction } from "convex/server";
 
 interface BulkScoreMatch {
   /** Client-supplied id of the matched student, or null when nothing matched */
@@ -451,12 +452,10 @@ export const backfillPosts = action({
  */
 // No args validator: old clients pass their old arguments, which must reach the
 // handler so the admin sees the message rather than a validation error.
-const outdatedApp = () =>
-  action({
-    handler: async () => {
-      throw new ConvexError("يرجى إغلاق التطبيق وفتحه من جديد للحصول على آخر تحديث.");
-    },
-  });
-export const sendParticipantList = outdatedApp();
-export const reactToMessage = outdatedApp();
-export const detectNameFromMessage = outdatedApp();
+const outdatedApp = async (): Promise<never> => {
+  throw new ConvexError("يرجى إغلاق التطبيق وفتحه من جديد للحصول على آخر تحديث.");
+};
+type OutdatedAppAction = RegisteredAction<"public", Record<string, unknown>, Promise<never>>;
+export const sendParticipantList: OutdatedAppAction = action({ handler: outdatedApp });
+export const reactToMessage: OutdatedAppAction = action({ handler: outdatedApp });
+export const detectNameFromMessage: OutdatedAppAction = action({ handler: outdatedApp });

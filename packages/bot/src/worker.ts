@@ -11,14 +11,18 @@
  *                   was missed.
  */
 import type { ExecutionContext, MessageBatch, Queue, ScheduledController } from "@cloudflare/workers-types";
-import { InputFile } from "grammy";
+import { BotError, InputFile } from "grammy";
 import type { Update, UserFromGetMe } from "grammy/types";
 import registrationClosedImage from "../assets/registration-closed.jpeg";
 import { loadConfig } from "./config/environment";
 import { createBotApp, syncChannels, type BotApp } from "./bot";
 import { handleApiRequest } from "./api";
-import { runJob, type BotJob } from "./jobs";
+import { describeJob, runJob, type BotJob } from "./jobs";
 import { timingSafeEqual } from "./telegram-auth";
+import { RetryLater } from "./errors";
+
+/** Times an update may be put back on the queue (see RetryLater); matches max_retries. */
+const RETRY_LATER_ATTEMPTS = 2;
 
 export interface Env {
   UPDATES: Queue<BotJob>;
@@ -94,11 +98,23 @@ export default {
     for (const message of batch.messages) {
       try {
         await runJob(app, message.body);
+        console.log(`job done: ${describeJob(message.body)}`);
       } catch (error) {
+        const cause = error instanceof BotError ? error.error : error;
+        if (cause instanceof RetryLater) {
+          if (message.attempts <= RETRY_LATER_ATTEMPTS) {
+            console.log(`job deferred: ${describeJob(message.body)} (${cause.message})`);
+            message.retry({ delaySeconds: 2 * message.attempts });
+            continue;
+          }
+          console.log(`job done: ${describeJob(message.body)} (gave up: ${cause.message})`);
+          message.ack();
+          continue;
+        }
         // Like long polling: a failed update is logged and skipped rather than
         // retried, since handlers aren't safe to run twice. The queue only
         // redelivers if the consumer itself dies mid-batch.
-        console.error(`❌ ${message.body.type} job failed:`, error);
+        console.error(`❌ job failed: ${describeJob(message.body)}`, error);
       }
       message.ack();
     }

@@ -107,7 +107,10 @@ async function handle(
       return {};
 
     case "/api/registration": {
-      const result = await app.convex.mutation(api.mutations.setSessionRegistrationClosed, args);
+      const result = await app.convex.mutation(api.mutations.setSessionRegistrationClosed, {
+        ...args,
+        viaBot: true,
+      });
       if (result.deleteMessageId !== undefined) {
         await app.botActions.deleteMessage(args.chatId, result.deleteMessageId);
       }
@@ -124,6 +127,7 @@ async function handle(
         ...args,
         channelId,
         requestedBy: user.id,
+        viaBot: true,
       });
       // Finding an old post can take many rate-limited Telegram calls, so it
       // runs on its own queue; the web app follows progress on the import record.

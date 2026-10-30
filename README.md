@@ -80,11 +80,14 @@ bun run test
 Runs, in about 20 seconds and with nothing external:
 
 - **Scenarios** (`packages/testing/test/telegram-flow.test.ts`,
-  `web-api.test.ts`): the real Worker under `wrangler dev` (workerd + local
-  queues), the real Convex functions (in memory, via `convex-test`), a simulated
-  Telegram and a fake Groq. They cover registration posts, adding students
-  with 👌, `/admin`, admin changes, the web API's authentication, sending the
-  list, registration, reactions, name detection and post imports.
+  `web-api.test.ts`, `edge-cases.test.ts`): the real Worker under `wrangler
+  dev` (workerd + local queues), the real Convex functions (in memory, via
+  `convex-test`), a simulated Telegram and a fake Groq. They cover registration
+  posts, adding students with 👌 (also from nested replies, and when the
+  reaction arrives before the message), `/admin`, `/auto`, admin changes, the
+  bot being added or removed, the web API's authentication, sending the list,
+  registration, reactions, name detection and post imports, and that
+  anonymous admins and channels are never added as students.
 - **Simulator and auth checks** (`simulator.test.ts`): that the simulated
   Telegram behaves like Telegram where the bot depends on it (update filtering,
   ordering, retries, forwarding), plus Mini App signature verification checked
@@ -98,9 +101,13 @@ simulated Telegram and sends the list.
 
 ## Deploying
 
-Run from `packages/bot` unless noted. A paid Workers plan is recommended: the
-free plan's 10 ms CPU limit per request is likely too tight for LLM response
-parsing and bot startup.
+Run from `packages/bot` unless noted.
+
+**Plan and cost.** Use the Workers Paid plan: the free plan's 10 ms CPU limit
+per request is likely too tight for LLM response parsing and bot startup. Each
+Telegram update costs about three Queues operations (write, read, ack), plus
+Workers requests and Convex calls; check Cloudflare's current Queues pricing
+against your message volume.
 
 ### First deploy (cutover from the Docker bot)
 
@@ -109,8 +116,14 @@ deployed, but the new Convex functions remove what the old web app and the
 Docker bot rely on. So the Worker goes first, then Convex and the web app
 back-to-back.
 
-1. **Create the queues:** `bunx wrangler queues create halaqabot-updates` and
-   `bunx wrangler queues create halaqabot-imports`
+1. **Create the queues:**
+   ```bash
+   bunx wrangler queues create halaqabot-updates
+   bunx wrangler queues create halaqabot-imports
+   bunx wrangler queues create halaqabot-dead-letters
+   ```
+   The dead-letter queue keeps batches the consumer itself couldn't run
+   (e.g. Telegram's `getMe` failing) instead of dropping them.
 2. **Set the Worker secrets.** Generate `TELEGRAM_WEBHOOK_SECRET` with
    `openssl rand -hex 32`.
    ```bash
@@ -120,10 +133,10 @@ back-to-back.
    bunx wrangler secret put CONVEX_URL
    bunx wrangler secret put TELEGRAM_WEBHOOK_SECRET
    ```
-   `CHANNEL_ID`, `WEB_APP_URL`, `AUTO_REACTION_EMOJI` and
-   `ALLOWED_REACTION_USER_IDS` are optional (defaults in
-   `src/config/environment.ts`). `WEB_APP_URL` is also the only origin allowed
-   to call `/api/*`.
+   `CHANNEL_ID`, `WEB_APP_URL` and `AUTO_REACTION_EMOJI` are optional
+   (defaults in `src/config/environment.ts`). `WEB_APP_URL` must be the exact
+   origin the web app is served from: it's the only origin allowed to call
+   `/api/*`.
 3. **Deploy the Worker:** `bun run deploy`. Note the `*.workers.dev` URL.
 4. **Stop the Docker bot**, then point Telegram at the Worker:
    ```bash
@@ -132,13 +145,22 @@ back-to-back.
    ```
 5. **Deploy Convex** (`bun run deploy:convex` from the repo root), then
    immediately **deploy the web app** built with `VITE_BOT_API_URL` set to the
-   Worker URL.
+   Worker URL. Set it wherever your web host supplies `VITE_CONVEX_URL` at
+   build time; it's read when Vite builds the app. (The web `Dockerfile`
+   declares no build args, so if you build that image, pass both the way you
+   pass `VITE_CONVEX_URL` today.) A web app built without it shows an error
+   for every action that goes through the bot.
 
 Re-run `bun run webhook:set` whenever `ALLOWED_UPDATES` in `src/bot.ts`
 changes; Telegram only sends the update types registered with the webhook.
 
-To roll back, redeploy the previous commit's Convex functions and web app, and
-start the previous bot.
+To roll back:
+
+1. Take the Worker out: `bunx wrangler delete` (removes its routes, queue
+   consumers and cron), or at least remove its cron trigger.
+2. Redeploy the previous commit's Convex functions and web app.
+3. Start the previous Docker bot. It deletes the webhook on start, but with
+   `drop_pending_updates`, so updates Telegram was holding are lost.
 
 Logs: `bunx wrangler tail`, or the Workers dashboard (observability is enabled).
 
@@ -157,13 +179,27 @@ dev or preview deployment, and the web app built against both.
    bun run deploy
    ```
 2. **Bot preview** (from `packages/bot`): create the preview queues
-   (`halaqabot-preview-updates`, `halaqabot-preview-imports`), set the secrets
-   listed in `wrangler.toml` under `[env.preview]` with `--env preview` (the bot
-   token is the simulator's), then `bun run deploy:preview`, and point the
-   simulator at it:
+   (`halaqabot-preview-updates`, `halaqabot-preview-imports`,
+   `halaqabot-preview-dead-letters`), then set its secrets with
+   `bunx wrangler secret put <NAME> --env preview`:
+
+   | Secret | Value |
+   | --- | --- |
+   | `BOT_TOKEN` | the simulator's `SIM_BOT_TOKEN` |
+   | `TELEGRAM_API_ROOT` | `https://halaqabot-telegram-sim.<account>.workers.dev` |
+   | `GROQ_BASE_URL` | the same, plus `/groq/openai/v1` |
+   | `GROQ_API_KEY` | anything (the fake Groq ignores it) |
+   | `CONVEX_URL` | the dev or preview Convex deployment |
+   | `TELEGRAM_WEBHOOK_SECRET` | a random string |
+   | `CHANNEL_ID` | `-1001000000001` (the simulated channel) |
+   | `FORWARD_CHAT_ID` | `-1001000000003` (the simulated scratch group) |
+   | `WEB_APP_URL` | the preview web app's origin |
+
+   Then `bun run deploy:preview` and point the simulator at it:
    ```bash
    BOT_TOKEN=<SIM_BOT_TOKEN> WORKER_URL=https://halaqabot-preview.<account>.workers.dev \
-   TELEGRAM_WEBHOOK_SECRET=... TELEGRAM_API_ROOT=https://halaqabot-telegram-sim.<account>.workers.dev \
+   TELEGRAM_WEBHOOK_SECRET=... WEB_APP_URL=<preview web app> \
+   TELEGRAM_API_ROOT=https://halaqabot-telegram-sim.<account>.workers.dev \
    bun run webhook:set
    ```
 3. **Web app**: build it with `VITE_CONVEX_URL` (the preview deployment) and
@@ -171,8 +207,11 @@ dev or preview deployment, and the web app built against both.
    and set the simulator's `SIM_WEB_APP_URL` var to it so its dashboard can
    open the Mini App.
 
-The simulator keeps its world in memory, in a Durable Object: it starts over
-after a while idle, or via `POST /sim/reset`.
+The simulator keeps its world in a Durable Object's storage, so it survives
+idle periods. `POST /sim/reset` starts a fresh one (and forgets the webhook:
+run `webhook:set` again). Use long random values for `SIM_BOT_TOKEN` and
+`SIM_CONTROL_TOKEN`: the control token is all that stands between the
+internet and driving the preview bot.
 
 ### Web app CI/CD (Netlify, Vercel, etc.)
 
@@ -196,7 +235,11 @@ bun run build
 ```
 
 This will:
-1. Deploy Convex functions (generates TypeScript types)
-2. Build the database package
-3. Build the bot package
+1. Deploy Convex functions to the deployment `CONVEX_DEPLOY_KEY` points at
+   (and generate their TypeScript types)
+2. Typecheck the database package
+3. Typecheck the bot package
 4. Build the web package
+
+The bot itself is deployed separately (`bun run deploy:bot`); `bun run test`
+is the check to run in CI before deploying it.

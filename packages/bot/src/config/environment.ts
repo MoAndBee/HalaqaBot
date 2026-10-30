@@ -44,7 +44,7 @@ export function loadConfig(env: ConfigSource): Config {
     "GROQ_API_KEY",
     "Get your API key from https://console.groq.com/.",
   );
-  const convexUrl = read(env, "CONVEX_URL") || "http://localhost:3210";
+  const convexUrl = required(env, "CONVEX_URL", "Set it to the Convex deployment URL.");
   const autoReactionEmoji = (read(env, "AUTO_REACTION_EMOJI") || "❤") as Config["autoReactionEmoji"];
   const allowedReactionUserIdsValue = read(env, "ALLOWED_REACTION_USER_IDS");
   const allowedReactionUserIds = allowedReactionUserIdsValue

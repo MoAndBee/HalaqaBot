@@ -143,6 +143,13 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
     rmSync(stateDir, { recursive: true, force: true });
   };
   process.once("exit", killOnExit);
+  // Ctrl+C or a kill during a test run: the exit event alone doesn't fire.
+  const onSignal = () => {
+    killOnExit();
+    process.exit(130);
+  };
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
 
   const ready = Promise.withResolvers<void>();
   for (const stream of [worker.stdout, worker.stderr]) {
@@ -170,6 +177,8 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
   const stop = async () => {
     stopping = true;
     process.off("exit", killOnExit);
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
     worker.kill();
     await worker.exited.catch(() => {});
     simServer.stop(true);
@@ -189,6 +198,10 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
   const convexClient = new ConvexHttpClient(convexUrl, { skipConvexDeploymentUrlCheck: true, logger: false });
 
   const activity = () => sim.apiCalls.length + sim.deliveries.length + (convex?.calls.length ?? 0) + simHandler.groqCalls.length;
+  // The Worker logs "job done: update <id>" (or "job failed: …") for each update
+  // it finishes, so settling can wait for exactly the updates Telegram sent.
+  const updatesFinished = () => workerLog.filter((line) => /job (done|failed): update /.test(line)).length;
+  const updatesDelivered = () => sim.deliveries.filter((d) => d.status === "delivered").length;
 
   const stack: Stack = {
     sim,
@@ -216,12 +229,18 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
       if (!response.ok) throw new Error(`cron failed: ${response.status}`);
     },
 
-    async settle({ quietMs = 600, timeoutMs = 30_000 } = {}) {
+    async settle({ quietMs = 300, timeoutMs = 30_000 } = {}) {
       const deadline = Date.now() + timeoutMs;
       let last = -1;
       let quietSince = Date.now();
       while (Date.now() < deadline) {
         await sim.whenDelivered();
+        if (updatesFinished() < updatesDelivered()) {
+          await sleep(50);
+          continue;
+        }
+        // Then a short quiet spell, for work that isn't an update (/api calls
+        // finishing in the background, the cron).
         const now = activity();
         if (now !== last) {
           last = now;

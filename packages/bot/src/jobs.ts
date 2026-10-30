@@ -26,3 +26,8 @@ export async function runJob(app: BotApp, job: BotJob): Promise<void> {
       return;
   }
 }
+
+/** One-line label for logs, e.g. "update 42" or "import_post <id>". */
+export function describeJob(job: BotJob): string {
+  return job.type === "update" ? `update ${job.update.update_id}` : `import_post ${job.importId}`;
+}

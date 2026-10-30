@@ -26,6 +26,14 @@ export interface SimulatorServerOptions {
   reset?: () => void;
 }
 
+/** Compares without leaking how much of the guess matched. */
+function sameText(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 /** Parameters from the query string and a JSON, form or multipart body. */
 async function readParams(request: Request): Promise<Record<string, unknown>> {
   const params: Record<string, unknown> = Object.fromEntries(new URL(request.url).searchParams);
@@ -88,7 +96,7 @@ export function createSimulatorHandler(sim: TelegramSimulator, options: Simulato
   }
 
   async function control(request: Request, route: string): Promise<Response> {
-    if (options.controlToken && request.headers.get("Authorization") !== `Bearer ${options.controlToken}`) {
+    if (options.controlToken && !sameText(request.headers.get("Authorization") ?? "", `Bearer ${options.controlToken}`)) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body: any = request.method === "POST" ? await request.json().catch(() => ({})) : {};
@@ -150,7 +158,14 @@ export function createSimulatorHandler(sim: TelegramSimulator, options: Simulato
       case "private-chats":
         return Response.json({ chatId: sim.privateChat(body.userId) });
       case "messages":
-        return Response.json(sim.sendUserMessage(body.chatId, body.userId, body.text, { replyTo: body.replyTo }));
+        return Response.json(
+          sim.sendUserMessage(body.chatId, body.userId, body.text, { replyTo: body.replyTo, deferred: body.deferred }),
+        );
+      case "chat-messages":
+        return Response.json(sim.sendAsChat(body.chatId, body.senderChatId, body.text, { replyTo: body.replyTo }));
+      case "release":
+        sim.releaseDeferred(body.chatId, body.messageId);
+        return Response.json({ ok: true });
       case "reactions":
         sim.react(body.chatId, body.messageId, body.userId, body.emojis ?? []);
         return Response.json({ ok: true });

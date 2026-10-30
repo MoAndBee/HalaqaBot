@@ -1,7 +1,7 @@
 import type { Bot, InputFile } from "grammy";
 import { api, type ConvexHttpClient, type Id } from "@halakabot/db";
 import type { Config } from "../config/environment";
-import type { MessageService } from "./message.service";
+import { SERVICE_ACCOUNT_IDS, type MessageService } from "./message.service";
 import type { ClassificationService } from "./classification.service";
 import { detectRealNameFromMessage } from "./name-detection.service";
 import { PostImportService } from "./post-import.service";
@@ -45,7 +45,7 @@ export class BotActionsService {
       messageId,
     );
 
-    if (!messageAuthor || messageAuthor.id === 0) {
+    if (!messageAuthor || messageAuthor.id === 0 || SERVICE_ACCOUNT_IDS.has(messageAuthor.id)) {
       console.log(`⏭️  detect_name: no resolvable author for message ${messageId}, skipping`);
       return;
     }
@@ -158,11 +158,7 @@ export class BotActionsService {
         postId,
       });
 
-      if (allSessions.length === 0) {
-        sessionNumber = 1;
-      } else {
-        sessionNumber = allSessions[0].sessionNumber;
-      }
+      sessionNumber = allSessions[0]?.sessionNumber ?? 1;
     }
 
     // A closed (locked) halaqa is final — don't publish its list again.

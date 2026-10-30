@@ -2,6 +2,8 @@
 name = "halaqabot-telegram-sim"
 main = "src/sim-worker.ts"
 compatibility_date = "2026-09-01"
+# Fetching the preview bot, a Worker on the same account, needs this (see the bot's wrangler.toml).
+compatibility_flags = ["global_fetch_strictly_public"]
 
 # Secrets (`bunx wrangler secret put <NAME>`): SIM_BOT_TOKEN, SIM_CONTROL_TOKEN
 [vars]

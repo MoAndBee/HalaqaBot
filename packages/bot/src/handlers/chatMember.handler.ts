@@ -1,5 +1,5 @@
 import type { Bot, Context } from "grammy";
-import type { ConvexHttpClient } from "@halakabot/db";
+import { api, type ConvexHttpClient } from "@halakabot/db";
 import { registerChannelFromChat } from "../services/channel-registry.service";
 import type { AdminSyncService } from "../services/admin-sync.service";
 
@@ -46,6 +46,22 @@ export function registerChatMemberHandler(
     if (nowPresent && wasPresent) return;
 
     try {
+      if (nowAbsent) {
+        // Telegram refuses getChat once the bot is out, so find the registry
+        // rows for this chat (as channel or as its discussion group) directly.
+        const channels = await convex.query(api.queries.getActiveChannels, {});
+        for (const channel of channels.filter((c) => c.channelId === chat.id || c.chatId === chat.id)) {
+          await convex.mutation(api.mutations.upsertChannel, {
+            channelId: channel.channelId,
+            chatId: channel.chatId,
+            title: channel.title,
+            isActive: false,
+          });
+          console.log(`🚪 Bot removed: channel ${channel.channelId} marked inactive`);
+        }
+        return;
+      }
+
       const registered = await registerChannelFromChat(bot.api, convex, chat.id, {
         isActive: nowPresent,
       });

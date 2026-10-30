@@ -68,21 +68,37 @@ await stack.callApi("/api/participant-list", { chatId: world.groupId, postId }, 
 
 - **activity:** a word starting تسم/تثم → تسميع, starting تلا/طلا → تلاوة
 - **name:** after dropping the activity word, انا/أنا/اسمي and punctuation, 2–4
-  Arabic words remain, and the message isn't a question, a blessing or a
-  thank-you (contains ؟/? or يا, or starts with هل/فين/جزاك/ربنا/شكرا).
+  Arabic words remain, and the message isn't a question, a blessing, a
+  thank-you or a greeting (contains ؟/? or يا, or starts with
+  هل/فين/جزاك/ربنا/شكرا/السلام).
 
-## What the simulator doesn't model
+## What the simulator models, and what it doesn't
 
-It covers what the bot uses today. Not simulated, so not covered by these tests:
+Beyond plain messages it covers: channel posts and their automatic forwards
+into the discussion group, comment threads (`message_thread_id`), messages
+sent as the group (anonymous admins) or as a channel, reactions (anonymous
+counts in channels), membership changes for others (`chat_member`) and the
+bot itself (`my_chat_member`), webhooks (`allowed_updates`, secret token,
+`max_connections`, retries) and long polling (`getUpdates`), hidden-forward
+privacy, protected content, Telegram's 4096/1024-character limits, and chats a
+bot that has left can no longer see. `sendUserMessage(..., { deferred: true })`
+plus `releaseDeferred()` makes an update arrive late, to test out-of-order
+delivery.
+
+Not simulated, so not covered by these tests:
 
 - **Unused Bot API methods** (they fail with "method not found", so a new call
-  shows up quickly) and `getUpdates` (long polling).
-- **Message edits, media groups, forum topics, anonymous admins** posting as the
-  group, and service messages.
+  shows up quickly).
+- **Message edits, media groups, voice messages, forum topics** and service
+  messages.
+- **Privacy mode** (the bot is assumed to see every group message) and
+  per-right admin permissions.
 - **Rate limits** (429 / `retry_after`) and Telegram's real flood behaviour.
 - **File downloads.** Uploaded photos are only measured.
-- **Exact error texts** beyond the ones listed in `simulator.ts`.
+- **Exact error texts** beyond the ones listed in `simulator.ts`, and real
+  queue latency or ordering quirks (Cloudflare Queues doesn't strictly
+  guarantee order; locally it's FIFO).
 - **Real LLM classification quality.** The fake rules only check the plumbing.
 - **The web app's live data** only works against a real Convex deployment,
-  since the in-memory emulator speaks Convex's HTTP API, not its WebSocket sync
-  protocol.
+  since the in-memory emulator speaks Convex's HTTP API (public functions
+  only, like a deployment), not its WebSocket sync protocol.

@@ -1772,8 +1772,17 @@ export const setSessionRegistrationClosed = mutation({
     postId: v.number(),
     sessionNumber: v.number(),
     registrationClosed: v.boolean(),
+    viaBot: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Only the bot's web API calls this now, and it acts on the result (deleting
+    // the image, queueing the import). A Mini App still running an old cached
+    // bundle calls it directly and would leave that half done; tell its admin
+    // to reopen the app instead.
+    if (!args.viaBot) {
+      throw new ConvexError("يرجى إغلاق التطبيق وفتحه من جديد للحصول على آخر تحديث.");
+    }
+
     const session = await ctx.db
       .query("sessions")
       .withIndex("by_chat_post_session", (q) =>
@@ -1812,7 +1821,10 @@ export const setSessionRegistrationClosed = mutation({
         )
         .first();
 
-      if (lastListMessage?.registrationClosedImageMessageId) {
+      // Only this session's image: the record may belong to another session's list.
+      const sameSession =
+        lastListMessage?.sessionNumber === undefined || lastListMessage.sessionNumber === args.sessionNumber;
+      if (lastListMessage?.registrationClosedImageMessageId && sameSession) {
         deleteMessageId = lastListMessage.registrationClosedImageMessageId;
         await ctx.db.patch(lastListMessage._id, {
           registrationClosedImageMessageId: undefined,
@@ -2305,8 +2317,17 @@ export const requestPostImport = mutation({
     channelId: v.optional(v.number()),
     link: v.string(),
     requestedBy: v.optional(v.number()),
+    viaBot: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Only the bot's web API calls this now, and it acts on the result (deleting
+    // the image, queueing the import). A Mini App still running an old cached
+    // bundle calls it directly and would leave that half done; tell its admin
+    // to reopen the app instead.
+    if (!args.viaBot) {
+      throw new ConvexError("يرجى إغلاق التطبيق وفتحه من جديد للحصول على آخر تحديث.");
+    }
+
     const parsed = parsePostLink(args.link);
     if (!parsed) {
       throw new ConvexError(

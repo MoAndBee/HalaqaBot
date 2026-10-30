@@ -7,8 +7,9 @@
  * their expectations in terms of them:
  *   - activity: a word starting تسم/تثم → تسميع, starting تلا/طلا → تلاوة
  *   - name: after dropping the activity word, "انا"/"أنا"/"اسمي" and punctuation,
- *     2–4 Arabic words remain, and the message isn't a question, a blessing or
- *     a thank-you (contains ؟/?, "يا", or starts with هل/فين/جزاك/ربنا/شكرا).
+ *     2–4 Arabic words remain, and the message isn't a question, a blessing,
+ *     a thank-you or a greeting (contains ؟/?, "يا", or starts with
+ *     هل/فين/جزاك/ربنا/شكرا/السلام).
  */
 
 const ACTIVITY_PATTERNS: Array<[RegExp, "تسميع" | "تلاوة"]> = [
@@ -16,7 +17,7 @@ const ACTIVITY_PATTERNS: Array<[RegExp, "تسميع" | "تلاوة"]> = [
   [/^(تلا|طلا)/, "تلاوة"],
 ];
 const SELF_INTRO = new Set(["انا", "أنا", "اسمي"]);
-const NOT_A_SELF_INTRO = /[؟?]|(^|\s)يا(\s|$)|^(هل|فين|جزاك|ربنا|شكرا)/;
+const NOT_A_SELF_INTRO = /[؟?]|(^|\s)يا(\s|$)|^(هل|فين|جزاك|ربنا|شكرا|السلام)/;
 const ARABIC_WORD = /^[ء-ي٠-٩]+$/;
 
 export interface FakeClassification {

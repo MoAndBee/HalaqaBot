@@ -103,14 +103,14 @@ describe("/admin", () => {
 
 describe("channel admins follow Telegram", () => {
   test("promoting someone in the channel grants web app access, demoting revokes it", async () => {
-    const [, , student] = stack.world.students;
-    const myChannels = () => stack.query(api.queries.getMyChannels, { userId: student!.id });
+    const student = stack.sim.addUser({ first_name: "Future admin" });
+    const myChannels = () => stack.query(api.queries.getMyChannels, { userId: student.id });
     expect(await myChannels()).toHaveLength(0);
 
-    stack.sim.setMemberStatus(stack.world.channelId, student!.id, "administrator");
+    stack.sim.setMemberStatus(stack.world.channelId, student.id, "administrator");
     await stack.waitFor(async () => (await myChannels()).length === 1, { message: "promotion to sync" });
 
-    stack.sim.setMemberStatus(stack.world.channelId, student!.id, "member");
+    stack.sim.setMemberStatus(stack.world.channelId, student.id, "member");
     await stack.waitFor(async () => (await myChannels()).length === 0, { message: "demotion to sync" });
   });
 

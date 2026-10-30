@@ -3,13 +3,21 @@
  * preview of the bot points TELEGRAM_API_ROOT (and GROQ_BASE_URL) here instead
  * of at Telegram, and the dashboard at this Worker's URL drives it.
  *
- * One Durable Object holds the simulated world in memory. It's ephemeral: when
- * the object is evicted after a period of inactivity the world starts over, as
- * does POST /sim/reset (the bot's data in Convex is not touched).
+ * One Durable Object holds the simulated world, saved to its storage after
+ * every change so it survives the object being evicted while idle. POST
+ * /sim/reset starts a fresh world (the bot's data in Convex is not touched).
  */
-import { TelegramSimulator } from "./telegram/simulator";
+import { TelegramSimulator, type SimulatorSnapshot } from "./telegram/simulator";
 import { createSimulatorHandler } from "./telegram/server";
 import { createWorld } from "./world";
+
+interface DurableObjectState {
+  blockConcurrencyWhile<T>(callback: () => Promise<T>): Promise<T>;
+  storage: {
+    get<T>(key: string): Promise<T | undefined>;
+    put(key: string, value: unknown): Promise<void>;
+  };
+}
 
 interface Env {
   SIMULATOR: {
@@ -25,15 +33,23 @@ interface Env {
 }
 
 export class Simulator {
+  private sim!: TelegramSimulator;
   private handle!: (request: Request) => Promise<Response>;
 
-  constructor(_state: unknown, private env: Env) {
-    this.start();
+  constructor(
+    private state: DurableObjectState,
+    private env: Env,
+  ) {
+    void state.blockConcurrencyWhile(async () => {
+      this.start(await state.storage.get<SimulatorSnapshot>("world"));
+    });
   }
 
-  private start(): void {
+  private start(saved?: SimulatorSnapshot): void {
     const sim = new TelegramSimulator({ botToken: this.env.SIM_BOT_TOKEN });
-    createWorld(sim);
+    if (saved) sim.load(saved);
+    else createWorld(sim);
+    this.sim = sim;
     this.handle = createSimulatorHandler(sim, {
       controlToken: this.env.SIM_CONTROL_TOKEN,
       webAppUrl: this.env.SIM_WEB_APP_URL,
@@ -42,8 +58,11 @@ export class Simulator {
     }).handle;
   }
 
-  fetch(request: Request): Promise<Response> {
-    return this.handle(request);
+  async fetch(request: Request): Promise<Response> {
+    const response = await this.handle(request);
+    // Reads change nothing; everything else (Bot API calls, world actions) may.
+    if (request.method !== "GET") await this.state.storage.put("world", this.sim.snapshot());
+    return response;
   }
 }
 

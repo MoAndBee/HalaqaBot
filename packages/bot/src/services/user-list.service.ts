@@ -132,40 +132,6 @@ export class UserListService {
     await this.printUserListToConsole(chatId, postId);
 
     // Send updated list to the chat if it changed
-    if (listChanged) {
-      // Delete the previous list message if it exists
-      const previousMessageId = await this.convex.query(api.queries.getLastListMessage, {
-        chatId,
-        postId,
-      });
-      if (previousMessageId) {
-        try {
-          await grammyApi.deleteMessage(chatId, previousMessageId);
-          console.log("Deleted previous list message");
-        } catch (error) {
-          console.log("Could not delete previous list message:", error);
-        }
-      }
-
-      // Send new list message as a comment on the post
-      // const userList = await this.getUserList(chatId, postId);
-      // const listMessage = this.formatUserList(userList);
-
-      // const sentMessage = await grammyApi.sendMessage(
-      //   chatId,
-      //   `📋 القائمة:\n\n${listMessage}`,
-      //   { reply_to_message_id: postId }
-      // );
-
-      // // Store the new message ID for future deletion
-      // await this.convex.mutation(api.mutations.setLastListMessage, {
-      //   chatId,
-      //   postId,
-      //   messageId: sentMessage.message_id,
-      //   channelId,
-      // });
-    }
-
     return listChanged;
   }
 }

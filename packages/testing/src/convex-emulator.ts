@@ -69,7 +69,16 @@ export interface ConvexEmulator {
 export async function createConvexEmulator(): Promise<ConvexEmulator> {
   await ensureConvexCodegen();
   const { default: schema } = await import(path.join(CONVEX_DIR, "schema.ts"));
-  const t = convexTest(schema, await loadModules());
+  const modules = await loadModules();
+  const t = convexTest(schema, modules);
+
+  /** Like a deployment, only public functions can be called over HTTP. */
+  async function isPublic(functionPath: string): Promise<boolean> {
+    const [file, name = "default"] = functionPath.split(":");
+    const load = modules[`/convex/${file}.ts`] ?? modules[`/convex/${file}.js`];
+    const fn = load ? (await load())[name!] : undefined;
+    return Boolean(fn?.isPublic);
+  }
   const calls: ConvexEmulator["calls"] = [];
 
   async function handle(request: Request): Promise<Response> {
@@ -82,6 +91,11 @@ export async function createConvexEmulator(): Promise<ConvexEmulator> {
     const args = jsonToConvex(body.args?.[0] ?? {}) as Record<string, Value>;
     const call: ConvexEmulator["calls"][number] = { kind, path: body.path, args };
     calls.push(call);
+
+    if (!(await isPublic(body.path))) {
+      call.error = `Could not find public function for '${body.path}'`;
+      return new Response(call.error, { status: 404 });
+    }
 
     try {
       const ref = makeFunctionReference<any>(body.path);
