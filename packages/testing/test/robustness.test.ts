@@ -10,6 +10,9 @@ import { REGISTRATION_POST, isListed, messageLink, publishHalaqa, turnQueue, wor
 /** Far tighter than Telegram's ~20 messages a minute per group, to hit it quickly. */
 const RATE_LIMIT = { sends: 2, windowMs: 3_000 };
 
+/** The outage and the call count need the in-memory Convex (not TEST_CONVEX_URL). */
+const emulated = !process.env.TEST_CONVEX_URL;
+
 /** Workers Paid allows 1,000 subrequests (fetches to Telegram, Convex, Groq) per invocation. */
 const SUBREQUEST_LIMIT = 1_000;
 
@@ -49,7 +52,7 @@ describe("Telegram flood limits", () => {
   }, 120_000);
 });
 
-describe("a Convex outage", () => {
+describe.skipIf(!emulated)("a Convex outage", () => {
   test("updates during the outage fail cleanly and the bot carries on once Convex is back", async () => {
     const { sim, world, convex } = stack;
     convex!.setUnavailable(true);
@@ -78,7 +81,7 @@ describe("a Convex outage", () => {
   });
 });
 
-describe("the subrequest budget", () => {
+describe.skipIf(!emulated)("the subrequest budget", () => {
   test("/auto on a busy post stays well inside a single invocation's limit", async () => {
     const { sim, world, convex } = stack;
     const postId = await publishHalaqa(stack);
