@@ -2,7 +2,7 @@
 // to act in Telegram — sending the list, reacting, importing a post.
 //
 // Requests are signed with the Mini App's initData, which the bot verifies with
-// its token, so they only work inside Telegram (not with VITE_DEV_USER_ID).
+// its token, so they only work inside Telegram (or the Telegram simulator).
 
 // The Worker's origin, e.g. https://halaqabot.<account>.workers.dev
 const botApiUrl = import.meta.env.VITE_BOT_API_URL as string | undefined
@@ -50,4 +50,18 @@ export async function callBot<T = unknown>(path: string, body: unknown): Promise
     throw new BotApiError('')
   }
   return data as T
+}
+
+/**
+ * A Convex token for this user, signed by the bot (see lib/convex.tsx). Null if
+ * the bot can't be reached or rejects the initData; Convex then treats the app
+ * as signed out.
+ */
+export async function fetchConvexToken(): Promise<string | null> {
+  try {
+    const { token } = await callBot<{ token: string }>('/api/auth/token', {})
+    return token
+  } catch {
+    return null
+  }
 }

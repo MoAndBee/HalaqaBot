@@ -6,7 +6,8 @@ compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
 # Secrets (set with `bunx wrangler secret put <NAME>`, never committed):
-#   BOT_TOKEN, GROQ_API_KEY, FORWARD_CHAT_ID, CONVEX_URL, TELEGRAM_WEBHOOK_SECRET
+#   BOT_TOKEN, GROQ_API_KEY, FORWARD_CHAT_ID, CONVEX_URL, TELEGRAM_WEBHOOK_SECRET,
+#   CONVEX_AUTH_PRIVATE_KEY (see scripts/generate-auth-key.ts)
 #
 # Optional, with defaults in src/config/environment.ts:
 #   CHANNEL_ID, WEB_APP_URL (also the only origin allowed to call /api/*),

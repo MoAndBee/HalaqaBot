@@ -25,6 +25,16 @@ Mini App (web) ──────▶ Convex (data, live queries)
     admins. Admin changes normally arrive straight away as `chat_member` updates.
 - **`packages/db`** holds the Convex schema and functions. Convex never calls
   the bot; the Worker and the web app call Convex.
+- **Who may call Convex.** Convex accepts only tokens the Worker signs
+  (`convex/auth.config.ts`, `packages/bot/src/convex-auth.ts`):
+  - the bot's own token;
+  - a Mini App user's, issued by `POST /api/auth/token` once their `initData`
+    checks out.
+
+  Every public function starts with a check from `convex/auth.ts`. Some are
+  bot-only, and the rest need the caller to be an admin of the channel the data
+  belongs to. Admins are read from `channelAdmins`, which the bot keeps in step
+  with Telegram.
 - **`packages/web`** is the Mini App.
 
 ## Development
@@ -44,11 +54,15 @@ registration post, comment, react 👌, message the bot, promote admins. See
 `packages/testing/README.md` for how it works and what it doesn't simulate.
 
 To use the web app too, it needs a real Convex dev deployment (its live queries
-use Convex's WebSocket protocol, which the in-memory one doesn't speak):
+use Convex's WebSocket protocol, which the in-memory one doesn't speak). That
+deployment has to trust a key you hold, so generate a pair once with
+`bun packages/bot/scripts/generate-auth-key.ts`, keep the private key, and give
+the deployment the public half:
 
 ```bash
+(cd packages/db && CONVEX_DEPLOY_KEY=<dev key> bunx convex env set CONVEX_AUTH_JWKS '<data: URI>')
 (cd packages/db && CONVEX_DEPLOY_KEY=<dev key> bunx convex dev --once)
-TEST_CONVEX_URL=https://<dev>.convex.cloud bun run sim
+TEST_CONVEX_URL=https://<dev>.convex.cloud TEST_CONVEX_AUTH_PRIVATE_KEY='<private JWK>' bun run sim
 VITE_CONVEX_URL=https://<dev>.convex.cloud VITE_BOT_API_URL=http://127.0.0.1:8787 bun run dev:web
 ```
 
@@ -93,8 +107,14 @@ Runs, in about 20 seconds and with nothing external:
   ordering, retries, forwarding), plus Mini App signature verification checked
   against an independent implementation.
 
+- **Convex access** (`convex-auth.test.ts`): anonymous and forged tokens are
+  refused, students see nothing, admins reach only their own channel's data,
+  demoted admins lose access at once, users can't call the bot's functions,
+  and every public function begins with an access check.
+
 The same scenarios run against a real Convex dev deployment with
-`TEST_CONVEX_URL=https://<dev>.convex.cloud bun run test`, and
+`TEST_CONVEX_URL=https://<dev>.convex.cloud bun run test` (plus
+`TEST_CONVEX_AUTH_PRIVATE_KEY`, as above), and
 `TEST_CONVEX_URL=... bun --filter @halakabot/testing test:web` also drives
 the real web app in a browser (Playwright): an admin opens the Mini App through
 simulated Telegram and sends the list.
@@ -111,10 +131,14 @@ against your message volume.
 
 ### First deploy (cutover from the Docker bot)
 
-The order matters. The new Worker works with the Convex functions currently
-deployed, but the new Convex functions remove what the old web app and the
-Docker bot rely on. So the Worker goes first, then Convex and the web app
-back-to-back.
+The order matters:
+- The new Convex functions only answer the new Worker, which signs its calls.
+  They shut out the Docker bot and the old web app.
+- The Worker's tokens are refused by Convex until its auth config is deployed.
+
+So: stop the Docker bot, deploy Convex, then the Worker and the web app, one
+after another. Telegram holds updates while no bot is reading them (up to 24
+hours), and delivers them once the webhook is set, so nothing is lost.
 
 1. **Create the queues:**
    ```bash
@@ -125,27 +149,36 @@ back-to-back.
    The dead-letter queue keeps batches the consumer itself couldn't run
    (e.g. Telegram's `getMe` failing) instead of dropping them.
 2. **Set the Worker secrets.** Generate `TELEGRAM_WEBHOOK_SECRET` with
-   `openssl rand -hex 32`.
+   `openssl rand -hex 32`, and the Convex signing key pair with
+   `bun scripts/generate-auth-key.ts`.
    ```bash
    bunx wrangler secret put BOT_TOKEN
    bunx wrangler secret put GROQ_API_KEY
    bunx wrangler secret put FORWARD_CHAT_ID
    bunx wrangler secret put CONVEX_URL
    bunx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+   bunx wrangler secret put CONVEX_AUTH_PRIVATE_KEY   # the private JWK
+   ```
+   Give Convex the public half (from `packages/db`, with the production deploy
+   key). The deploy below fails without it:
+   ```bash
+   bunx convex env set CONVEX_AUTH_JWKS '<data: URI>' --prod
    ```
    `CHANNEL_ID`, `WEB_APP_URL` and `AUTO_REACTION_EMOJI` are optional
    (defaults in `src/config/environment.ts`). `WEB_APP_URL` must be the exact
    origin the web app is served from: it's the only origin allowed to call
    `/api/*`.
-3. **Deploy the Worker:** `bun run deploy`. Note the `*.workers.dev` URL.
-4. **Stop the Docker bot**, then point Telegram at the Worker:
+3. **Stop the Docker bot**, then **deploy Convex** (`bun run deploy:convex`
+   from the repo root).
+4. **Deploy the Worker** (`bun run deploy`; note the `*.workers.dev` URL) and
+   point Telegram at it:
    ```bash
    BOT_TOKEN=... WORKER_URL=https://halaqabot.<account>.workers.dev \
    TELEGRAM_WEBHOOK_SECRET=... bun run webhook:set
    ```
-5. **Deploy Convex** (`bun run deploy:convex` from the repo root), then
-   immediately **deploy the web app** built with `VITE_BOT_API_URL` set to the
-   Worker URL. Set it wherever your web host supplies `VITE_CONVEX_URL` at
+5. **Deploy the web app**, built with `VITE_BOT_API_URL` set to the
+   Worker URL. It signs in to Convex through the Worker, so it doesn't work
+   before step 4. Set it wherever your web host supplies `VITE_CONVEX_URL` at
    build time; it's read when Vite builds the app. (The web `Dockerfile`
    declares no build args, so if you build that image, pass both the way you
    pass `VITE_CONVEX_URL` today.) A web app built without it shows an error
@@ -163,6 +196,12 @@ To roll back:
    `drop_pending_updates`, so updates Telegram was holding are lost.
 
 Logs: `bunx wrangler tail`, or the Workers dashboard (observability is enabled).
+
+**Rotating the Convex signing key.** Generate a new pair, then set
+`CONVEX_AUTH_JWKS` and `CONVEX_AUTH_PRIVATE_KEY` one after the other. Calls
+fail in between, and open Mini Apps must be reopened. The maintenance scripts
+in `packages/bot/scripts` sign in as the bot, so they need
+`CONVEX_AUTH_PRIVATE_KEY` in their environment.
 
 ### Previews
 
@@ -194,6 +233,7 @@ dev or preview deployment, and the web app built against both.
    | `CHANNEL_ID` | `-1001000000001` (the simulated channel) |
    | `FORWARD_CHAT_ID` | `-1001000000003` (the simulated scratch group) |
    | `WEB_APP_URL` | the preview web app's origin |
+   | `CONVEX_AUTH_PRIVATE_KEY` | a key pair of its own; set the public half as that Convex deployment's `CONVEX_AUTH_JWKS` |
 
    Then `bun run deploy:preview` and point the simulator at it:
    ```bash

@@ -2,6 +2,7 @@ import { mutation, internalMutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
+import { requireAnyAdmin, requireBot, requireChatAccess, requireEntryAccess } from "./auth";
 
 /**
  * Parsing for Telegram message links (t.me/...).
@@ -116,6 +117,7 @@ export const registerPost = mutation({
     createdAt: v.number(),
   },
   handler: async (ctx, { chatId, postId, createdAt }) => {
+    await requireBot(ctx);
     await upsertPost(ctx, chatId, postId, createdAt);
   },
 });
@@ -187,6 +189,7 @@ export const addMessageAuthor = mutation({
     channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     // Check if message author already exists
     const existing = await ctx.db
       .query("messageAuthors")
@@ -276,6 +279,7 @@ export const addUserToList = mutation({
     compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Determine the session number to use
     let sessionNumber = args.sessionNumber;
 
@@ -384,6 +388,7 @@ export const addUserAtPosition = mutation({
     compensatingForDates: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Determine the session number
     let sessionNumber = args.sessionNumber;
     if (sessionNumber === undefined) {
@@ -494,6 +499,7 @@ export const clearUserList = mutation({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     // Delete from turnQueue
     const queueUsers = await ctx.db
       .query("turnQueue")
@@ -530,6 +536,7 @@ export const setLastListMessage = mutation({
     registrationClosedImageMessageId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const existing = await ctx.db
       .query("lastListMessages")
       .withIndex("by_chat_post", (q) =>
@@ -575,6 +582,7 @@ export const clearLastListMessage = mutation({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const existing = await ctx.db
       .query("lastListMessages")
       .withIndex("by_chat_post", (q) =>
@@ -600,6 +608,7 @@ export const storeClassification = mutation({
     channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const existing = await ctx.db
       .query("messageClassifications")
       .withIndex("by_chat_post_message", (q) =>
@@ -701,6 +710,7 @@ export const updateUserPosition = mutation({
     newPosition: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from turnQueue
     const currentEntry = await ctx.db.get(args.entryId);
 
@@ -758,6 +768,7 @@ export const removeUserFromList = mutation({
     entryId: v.id("turnQueue"),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry to remove from turnQueue
     const entryToRemove = await ctx.db.get(args.entryId);
 
@@ -788,6 +799,7 @@ export const removeCompletedUser = mutation({
     entryId: v.id("participationHistory"),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry to remove from participationHistory
     const entryToRemove = await ctx.db.get(args.entryId);
 
@@ -809,6 +821,7 @@ export const completeUserTurn = mutation({
     compensatingForDates: v.optional(v.array(v.number())), // Override/set dates at completion
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from turnQueue
     const entry = await ctx.db.get(args.entryId);
 
@@ -882,6 +895,7 @@ export const skipUserTurn = mutation({
     entryId: v.id("turnQueue"),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from turnQueue
     const currentEntry = await ctx.db.get(args.entryId);
 
@@ -938,6 +952,7 @@ export const unskipUserTurn = mutation({
     entryId: v.id("turnQueue"),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     const currentEntry = await ctx.db.get(args.entryId);
 
     if (!currentEntry) {
@@ -956,6 +971,7 @@ export const updateSessionType = mutation({
     sessionType: v.string(), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from participationHistory
     const entry = await ctx.db.get(args.entryId);
 
@@ -989,6 +1005,7 @@ export const updateTurnQueueSessionType = mutation({
     sessionType: v.string(), // "تلاوة", "تسميع", "تطبيق", "اختبار", or "تعويض"
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from turnQueue
     const entry = await ctx.db.get(args.entryId);
 
@@ -1022,6 +1039,7 @@ export const bulkUpdateTurnQueueSessionType = mutation({
     sessionType: v.string(),
   },
   handler: async (ctx, args) => {
+    for (const entryId of args.entryIds) await requireEntryAccess(ctx, entryId);
     if (args.sessionType === 'تعويض') {
       throw new Error('لا يمكن تعيين نوع التعويض بشكل جماعي');
     }
@@ -1052,6 +1070,7 @@ export const updateUserRealName = mutation({
     realName: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAnyAdmin(ctx);
     // Find the user in the users table
     const user = await ctx.db
       .query("users")
@@ -1086,6 +1105,7 @@ export const ensureUser = mutation({
     username: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     // Hidden/privacy senders have no stable id — don't create a bogus row.
     if (args.userId === 0) {
       return { created: false };
@@ -1118,7 +1138,7 @@ export const ensureUser = mutation({
   },
 });
 
-export const updateUserTelegramName = mutation({
+export const updateUserTelegramName = internalMutation({
   args: {
     userId: v.number(),
     telegramName: v.string(),
@@ -1150,6 +1170,7 @@ export const updateUserNotes = mutation({
     notes: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from participationHistory
     const entry = await ctx.db.get(args.entryId);
 
@@ -1173,6 +1194,7 @@ export const updateTurnQueueNotes = mutation({
     notes: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from turnQueue
     const entry = await ctx.db.get(args.entryId);
 
@@ -1196,6 +1218,7 @@ export const updateParticipationScore = mutation({
     score: v.union(v.number(), v.null()),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     const entry = await ctx.db.get(args.entryId);
 
     if (!entry) {
@@ -1221,6 +1244,7 @@ export const updateTurnQueueScore = mutation({
     score: v.union(v.number(), v.null()),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     const entry = await ctx.db.get(args.entryId);
 
     if (!entry) {
@@ -1276,6 +1300,9 @@ export const bulkUpdateParticipationScores = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    for (const update of args.updates) await requireEntryAccess(ctx, update.entryId);
+    if (args.additions) await requireChatAccess(ctx, args.additions.chatId);
+    else if (args.updates.length === 0) await requireAnyAdmin(ctx);
     for (const update of args.updates) {
       const entry = await ctx.db.get(update.entryId);
 
@@ -1390,6 +1417,7 @@ export const setTurnQueueCompensation = mutation({
     compensatingForDates: v.array(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from turnQueue
     const entry = await ctx.db.get(args.entryId);
 
@@ -1421,6 +1449,7 @@ export const updateParticipationCompensation = mutation({
     compensatingForDates: v.array(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireEntryAccess(ctx, args.entryId);
     // Get the entry from participationHistory
     const entry = await ctx.db.get(args.entryId);
 
@@ -1454,6 +1483,7 @@ export const upsertUser = mutation({
     sourceMessageText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     // Check if user already exists
     const existing = await ctx.db
       .query("users")
@@ -1495,6 +1525,7 @@ export const startNewSession = mutation({
     carryOverIncomplete: v.optional(v.boolean()), // whether to carry over incomplete users
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Get all existing sessions for this post
     const allSessions = await ctx.db
       .query("sessions")
@@ -1596,6 +1627,7 @@ export const updateSessionTeacher = mutation({
     teacherName: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -1638,6 +1670,7 @@ export const updateSessionSupervisor = mutation({
     supervisorName: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -1681,6 +1714,7 @@ export const lockSession = mutation({
     lockedBy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Find the session
     const session = await ctx.db
       .query("sessions")
@@ -1734,6 +1768,7 @@ export const unlockSession = mutation({
     passcode: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Validate passcode (hardcoded)
     const UNLOCK_PASSCODE = "adminunlock311225";
 
@@ -1772,17 +1807,9 @@ export const setSessionRegistrationClosed = mutation({
     postId: v.number(),
     sessionNumber: v.number(),
     registrationClosed: v.boolean(),
-    viaBot: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // Only the bot's web API calls this now, and it acts on the result (deleting
-    // the image, queueing the import). A Mini App still running an old cached
-    // bundle calls it directly and would leave that half done; tell its admin
-    // to reopen the app instead.
-    if (!args.viaBot) {
-      throw new ConvexError("يرجى إغلاق التطبيق وفتحه من جديد للحصول على آخر تحديث.");
-    }
-
+    await requireBot(ctx);
     const session = await ctx.db
       .query("sessions")
       .withIndex("by_chat_post_session", (q) =>
@@ -1855,6 +1882,7 @@ export const syncChannelAdmins = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const now = Date.now();
 
     // Get existing admins for this channel
@@ -1929,6 +1957,7 @@ export const upsertChannel = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const now = Date.now();
 
     const existing = await ctx.db
@@ -1974,6 +2003,7 @@ export const updateAdminPreferredName = mutation({
     sessionNumber: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2019,6 +2049,7 @@ export const assignSessionSupervisor = mutation({
     supervisorUserId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2078,6 +2109,7 @@ export const addSessionSupervisor = mutation({
     supervisorUserId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2135,6 +2167,7 @@ export const removeSessionSupervisor = mutation({
     supervisorUserId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2175,6 +2208,7 @@ export const takeOverSession = mutation({
     newSupervisorUserId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2231,6 +2265,8 @@ export const registerUser = mutation({
     chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (args.chatId !== undefined) await requireChatAccess(ctx, args.chatId);
+    else await requireAnyAdmin(ctx);
     // Validate passcode (same as unlockSession)
     const REGISTER_PASSCODE = "adminunlock311225";
 
@@ -2317,17 +2353,9 @@ export const requestPostImport = mutation({
     channelId: v.optional(v.number()),
     link: v.string(),
     requestedBy: v.optional(v.number()),
-    viaBot: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // Only the bot's web API calls this now, and it acts on the result (deleting
-    // the image, queueing the import). A Mini App still running an old cached
-    // bundle calls it directly and would leave that half done; tell its admin
-    // to reopen the app instead.
-    if (!args.viaBot) {
-      throw new ConvexError("يرجى إغلاق التطبيق وفتحه من جديد للحصول على آخر تحديث.");
-    }
-
+    await requireBot(ctx);
     const parsed = parsePostLink(args.link);
     if (!parsed) {
       throw new ConvexError(
@@ -2380,6 +2408,7 @@ export const requestPostImport = mutation({
 export const startPostImport = mutation({
   args: { importId: v.id("postImports") },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     await ctx.db.patch(args.importId, { status: "processing" });
   },
 });
@@ -2397,6 +2426,7 @@ export const completePostImport = mutation({
     channelId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const importRecord = await ctx.db.get(args.importId);
     if (!importRecord) {
       throw new ConvexError("Post import not found");
@@ -2426,6 +2456,7 @@ export const failPostImport = mutation({
     error: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     await ctx.db.patch(args.importId, {
       status: "failed",
       error: args.error,
@@ -2448,6 +2479,7 @@ export const registerDiscoveredPost = mutation({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     const messages = await ctx.db
       .query("messageAuthors")
       .withIndex("by_chat_post", (q) =>

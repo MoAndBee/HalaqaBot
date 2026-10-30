@@ -10,6 +10,13 @@ import type { BotApp } from "./bot";
 import type { BotJob } from "./jobs";
 import { UserFacingError } from "./errors";
 import { verifyInitData, type TelegramWebAppUser } from "./telegram-auth";
+import { importSigningKey, signToken } from "./convex-auth";
+
+/**
+ * How long a user's Convex token lasts. The web app fetches a new one before
+ * it runs out, which works while its initData is valid (24 hours).
+ */
+const USER_TOKEN_TTL_SECONDS = 60 * 60;
 
 export interface ApiDeps {
   app: BotApp;
@@ -109,7 +116,6 @@ async function handle(
     case "/api/registration": {
       const result = await app.convex.mutation(api.mutations.setSessionRegistrationClosed, {
         ...args,
-        viaBot: true,
       });
       if (result.deleteMessageId !== undefined) {
         await app.botActions.deleteMessage(args.chatId, result.deleteMessageId);
@@ -127,7 +133,6 @@ async function handle(
         ...args,
         channelId,
         requestedBy: user.id,
-        viaBot: true,
       });
       // Finding an old post can take many rate-limited Telegram calls, so it
       // runs on its own queue; the web app follows progress on the import record.
@@ -157,6 +162,18 @@ export async function handleApiRequest(request: Request, deps: ApiDeps): Promise
   const { pathname } = new URL(request.url);
   const json = (status: number, body: unknown) => Response.json(body, { status, headers: cors });
 
+  if (request.method === "POST" && pathname === "/api/auth/token") {
+    // The web app's Convex token. Convex itself decides what the user may see,
+    // so anyone with valid initData gets one (a non-admin gets "not authorized").
+    try {
+      const user = await authenticate(request, deps.app.config.botToken);
+      const key = await importSigningKey(deps.app.config.convexAuthKey);
+      return json(200, await signToken(key, String(user.id), USER_TOKEN_TTL_SECONDS));
+    } catch (error) {
+      if (error instanceof HttpError) return json(error.status, { error: error.message });
+      throw error;
+    }
+  }
   if (request.method !== "POST" || !(pathname in schemas)) {
     return json(404, { error: "Not found" });
   }

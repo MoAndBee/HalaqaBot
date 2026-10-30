@@ -3,7 +3,7 @@
  * for trying things by hand. Open the dashboard to act as users.
  *
  *   bun run sim                         in-memory Convex (bot only)
- *   TEST_CONVEX_URL=<dev deployment> bun run sim
+ *   TEST_CONVEX_URL=<dev deployment> TEST_CONVEX_AUTH_PRIVATE_KEY=<its key> bun run sim
  *                                       real Convex, so the web app works too:
  *                                       run it with VITE_CONVEX_URL set to the
  *                                       same deployment and VITE_BOT_API_URL to

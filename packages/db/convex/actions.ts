@@ -1,4 +1,4 @@
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { RegisteredAction } from "convex/server";
@@ -395,9 +395,10 @@ Respond with ONLY a JSON object of this exact shape:
  *
  * Uses _creationTime (Convex's immutable system field) for reliable timestamps.
  */
-export const backfillPosts = action({
+export const backfillPosts = internalAction({
   args: {},
   handler: async (ctx) => {
+    await ctx.runQuery(internal.auth.checkAnyAdmin, {});
     // Collect unique chatId+postId pairs with earliest timestamp
     const postMap = new Map<string, { chatId: number; postId: number; createdAt: number }>();
 

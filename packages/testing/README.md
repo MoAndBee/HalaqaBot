@@ -38,7 +38,12 @@ TEST_CONVEX_URL=https://<dev>.convex.cloud bun run test:web  # + the web app in 
 ```
 
 Against a real deployment, push this branch's functions there first
-(`CONVEX_DEPLOY_KEY=<dev key> bunx convex dev --once` in `packages/db`). Each
+(`CONVEX_DEPLOY_KEY=<dev key> bunx convex dev --once` in `packages/db`).
+Convex only answers tokens the bot signs, so the deployment's
+`CONVEX_AUTH_JWKS` must be the public half of a key pair whose private half
+you pass as `TEST_CONVEX_AUTH_PRIVATE_KEY`; generate one with
+`bun packages/bot/scripts/generate-auth-key.ts`. The in-memory Convex makes a
+fresh pair each run. Each
 run uses fresh user and chat IDs, so leftover data from earlier runs doesn't
 interfere. `test:web` uses Playwright's Chromium; set `CHROMIUM_PATH` to use
 another browser binary.

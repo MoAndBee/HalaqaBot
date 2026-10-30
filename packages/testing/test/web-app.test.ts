@@ -6,7 +6,8 @@
  * queries use Convex's WebSocket protocol, which the emulator doesn't speak):
  *
  *   CONVEX_DEPLOY_KEY=<dev key> bunx convex dev --once     (in packages/db)
- *   TEST_CONVEX_URL=https://<deployment>.convex.cloud bun run test:web
+ *   TEST_CONVEX_URL=https://<deployment>.convex.cloud \
+ *   TEST_CONVEX_AUTH_PRIVATE_KEY=<key matching its CONVEX_AUTH_JWKS> bun run test:web
  *
  * Skipped without TEST_CONVEX_URL.
  */

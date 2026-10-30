@@ -17,6 +17,7 @@ import { Api } from "grammy";
 import { ConvexHttpClient } from "@halakabot/db";
 import type { FunctionReference } from "convex/server";
 import { configureTelegram } from "../../bot/src/setup";
+import { BOT_SUBJECT, generateKeyPair, importSigningKey, signToken } from "../../bot/src/convex-auth";
 import { createConvexEmulator, type ConvexEmulator } from "./convex-emulator";
 import { TelegramSimulator } from "./telegram/simulator";
 import { createWorld, type World } from "./world";
@@ -42,6 +43,12 @@ export interface StackOptions {
   verbose?: boolean;
   /** Telegram flood limits for the simulator (see SimulatorOptions.rateLimit). */
   rateLimit?: { sends: number; windowMs: number };
+  /**
+   * The private key whose public half the Convex deployment trusts
+   * (CONVEX_AUTH_JWKS). Needed with a real deployment; defaults to
+   * TEST_CONVEX_AUTH_PRIVATE_KEY. The in-memory Convex gets a fresh pair.
+   */
+  convexAuthKey?: string;
 }
 
 export interface Stack {
@@ -50,9 +57,11 @@ export interface Stack {
   /** The in-memory emulator; null when running against a real Convex deployment. */
   convex: ConvexEmulator | null;
   convexUrl: string;
-  /** Convex functions, called over HTTP in either mode. */
+  /** Convex functions, called over HTTP in either mode, as the bot. */
   query<F extends FunctionReference<"query">>(fn: F, args: F["_args"]): Promise<F["_returnType"]>;
   mutation<F extends FunctionReference<"mutation">>(fn: F, args: F["_args"]): Promise<F["_returnType"]>;
+  /** A Convex client signed in as a Telegram user, or anonymous (null). */
+  convexAs(userId: number | null): Promise<ConvexHttpClient>;
   simulatorUrl: string;
   workerUrl: string;
   /** Lines the Worker printed. */
@@ -98,11 +107,25 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
   const simServer = Bun.serve({ port: options.simulatorPort ?? 0, fetch: simHandler.handle, idleTimeout: 0 });
   const simulatorUrl = `http://127.0.0.1:${simServer.port}`;
 
+  // Convex trusts tokens the bot signs (see bot/src/convex-auth.ts).
+  let convexAuthKey = options.convexAuthKey ?? process.env.TEST_CONVEX_AUTH_PRIVATE_KEY;
+  let authPublicKey: string | undefined;
+  if (!options.convexUrl) {
+    ({ privateJwk: convexAuthKey, publicJwk: authPublicKey } = await generateKeyPair());
+  } else if (!convexAuthKey) {
+    throw new Error(
+      "TEST_CONVEX_AUTH_PRIVATE_KEY is not set: the deployment only trusts tokens signed with the key " +
+        "whose public half is its CONVEX_AUTH_JWKS (see packages/bot/scripts/generate-auth-key.ts)",
+    );
+  }
+  const signingKey = await importSigningKey(convexAuthKey!);
+  const tokenFor = async (subject: string) => (await signToken(signingKey, subject, 24 * 60 * 60)).token;
+
   let convex: ConvexEmulator | null = null;
   let convexServer: ReturnType<typeof Bun.serve> | null = null;
   let convexUrl = options.convexUrl;
   if (!convexUrl) {
-    convex = await createConvexEmulator();
+    convex = await createConvexEmulator({ authPublicKey });
     convexServer = Bun.serve({ port: 0, fetch: convex.handle, idleTimeout: 0 });
     convexUrl = `http://127.0.0.1:${convexServer.port}`;
   }
@@ -117,6 +140,8 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
       FORWARD_CHAT_ID: String(world.scratchChatId),
       CONVEX_URL: convexUrl,
       TELEGRAM_WEBHOOK_SECRET: webhookSecret,
+      // Single-quoted: taken literally, JSON and all.
+      CONVEX_AUTH_PRIVATE_KEY: `'${convexAuthKey}'`,
       WEB_APP_URL: webAppUrl,
       CHANNEL_ID: String(world.channelId),
       TELEGRAM_API_ROOT: simulatorUrl,
@@ -200,7 +225,12 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
     clearTimeout(startTimer);
   }
 
-  const convexClient = new ConvexHttpClient(convexUrl, { skipConvexDeploymentUrlCheck: true, logger: false });
+  const newConvexClient = async (subject: string | null) => {
+    const client = new ConvexHttpClient(convexUrl, { skipConvexDeploymentUrlCheck: true, logger: false });
+    if (subject !== null) client.setAuth(await tokenFor(subject));
+    return client;
+  };
+  const convexClient = await newConvexClient(BOT_SUBJECT);
 
   const activity = () => sim.apiCalls.length + sim.deliveries.length + (convex?.calls.length ?? 0) + simHandler.groqCalls.length;
   // The Worker logs "job done: update <id>" (or "job failed: …") for each update
@@ -215,6 +245,7 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
     convexUrl,
     query: (fn, args) => convexClient.query(fn, args),
     mutation: (fn, args) => convexClient.mutation(fn, args),
+    convexAs: (userId) => newConvexClient(userId === null ? null : String(userId)),
     simulatorUrl,
     workerUrl,
     workerLog,

@@ -14,12 +14,13 @@ import type { ExecutionContext, MessageBatch, Queue, ScheduledController } from 
 import { BotError, InputFile } from "grammy";
 import type { Update, UserFromGetMe } from "grammy/types";
 import registrationClosedImage from "../assets/registration-closed.jpeg";
-import { loadConfig } from "./config/environment";
+import { loadConfig, type Config } from "./config/environment";
 import { API_RETRY, QUEUE_RETRY, createBotApp, syncChannels, type BotApp, type TelegramRetryPolicy } from "./bot";
 import { handleApiRequest } from "./api";
 import { describeJob, runJob, type BotJob } from "./jobs";
 import { timingSafeEqual } from "./telegram-auth";
 import { RetryLater } from "./errors";
+import { BOT_SUBJECT, importSigningKey, signToken, type SignedToken } from "./convex-auth";
 
 /** Times an update may be put back on the queue (see RetryLater); matches max_retries. */
 const RETRY_LATER_ATTEMPTS = 2;
@@ -33,6 +34,8 @@ export interface Env {
   CONVEX_URL: string;
   /** Sent by Telegram on every webhook call; set with scripts/set-webhook.ts. */
   TELEGRAM_WEBHOOK_SECRET: string;
+  /** Signs Convex tokens; see scripts/generate-auth-key.ts. */
+  CONVEX_AUTH_PRIVATE_KEY: string;
   CHANNEL_ID?: string;
   WEB_APP_URL?: string;
   AUTO_REACTION_EMOJI?: string;
@@ -44,9 +47,20 @@ export interface Env {
 // one, queues mutations, and another request's promise would hang this one).
 // Only plain data is cached across requests in an isolate.
 let botInfo: UserFromGetMe | undefined;
+let botToken: SignedToken | undefined;
 
-function createApp(env: Env, retry: TelegramRetryPolicy): BotApp {
-  return createBotApp(loadConfig({ ...env }), {
+/** The bot's Convex token, reused until a few minutes before it expires. */
+async function convexToken(config: Config): Promise<string> {
+  if (!botToken || botToken.expiresAt - Date.now() / 1000 < 5 * 60) {
+    botToken = await signToken(await importSigningKey(config.convexAuthKey), BOT_SUBJECT, 60 * 60);
+  }
+  return botToken.token;
+}
+
+async function createApp(env: Env, retry: TelegramRetryPolicy): Promise<BotApp> {
+  const config = loadConfig({ ...env });
+  return createBotApp(config, {
+    convexToken: await convexToken(config),
     botInfo,
     retry,
     registrationClosedPhoto: () =>
@@ -82,7 +96,7 @@ export default {
     }
     if (pathname.startsWith("/api/")) {
       return handleApiRequest(request, {
-        app: createApp(env, API_RETRY),
+        app: await createApp(env, API_RETRY),
         enqueue: async (job) => {
           await (job.type === "update" ? env.UPDATES : env.IMPORTS).send(job);
         },
@@ -93,7 +107,7 @@ export default {
   },
 
   async queue(batch: MessageBatch<BotJob>, env: Env, _ctx: ExecutionContext): Promise<void> {
-    const app = createApp(env, QUEUE_RETRY);
+    const app = await createApp(env, QUEUE_RETRY);
     await initBot(app.bot);
 
     for (const message of batch.messages) {
@@ -122,6 +136,6 @@ export default {
   },
 
   async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    await syncChannels(createApp(env, QUEUE_RETRY));
+    await syncChannels(await createApp(env, QUEUE_RETRY));
   },
 };

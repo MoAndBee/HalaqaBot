@@ -107,10 +107,21 @@ All of these were present in the old bot. Each is fixed and covered by a test:
 ### Security
 
 The old web app trusted the Telegram user ID it was handed (`initDataUnsafe`),
-and every Convex function is public. The Worker's API verifies Telegram's
-signature and the caller's admin rights before acting, which the old task
-table never could. **Convex itself is still open** to anyone with its URL: that
-lockdown is the next change and not part of this one.
+and every Convex function answered anyone with the deployment's URL. Now:
+
+- **The Worker's API** verifies Telegram's signature and the caller's admin
+  rights before acting, which the old task table never could.
+- **Convex** accepts only JWTs the Worker signs (ES256; the public key reaches
+  Convex as a `data:` URI, so Convex never calls the Worker). The bot signs one
+  for itself. A Mini App user gets one from `/api/auth/token` after their
+  `initData` is verified.
+- **Every public function checks its caller** (`convex/auth.ts`). Some are
+  bot-only, such as registering channels and syncing admins. The others need an
+  admin of the channel the chat or row belongs to. A test fails if a public
+  function doesn't start with a check.
+- **Within the boundary.** Student profiles aren't kept per channel, so any
+  channel's admin can read them, as before. Admins of the same channel share
+  everything in it.
 
 ## Where the old design was better
 
@@ -154,4 +165,3 @@ platform, not hand-written loops.
   Telegram, and real and in-memory Convex. Telegram behaviours the simulator
   doesn't model are listed in `packages/testing/README.md`.
 - **Real queue latency and ordering** under Cloudflare.
-- **The Convex authentication lockdown** (planned next).

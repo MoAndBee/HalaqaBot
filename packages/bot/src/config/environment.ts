@@ -1,6 +1,11 @@
 export interface Config {
   botToken: string;
   convexUrl: string;
+  /**
+   * Private key (JWK) the Worker signs Convex tokens with, for itself and for
+   * Mini App users (see convex-auth.ts).
+   */
+  convexAuthKey: string;
   forwardChatId: string;
   groqApiKey: string;
   autoReactionEmoji: "❤" | "👍" | "👎" | "🔥" | "🥰";
@@ -45,6 +50,11 @@ export function loadConfig(env: ConfigSource): Config {
     "Get your API key from https://console.groq.com/.",
   );
   const convexUrl = required(env, "CONVEX_URL", "Set it to the Convex deployment URL.");
+  const convexAuthKey = required(
+    env,
+    "CONVEX_AUTH_PRIVATE_KEY",
+    "Generate it with `bun packages/bot/scripts/generate-auth-key.ts`.",
+  );
   const autoReactionEmoji = (read(env, "AUTO_REACTION_EMOJI") || "❤") as Config["autoReactionEmoji"];
   const allowedReactionUserIdsValue = read(env, "ALLOWED_REACTION_USER_IDS");
   const allowedReactionUserIds = allowedReactionUserIdsValue
@@ -57,6 +67,7 @@ export function loadConfig(env: ConfigSource): Config {
   return {
     botToken,
     convexUrl,
+    convexAuthKey,
     forwardChatId,
     groqApiKey,
     autoReactionEmoji,

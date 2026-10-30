@@ -13,6 +13,7 @@ import { existsSync } from "node:fs";
 import { convexTest } from "convex-test";
 import { makeFunctionReference } from "convex/server";
 import { ConvexError, convexToJson, jsonToConvex, type JSONValue, type Value } from "convex/values";
+import { TOKEN_ISSUER, verifyToken } from "../../bot/src/convex-auth";
 
 export const CONVEX_DIR = path.resolve(import.meta.dir, "../../db/convex");
 
@@ -68,7 +69,15 @@ export interface ConvexEmulator {
   setUnavailable(unavailable: boolean): void;
 }
 
-export async function createConvexEmulator(): Promise<ConvexEmulator> {
+export interface ConvexEmulatorOptions {
+  /**
+   * Public key (JWK) to check callers' tokens with, as auth.config.ts makes a
+   * deployment do. Without it every call is anonymous.
+   */
+  authPublicKey?: string;
+}
+
+export async function createConvexEmulator(options: ConvexEmulatorOptions = {}): Promise<ConvexEmulator> {
   await ensureConvexCodegen();
   const { default: schema } = await import(path.join(CONVEX_DIR, "schema.ts"));
   const modules = await loadModules();
@@ -102,9 +111,26 @@ export async function createConvexEmulator(): Promise<ConvexEmulator> {
       return new Response(call.error, { status: 404 });
     }
 
+    // Like a deployment: a token that doesn't check out is refused outright,
+    // no token means an anonymous call.
+    let caller: ConvexTestInstance = t;
+    const authorization = request.headers.get("Authorization") ?? "";
+    if (authorization.startsWith("Bearer ")) {
+      const subject = options.authPublicKey
+        ? await verifyToken(authorization.slice("Bearer ".length), options.authPublicKey)
+        : null;
+      if (!subject) {
+        call.error = "InvalidAuthHeader";
+        return new Response(JSON.stringify({ code: "InvalidAuthHeader", message: "Could not validate token" }), {
+          status: 401,
+        });
+      }
+      caller = t.withIdentity({ subject, issuer: TOKEN_ISSUER, tokenIdentifier: `${TOKEN_ISSUER}|${subject}` });
+    }
+
     try {
       const ref = makeFunctionReference<any>(body.path);
-      const value = await (t[kind] as (ref: any, args: any) => Promise<Value | undefined>)(ref, args);
+      const value = await (caller[kind] as (ref: any, args: any) => Promise<Value | undefined>)(ref, args);
       return Response.json({ status: "success", value: convexToJson(value ?? null), logLines: [] });
     } catch (error) {
       call.error = error instanceof Error ? error.message : String(error);

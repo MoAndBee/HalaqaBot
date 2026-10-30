@@ -11,6 +11,9 @@ FORWARD_CHAT_ID=
 CONVEX_URL=
 # Any random string; pass the same value to scripts/set-webhook.ts
 TELEGRAM_WEBHOOK_SECRET=
+# Signs Convex tokens: from scripts/generate-auth-key.ts, single-quoted. The
+# Convex deployment's CONVEX_AUTH_JWKS must be its public half.
+CONVEX_AUTH_PRIVATE_KEY=
 
 # The only origin allowed to call /api/* (the Vite dev server locally)
 WEB_APP_URL=http://localhost:3000

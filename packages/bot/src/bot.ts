@@ -53,6 +53,8 @@ export const QUEUE_RETRY: TelegramRetryPolicy = { maxRetryAttempts: 3, maxDelayS
 export const API_RETRY: TelegramRetryPolicy = { maxRetryAttempts: 1, maxDelaySeconds: 10 };
 
 export interface BotAppOptions {
+  /** The bot's own Convex token (see convex-auth.ts). */
+  convexToken: string;
   registrationClosedPhoto: () => InputFile;
   retry: TelegramRetryPolicy;
   /** The bot's own getMe result, if already known; spares a call on startup. */
@@ -62,6 +64,7 @@ export interface BotAppOptions {
 /** Builds the bot with all handlers and services wired up. */
 export function createBotApp(config: Config, options: BotAppOptions): BotApp {
   const convex = new ConvexHttpClient(config.convexUrl);
+  convex.setAuth(options.convexToken);
   const bot = new Bot(config.botToken, {
     botInfo: options.botInfo,
     client: config.telegramApiRoot ? { apiRoot: config.telegramApiRoot } : undefined,
