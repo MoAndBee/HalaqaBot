@@ -36,8 +36,25 @@ export interface BotApp {
   botActions: BotActionsService;
 }
 
+/**
+ * How long to keep retrying a Telegram call Telegram asked us to retry (429
+ * with retry_after, or its own 5xx). Network failures are never retried: the
+ * call may already have taken effect, and a dead network shouldn't hold up
+ * the queue.
+ */
+export interface TelegramRetryPolicy {
+  maxRetryAttempts: number;
+  maxDelaySeconds: number;
+}
+
+/** Queue jobs have minutes to spare, so they wait out Telegram's limits. */
+export const QUEUE_RETRY: TelegramRetryPolicy = { maxRetryAttempts: 3, maxDelaySeconds: 60 };
+/** Web requests must answer before the Mini App gives up (30s). */
+export const API_RETRY: TelegramRetryPolicy = { maxRetryAttempts: 1, maxDelaySeconds: 10 };
+
 export interface BotAppOptions {
   registrationClosedPhoto: () => InputFile;
+  retry: TelegramRetryPolicy;
   /** The bot's own getMe result, if already known; spares a call on startup. */
   botInfo?: UserFromGetMe;
 }
@@ -52,7 +69,7 @@ export function createBotApp(config: Config, options: BotAppOptions): BotApp {
   // Telegram rate-limits bursts (e.g. about 20 messages a minute into one
   // group, which post-import probes can reach): wait out its retry_after
   // instead of failing the call. Also retries Telegram's own 5xx errors.
-  bot.api.config.use(autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 60 }));
+  bot.api.config.use(autoRetry({ ...options.retry, rethrowHttpErrors: true }));
 
   const messageService = new MessageService(convex, config.forwardChatId);
   const userListService = new UserListService(convex);

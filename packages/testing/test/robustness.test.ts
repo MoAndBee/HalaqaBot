@@ -52,6 +52,57 @@ describe("Telegram flood limits", () => {
   }, 120_000);
 });
 
+describe("Telegram flood limits beyond what retrying covers", () => {
+  test("an import Telegram rate-limits for minutes says so, rather than 'post not found'", async () => {
+    const { sim, world } = stack;
+    sim.setRateLimit({ sends: 1, windowMs: 120_000 }); // retry_after up to 120s, past the 60s retry cap
+    try {
+      for (let i = 0; i < 2; i++) sim.sendUserMessage(world.groupId, world.students[0]!.id, `قبل ${i}`);
+      const { channelMessage } = sim.postToChannel(world.channelId, REGISTRATION_POST, { silent: true });
+      for (let i = 0; i < 20; i++) sim.sendUserMessage(world.groupId, world.students[1]!.id, `بعد ${i}`);
+      await stack.settle();
+      const response = await stack.callApi(
+        "/api/import-post",
+        { chatId: world.groupId, link: messageLink(world.channelId, channelMessage.message_id) },
+        { as: world.admin.id },
+      );
+      const record = await stack.waitFor(async () => {
+        const r = await stack.query(api.queries.getPostImport, { importId: response.body.importId });
+        return r && ["completed", "failed"].includes(r.status) ? r : null;
+      }, { message: "import to finish", timeoutMs: 60_000 });
+      expect(record.status).toBe("failed");
+      expect(record.error).toContain("تيليجرام يحدّ من سرعة البوت");
+    } finally {
+      sim.setRateLimit(RATE_LIMIT);
+    }
+  }, 90_000);
+});
+
+describe("Telegram unreachable", () => {
+  test("updates fail fast instead of retrying forever, and the bot recovers", async () => {
+    const { sim, world } = stack;
+    const postId = await publishHalaqa(stack);
+    stack.setTelegramUnavailable(true);
+    try {
+      const comment = sim.sendUserMessage(world.groupId, world.students[0]!.id, "انا فاطمة احمد تسميع", { replyTo: postId });
+      sim.react(world.groupId, comment.message_id, world.admin.id, ["👌"]);
+      const started = Date.now();
+      await stack.settle({ timeoutMs: 20_000 });
+      // A network failure isn't retried, so the queue isn't held up.
+      expect(Date.now() - started).toBeLessThan(10_000);
+    } finally {
+      stack.setTelegramUnavailable(false);
+    }
+
+    const again = sim.sendUserMessage(world.groupId, world.students[1]!.id, "انا منى علي تلاوة", { replyTo: postId });
+    sim.react(world.groupId, again.message_id, world.admin.id, ["👌"]);
+    await stack.waitFor(
+      async () => (await turnQueue(stack, postId)).activeUsers.some((u: { id: number }) => u.id === world.students[1]!.id),
+      { message: "the bot to work again" },
+    );
+  }, 60_000);
+});
+
 describe.skipIf(!emulated)("a Convex outage", () => {
   test("updates during the outage fail cleanly and the bot carries on once Convex is back", async () => {
     const { sim, world, convex } = stack;

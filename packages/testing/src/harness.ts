@@ -61,6 +61,8 @@ export interface Stack {
   callApi(path: string, body: unknown, options: { as: number }): Promise<{ status: number; body: any }>;
   /** Runs the Worker's cron handler. */
   runCron(): Promise<void>;
+  /** Simulates Telegram being unreachable from the bot until set back to false. */
+  setTelegramUnavailable(unavailable: boolean): void;
   /** Waits until updates are delivered and the bot has stopped making calls. */
   settle(options?: { quietMs?: number; timeoutMs?: number }): Promise<void>;
   waitFor<T>(check: () => T | Promise<T>, options?: { timeoutMs?: number; message?: string }): Promise<NonNullable<T>>;
@@ -226,6 +228,8 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
       });
       return { status: response.status, body: await response.json().catch(() => null) };
     },
+
+    setTelegramUnavailable: (unavailable) => simHandler.setBotApiUnavailable(unavailable),
 
     async runCron() {
       const response = await fetch(`${workerUrl}/cdn-cgi/handler/scheduled?cron=17+*+*+*+*`);

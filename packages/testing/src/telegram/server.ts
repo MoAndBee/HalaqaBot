@@ -76,8 +76,16 @@ async function readParams(request: Request): Promise<Record<string, unknown>> {
 
 export function createSimulatorHandler(sim: TelegramSimulator, options: SimulatorServerOptions = {}) {
   const groq = createFakeGroq();
+  let botApiDown = false;
 
   async function botApi(token: string, method: string, request: Request): Promise<Response> {
+    // An outage as a client sees it from outside: an error page, not Bot API JSON.
+    if (botApiDown) {
+      return new Response("<html><body>502 Bad Gateway</body></html>", {
+        status: 502,
+        headers: { "Content-Type": "text/html" },
+      });
+    }
     if (token !== sim.botToken) {
       return Response.json({ ok: false, error_code: 401, description: "Unauthorized" }, { status: 401 });
     }
@@ -210,5 +218,12 @@ export function createSimulatorHandler(sim: TelegramSimulator, options: Simulato
     return new Response("Not found", { status: 404 });
   }
 
-  return { handle, groqCalls: groq.calls };
+  return {
+    handle,
+    groqCalls: groq.calls,
+    /** Makes the Bot API unreachable (502 error pages) until set back to false. */
+    setBotApiUnavailable: (down: boolean) => {
+      botApiDown = down;
+    },
+  };
 }

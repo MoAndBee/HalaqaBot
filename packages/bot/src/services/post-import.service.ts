@@ -1,4 +1,4 @@
-import type { Api } from "grammy";
+import { GrammyError, type Api } from "grammy";
 import type { Message } from "grammy/types";
 import type { ConvexHttpClient, Doc, Id } from "@halakabot/db";
 import { api } from "@halakabot/db";
@@ -104,6 +104,20 @@ function describeProbeFailure(description: string | undefined, subject: string):
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A probe's failure only tells us something about the message when Telegram
+ * answered about it. A rate limit that outlasted retrying, or no answer at all,
+ * must stop the import rather than read as "no such message" — that sends the
+ * search the wrong way and ends in a misleading "post not found".
+ */
+function rethrowIfNotAboutTheMessage(error: unknown): void {
+  if (error instanceof GrammyError && error.error_code === 429) {
+    const minutes = Math.max(1, Math.ceil((error.parameters.retry_after ?? 60) / 60));
+    throw new PostImportError(`تيليجرام يحدّ من سرعة البوت الآن. حاولي مرة أخرى بعد ${minutes} دقيقة.`);
+  }
+  if (!(error instanceof GrammyError)) throw error;
+}
 
 export class PostImportService {
   private probeCount = 0;
@@ -384,6 +398,7 @@ export class PostImportService {
       });
       this.lastProbeError = undefined;
     } catch (error) {
+      rethrowIfNotAboutTheMessage(error);
       this.lastProbeError = (error as { description?: string })?.description;
       console.log(
         `🔎 post-import reply probe failed: chat ${chatId}, message ${messageId} — ${
@@ -440,6 +455,7 @@ export class PostImportService {
       forwarded = await this.api.forwardMessage(this.forwardChatId, chatId, messageId);
       this.lastProbeError = undefined;
     } catch (error) {
+      rethrowIfNotAboutTheMessage(error);
       // Every lookup here rests on forwarding, so a probe failing for any reason
       // other than "no such message" is the answer to why an import failed.
       this.lastProbeError = (error as { description?: string })?.description;

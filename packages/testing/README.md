@@ -80,8 +80,11 @@ sent as the group (anonymous admins) or as a channel, reactions (anonymous
 counts in channels), membership changes for others (`chat_member`) and the
 bot itself (`my_chat_member`), webhooks (`allowed_updates`, secret token,
 `max_connections`, retries) and long polling (`getUpdates`), hidden-forward
-privacy, protected content, Telegram's 4096/1024-character limits, and chats a
-bot that has left can no longer see. `sendUserMessage(..., { deferred: true })`
+privacy, protected content, Telegram's 4096/1024-character limits, chats a
+bot that has left can no longer see, flood limits (429 with `retry_after`, via
+`rateLimit` / `setRateLimit`) and an unreachable Bot API
+(`stack.setTelegramUnavailable`). The Convex emulator can simulate an outage
+too (`setUnavailable`). `sendUserMessage(..., { deferred: true })`
 plus `releaseDeferred()` makes an update arrive late, to test out-of-order
 delivery.
 
@@ -93,7 +96,8 @@ Not simulated, so not covered by these tests:
   messages.
 - **Privacy mode** (the bot is assumed to see every group message) and
   per-right admin permissions.
-- **Rate limits** (429 / `retry_after`) and Telegram's real flood behaviour.
+- **Telegram's exact flood rules.** The simulated limit is a simple per-chat
+  window.
 - **File downloads.** Uploaded photos are only measured.
 - **Exact error texts** beyond the ones listed in `simulator.ts`, and real
   queue latency or ordering quirks (Cloudflare Queues doesn't strictly

@@ -29,9 +29,12 @@ export function registerAutoClassifyHandler(
     const chatId = ctx.chat!.id;
 
     // Runs a paid LLM batch and adds people to the list: channel admins only.
+    // An admin posting anonymously (as the group itself) counts: only admins
+    // can do that, but Telegram hides who they are.
     const userId = ctx.from?.id;
+    const anonymousGroupAdmin = ctx.message?.sender_chat?.id === chatId;
     const myChannels = userId ? await convex.query(api.queries.getMyChannels, { userId }) : [];
-    if (!myChannels.some((channel) => channel.chatId === chatId)) {
+    if (!anonymousGroupAdmin && !myChannels.some((channel) => channel.chatId === chatId)) {
       console.log(`⛔ /auto from user ${userId} who doesn't administer chat ${chatId}, ignoring`);
       return;
     }

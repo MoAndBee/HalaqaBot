@@ -15,7 +15,7 @@ import { BotError, InputFile } from "grammy";
 import type { Update, UserFromGetMe } from "grammy/types";
 import registrationClosedImage from "../assets/registration-closed.jpeg";
 import { loadConfig } from "./config/environment";
-import { createBotApp, syncChannels, type BotApp } from "./bot";
+import { API_RETRY, QUEUE_RETRY, createBotApp, syncChannels, type BotApp, type TelegramRetryPolicy } from "./bot";
 import { handleApiRequest } from "./api";
 import { describeJob, runJob, type BotJob } from "./jobs";
 import { timingSafeEqual } from "./telegram-auth";
@@ -45,9 +45,10 @@ export interface Env {
 // Only plain data is cached across requests in an isolate.
 let botInfo: UserFromGetMe | undefined;
 
-function createApp(env: Env): BotApp {
+function createApp(env: Env, retry: TelegramRetryPolicy): BotApp {
   return createBotApp(loadConfig({ ...env }), {
     botInfo,
+    retry,
     registrationClosedPhoto: () =>
       new InputFile(new Uint8Array(registrationClosedImage), "registration-closed.jpeg"),
   });
@@ -81,7 +82,7 @@ export default {
     }
     if (pathname.startsWith("/api/")) {
       return handleApiRequest(request, {
-        app: createApp(env),
+        app: createApp(env, API_RETRY),
         enqueue: async (job) => {
           await (job.type === "update" ? env.UPDATES : env.IMPORTS).send(job);
         },
@@ -92,7 +93,7 @@ export default {
   },
 
   async queue(batch: MessageBatch<BotJob>, env: Env, _ctx: ExecutionContext): Promise<void> {
-    const app = createApp(env);
+    const app = createApp(env, QUEUE_RETRY);
     await initBot(app.bot);
 
     for (const message of batch.messages) {
@@ -121,6 +122,6 @@ export default {
   },
 
   async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    await syncChannels(createApp(env));
+    await syncChannels(createApp(env, QUEUE_RETRY));
   },
 };

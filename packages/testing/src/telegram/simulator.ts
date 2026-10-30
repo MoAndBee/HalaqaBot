@@ -80,6 +80,7 @@ const GROUP_ANONYMOUS_BOT: User = { id: 1087968824, is_bot: true, first_name: "G
 const CHANNEL_BOT: User = { id: 136817688, is_bot: true, first_name: "Channel", username: "Channel_Bot" };
 
 const MAX_TEXT_LENGTH = 4096;
+const SNAPSHOT_MESSAGES = 300;
 const MAX_CAPTION_LENGTH = 1024;
 
 /** Updates Telegram withholds unless a webhook lists them in allowed_updates. */
@@ -132,7 +133,7 @@ export class TelegramSimulator {
   private readonly retryDelayMs: number;
   private readonly maxDeliveryAttempts: number;
   private readonly now: () => number;
-  private readonly rateLimit?: { sends: number; windowMs: number };
+  private rateLimit?: { sends: number; windowMs: number };
   /** chatId -> times (ms) of the bot's recent sends into it, for rateLimit. */
   private recentSends = new Map<number, number[]>();
 
@@ -387,6 +388,12 @@ export class TelegramSimulator {
     });
   }
 
+  /** Changes (or with undefined, lifts) the flood limit; see SimulatorOptions.rateLimit. */
+  setRateLimit(limit: { sends: number; windowMs: number } | undefined): void {
+    this.rateLimit = limit;
+    this.recentSends.clear();
+  }
+
   /** Signed initData for opening the Mini App as `userId`. */
   async miniAppInitData(userId: number): Promise<string> {
     const { id, first_name, last_name, username } = this.user(userId);
@@ -599,14 +606,18 @@ export class TelegramSimulator {
 
   // ------------------------------------------------------------- snapshots
 
-  /** Everything needed to rebuild this world later (pending deliveries aside). */
+  /**
+   * Everything needed to rebuild this world later (pending deliveries aside).
+   * Keeps each chat's latest SNAPSHOT_MESSAGES messages, so a long-lived
+   * preview stays under Durable Object storage's 2 MB value limit.
+   */
   snapshot(): SimulatorSnapshot {
     return {
       users: [...this.users.values()],
       chats: [...this.chats.values()].map((c) => ({
         info: c.info,
         members: [...c.members],
-        messages: [...c.messages.values()],
+        messages: [...c.messages.values()].slice(-SNAPSHOT_MESSAGES),
         nextMessageId: c.nextMessageId,
         reactions: [...c.reactions].map(([id, byUser]) => [id, [...byUser]] as const),
         botReactions: [...c.botReactions],
@@ -691,12 +702,12 @@ export class TelegramSimulator {
     if (this.rateLimit) {
       const now = Date.now();
       const recent = (this.recentSends.get(chat.info.id) ?? []).filter((t) => now - t < this.rateLimit!.windowMs);
+      this.recentSends.set(chat.info.id, recent);
       if (recent.length >= this.rateLimit.sends) {
         const retryAfter = Math.max(1, Math.ceil((recent[0]! + this.rateLimit.windowMs - now) / 1000));
         throw new TelegramApiError(429, `Too Many Requests: retry after ${retryAfter}`, { retry_after: retryAfter });
       }
-      recent.push(now);
-      this.recentSends.set(chat.info.id, recent);
+      // Counted in storeBotMessage, once the send has passed every other check.
     }
     if (chat.info.type === "channel" && !ADMIN.has(chat.members.get(this.bot.id) ?? "left")) {
       throw new TelegramApiError(400, "Bad Request: need administrator rights in the channel chat");
@@ -784,6 +795,7 @@ export class TelegramSimulator {
         throw new TelegramApiError(400, "Bad Request: message to be replied not found");
       }
     }
+    this.recentSends.get(chat.info.id)?.push(Date.now());
     return this.store(chat, {
       from: this.userRef(this.bot),
       ...fields,

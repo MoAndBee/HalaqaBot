@@ -34,7 +34,10 @@ Cron (hourly) ──────▶ admin reconciliation; chat_member updates do
   code:
   - a reaction that arrives before its message goes back on the queue with a
     delay;
-  - Telegram's rate limits and 5xx errors are retried by grammY's auto-retry;
+  - Telegram's rate limits and 5xx errors are retried by grammY's auto-retry:
+    up to a minute for queue jobs, briefly for web requests. Network
+    failures fail fast instead, since the call may already have taken effect
+    and retrying would hold up the queue;
   - batches the consumer can't run land in a dead-letter queue.
 - **Admin access follows Telegram live**, via `chat_member` updates, with an
   hourly reconciliation.
@@ -60,18 +63,19 @@ grammY at the simulator) and the new one (Workers runtime, local queues):
 | `/admin` from a channel admin | ❌ no reply | ✅ panel button |
 | Promoted to channel admin → web app access | ⏳ up to 5 min | ✅ ≈0.1 s |
 
-Beyond parity, the new bot has 60 automated tests (`bun run test`). Against
-the in-memory Convex, 58 run and pass; the other 2 are browser tests that need
-a real deployment. Against a real Convex dev deployment, 58 pass, including
+Beyond parity, the new bot has 62 automated tests (`bun run test`). Against
+the in-memory Convex, 60 run and pass; the other 2 are browser tests that need
+a real deployment. Against a real Convex dev deployment, 60 pass, including
 the browser tests that drive the real web app through simulated Telegram; the
 2 that need the in-memory Convex's outage switch and call counter are skipped.
 They cover:
 
 - the core Telegram flows, and the web API's authentication and every action;
 - post imports, including protected channels and imports under rate limits;
+- Telegram being rate-limited or unreachable, and a Convex outage;
 - the bot being added or removed, and channels discovered from traffic;
 - `/auto`, nested replies, and anonymous-admin and channel senders;
-- a Convex outage, and the subrequest budget.
+- the subrequest budget.
 
 Three bugs were reintroduced on purpose to check the tests catch them, and
 each one broke the suite.
@@ -88,7 +92,8 @@ All of these were present in the old bot. Each is fixed and covered by a test:
    stalled 3.5 s.
 3. **A rate-limited post import reported "post not found".** Probes forward
    messages into a scratch group, Telegram allows about 20 a minute there, and
-   a 429 looked like a missing message.
+   a 429 looked like a missing message. Short limits are now waited out; a
+   longer one is reported as Telegram limiting the bot.
 4. **Removing the bot never deactivated the channel.** That path called
    `getChat`, which Telegram refuses once the bot is out.
 5. **`/auto` had no permission check.** Any group member could start a paid LLM
