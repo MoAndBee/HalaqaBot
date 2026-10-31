@@ -87,7 +87,7 @@ jobs:
                   marker,
                   `### 🧪 Preview of ${sha}: no Telegram account needed`,
                   ``,
-                  `**[Open the simulator](${link})**: act as the owner, an admin or a student, post, comment, react 👌; the Mini App runs alongside, signed in as whoever you act as.`,
+                  `**[Open the preview](${link})** (works on a phone): the Mini App fills the screen; tap the 🤖 bubble to act as the owner, an admin or a student, post, comment and react 👌.`,
                   ``,
                   `Web app: ${process.env.WEB_APP}`,
                   ``,

@@ -223,10 +223,15 @@ Every pull request gets a preview that needs no Telegram account
 - the web app;
 - a Convex deployment of its own.
 
-The PR gets a comment linking to the simulator's dashboard. There you act as
-the owner, an admin or a student, publish posts, comment and react. The Mini
-App runs alongside, signed in as whoever you're acting as. A strip shows each
-update the bot received and what it did. Closing the PR removes the preview.
+The PR gets a comment with a link that works on a phone as well as a
+computer. The Mini App fills the screen, as in Telegram, and a 🤖 bubble floats
+over it; drag it to either side. Tapping it opens the simulator, where you can:
+- act as the owner, an admin or a student (the Mini App reopens as them);
+- publish posts, comment, reply and react;
+- run one-tap set-ups;
+- see each update the bot received and what it did.
+
+Closing the PR removes the preview.
 
 **One-time setup:**
 1. Generate a key pair with `bun packages/bot/scripts/generate-auth-key.ts`.

@@ -13,7 +13,7 @@
  */
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import path from "node:path";
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, devices, type Browser, type Page } from "playwright";
 import { api } from "@halakabot/db";
 import { startStack, type Stack } from "../src/harness";
 import { REGISTRATION_POST } from "./helpers";
@@ -106,4 +106,35 @@ test.skipIf(!convexUrl)("a student who opens the web app is turned away", async 
   await page.getByText("غير مصرح").waitFor({ timeout: 30_000 });
   await expect(page.getByText(`معرف: ${student.id}`).count()).resolves.toBe(1);
   await expect(page.getByText("الحلقات").count()).resolves.toBe(0);
+});
+
+test.skipIf(!convexUrl)("on a phone, the simulator floats over the Mini App and switches who's signed in", async () => {
+  const context = await browser.newContext({ ...devices["iPhone 13"], ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(stack.simulatorUrl);
+
+  // First visit: the sheet is open, acting as an admin, with the Mini App behind it.
+  await page.locator("#whoName", { hasText: "admin" }).waitFor({ timeout: 30_000 });
+  await page.tap("#close");
+  const app = page.frameLocator("#app");
+  await app.getByText("الحلقات").first().waitFor({ timeout: 30_000 });
+
+  // The bubble can be dragged, and snaps to the nearer side.
+  const before = (await page.locator("#bubble").boundingBox())!;
+  await page.mouse.move(before.x + 28, before.y + 28);
+  await page.mouse.down();
+  await page.mouse.move(40, 300, { steps: 8 });
+  await page.mouse.up();
+  expect((await page.locator("#bubble").boundingBox())!.x).toBeLessThan(30);
+
+  // Act as a student: the Mini App reopens as her and turns her away.
+  await page.tap("#bubble");
+  await page.tap('[data-tab="people"]');
+  await page.locator("[data-act]", { hasText: stack.world.students[1]!.first_name }).tap();
+  await page.tap("#close");
+  await app.getByText("غير مصرح").waitFor({ timeout: 30_000 });
+  expect(errors).toEqual([]);
+  await context.close();
 });
