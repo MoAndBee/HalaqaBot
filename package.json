@@ -7,8 +7,6 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run src/index.ts",
-    "start": "bun run src/index.ts",
     "dev:bot": "bun --filter @halakabot/bot dev",
     "dev:web": "bun --filter @halakabot/web dev",
     "dev:all": "bun --filter @halakabot/bot dev & bun --filter @halakabot/web dev",
@@ -16,7 +14,10 @@
     "build:db": "bun --filter @halakabot/db build",
     "build:bot": "bun --filter @halakabot/bot build",
     "build:web": "bun --filter @halakabot/web build",
-    "deploy:convex": "bun --filter @halakabot/db deploy"
+    "deploy:convex": "bun --filter @halakabot/db deploy",
+    "deploy:bot": "bun --filter @halakabot/bot deploy",
+    "test": "bun --filter @halakabot/testing test",
+    "sim": "bun --filter @halakabot/testing sim"
   },
   "keywords": ["telegram", "bot", "grammy", "bun", "monorepo"],
   "author": "",

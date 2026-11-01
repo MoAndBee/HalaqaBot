@@ -1,0 +1,32 @@
+# The Telegram simulator as a Worker (src/sim-worker.ts). Connected to this
+# repository with Workers Builds, Cloudflare builds a Preview of it for every
+# pull request, next to the bot's; the two find each other (bot/src/preview.ts).
+#
+# Secrets, on the Preview base config (`bunx wrangler preview base-config
+# secret put <NAME>`), shared by all Previews:
+#   SIM_BOT_TOKEN        the bot Previews' BOT_TOKEN (any "<digits>:<text>")
+#   SIM_WEBHOOK_SECRET   the bot Previews' TELEGRAM_WEBHOOK_SECRET
+#   SIM_CONTROL_TOKEN    guards the simulator's controls
+name = "halaqabot-sim"
+main = "src/sim-worker.ts"
+compatibility_date = "2026-09-01"
+# Fetching the bot, a Worker on the same account, needs this (see the bot's wrangler.toml).
+compatibility_flags = ["global_fetch_strictly_public"]
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "SIMULATOR"
+class_name = "Simulator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Simulator"]
+
+# Each Preview gets a Durable Object namespace of its own: its own world.
+[previews.vars]
+SIM_PREVIEW_WORKER_NAME = "halaqabot-sim"
+SIM_BOT_WORKER_NAME = "halaqabot"
+
+[[previews.durable_objects.bindings]]
+name = "SIMULATOR"
+class_name = "Simulator"

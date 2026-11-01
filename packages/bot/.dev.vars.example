@@ -1,0 +1,21 @@
+# Copy to .dev.vars for `bun run dev` (wrangler dev). Use a separate test bot:
+# setting its webhook doesn't touch the production bot.
+
+# From @BotFather
+BOT_TOKEN=
+# https://console.groq.com/
+GROQ_API_KEY=
+# Chat the bot forwards messages to when it needs to look up their author
+FORWARD_CHAT_ID=
+# Convex dev deployment
+CONVEX_URL=
+# Any random string; pass the same value to scripts/set-webhook.ts
+TELEGRAM_WEBHOOK_SECRET=
+# Signs Convex tokens: from scripts/generate-auth-key.ts, single-quoted. The
+# Convex deployment's CONVEX_AUTH_JWKS must be its public half.
+CONVEX_AUTH_PRIVATE_KEY=
+
+# The only origin allowed to call /api/* (the Vite dev server locally)
+WEB_APP_URL=http://localhost:3000
+# CHANNEL_ID=
+# AUTO_REACTION_EMOJI=❤

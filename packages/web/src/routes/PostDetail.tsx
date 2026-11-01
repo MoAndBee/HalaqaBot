@@ -1,10 +1,11 @@
 import React from 'react'
 import { tgConfirm, formatHijriDate } from '@/lib/utils'
 import { Link, useParams } from 'wouter'
-import { useQuery, useMutation, useAction } from 'convex/react'
+import { useQuery, useMutation } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
+import { callBot } from '~/lib/bot-api'
 import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags, DoorClosed, DoorOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext, useSelectedChannel } from '~/contexts/TelegramAuthContext'
@@ -124,9 +125,9 @@ export default function PostDetail() {
     currentScore?: number | null
     userName: string
   } | null>(null)
-  // Task id of an in-flight participant list send — the toast tracks the bot
-  // task through to actual delivery instead of reporting success on queueing
-  const [sendListTaskId, setSendListTaskId] = React.useState<string | null>(null)
+  // The participant list send in flight, if any. A new send waits for it, so
+  // two sends never race; each replaces the previous list, so the newest stays.
+  const sendingListRef = React.useRef<Promise<boolean> | null>(null)
   const [isCompensationModalOpen, setIsCompensationModalOpen] = React.useState(false)
   const [compensationModalState, setCompensationModalState] = React.useState<{
     entryId: string
@@ -200,14 +201,36 @@ export default function PostDetail() {
   const bulkUpdateTurnQueueSessionType = useMutation(api.mutations.bulkUpdateTurnQueueSessionType)
   const lockSession = useMutation(api.mutations.lockSession)
   const unlockSession = useMutation(api.mutations.unlockSession)
-  const setSessionRegistrationClosed = useMutation(api.mutations.setSessionRegistrationClosed)
-  const sendParticipantList = useAction(api.actions.sendParticipantList)
-  const sendListTaskStatus = useQuery(
-    api.queries.getBotTaskStatus,
-    sendListTaskId ? { taskId: sendListTaskId as any } : 'skip'
-  )
-  const reactToMessage = useAction(api.actions.reactToMessage)
-  const detectNameFromMessage = useAction(api.actions.detectNameFromMessage)
+
+  // Sends the list through the bot. Resolves once it's posted in the chat;
+  // returns false (after reporting why) if that failed.
+  const sendParticipantList = async (sessionNumber: number): Promise<boolean> => {
+    const previous = sendingListRef.current
+    const send = (async () => {
+      await previous
+      toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
+      try {
+        await callBot('/api/participant-list', {
+          chatId,
+          postId,
+          sessionNumber,
+          flower: selectedFlower,
+        })
+        toast.success('تم إرسال قائمة الأسماء!', { id: SEND_LIST_TOAST_ID })
+        return true
+      } catch (error: any) {
+        toast.error(error?.message || 'فشل إرسال قائمة الأسماء', { id: SEND_LIST_TOAST_ID })
+        console.error('Send participant list failed:', error)
+        return false
+      }
+    })()
+    sendingListRef.current = send
+    try {
+      return await send
+    } finally {
+      if (sendingListRef.current === send) sendingListRef.current = null
+    }
+  }
 
   // Auto-assign supervisor on first page load if no supervisor is assigned (Option A).
   // Gate on the actual supervisor list (not the resolved display name — a name
@@ -240,31 +263,6 @@ export default function PostDetail() {
     }
     autoAssign()
   }, [telegramUser, data?.currentSession, supervisors, sessionInfo, assignSessionSupervisor, chatId, postId])
-
-  // Resolve the send-list toast from the bot task's real status
-  React.useEffect(() => {
-    if (!sendListTaskId || !sendListTaskStatus) return
-    if (sendListTaskStatus.status === 'completed') {
-      toast.success('تم إرسال قائمة الأسماء!', { id: SEND_LIST_TOAST_ID })
-      setSendListTaskId(null)
-    } else if (sendListTaskStatus.status === 'failed') {
-      toast.error('فشل إرسال قائمة الأسماء', { id: SEND_LIST_TOAST_ID })
-      console.error('Send participant list task failed:', sendListTaskStatus.error)
-      setSendListTaskId(null)
-    }
-  }, [sendListTaskId, sendListTaskStatus])
-
-  // If the bot hasn't picked the task up after a while (offline/restarting),
-  // say so instead of spinning silently
-  React.useEffect(() => {
-    if (!sendListTaskId) return
-    const timer = setTimeout(() => {
-      toast.loading('ما زال الإرسال جارياً... قد يستغرق وقتاً أطول من المعتاد', {
-        id: SEND_LIST_TOAST_ID,
-      })
-    }, 20000)
-    return () => clearTimeout(timer)
-  }, [sendListTaskId])
 
   const handleReorder = async (entryId: string, newPosition: number) => {
     await updatePosition({ entryId, newPosition })
@@ -354,7 +352,7 @@ export default function PostDetail() {
   }
 
   const handleUpdateDisplayName = async (userId: number, realName: string) => {
-    await updateUserRealName({ userId, realName })
+    await updateUserRealName({ userId, realName, chatId })
   }
 
   const handleOpenEditNotes = (entryId: string, currentNotes?: string | null) => {
@@ -635,21 +633,7 @@ export default function PostDetail() {
       return
     }
 
-    try {
-      const currentSession = selectedSession ?? data.currentSession
-      toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
-      const result = await sendParticipantList({
-        chatId,
-        postId,
-        sessionNumber: currentSession,
-        flower: selectedFlower,
-      })
-      // Success is reported when the bot task actually completes (see effect)
-      setSendListTaskId(result.taskId)
-    } catch (error) {
-      toast.error('فشل إرسال قائمة الأسماء', { id: SEND_LIST_TOAST_ID })
-      console.error('Send participant list failed:', error)
-    }
+    await sendParticipantList(selectedSession ?? data.currentSession)
   }
 
   const handleStartNewSession = () => {
@@ -874,37 +858,27 @@ export default function PostDetail() {
     const nextValue = !sessionInfo?.registrationClosed
 
     try {
-      await setSessionRegistrationClosed({
+      // Goes through the bot: reopening also deletes the closed-registration image.
+      await callBot('/api/registration', {
         chatId,
         postId,
         sessionNumber: currentSession,
         registrationClosed: nextValue,
       })
-
-      // When closing registration, also (re)send the list so the closed-registration
-      // image is pushed to the chat immediately — same as clicking إرسال قائمة الأسماء.
-      if (nextValue) {
-        try {
-          toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
-          const result = await sendParticipantList({
-            chatId,
-            postId,
-            sessionNumber: currentSession,
-            flower: selectedFlower,
-          })
-          setSendListTaskId(result.taskId)
-        } catch (sendError) {
-          console.error('Auto-send list after closing registration failed:', sendError)
-          toast.error('تم إغلاق تسجيل الأدوار، لكن فشل إرسال القائمة', { id: SEND_LIST_TOAST_ID })
-          return
-        }
-      }
-
-      toast.success(nextValue ? 'تم إغلاق تسجيل الأدوار' : 'تم فتح تسجيل الأدوار')
     } catch (error: any) {
       toast.error(error?.message || 'فشل تحديث حالة التسجيل')
       console.error('Toggle registration closed failed:', error)
+      return
     }
+
+    // When closing registration, also (re)send the list so the closed-registration
+    // image is pushed to the chat immediately — same as clicking إرسال قائمة الأسماء.
+    if (nextValue && !(await sendParticipantList(currentSession))) {
+      toast.error('تم إغلاق تسجيل الأدوار، لكن فشل إرسال القائمة', { id: SEND_LIST_TOAST_ID })
+      return
+    }
+
+    toast.success(nextValue ? 'تم إغلاق تسجيل الأدوار' : 'تم فتح تسجيل الأدوار')
   }
 
   const handleBulkUpdateSessionType = async (entryIds: string[], sessionType: SessionType) => {
@@ -930,10 +904,10 @@ export default function PostDetail() {
       toast.success('تم إضافة المستخدم!')
       // Detect and store the participant's real name from this message,
       // regardless of the auto-react toggle (mirrors the admin 👌 reaction).
-      detectNameFromMessage({ chatId, postId, messageId }).catch(() => {})
+      callBot('/api/detect-name', { chatId, postId, messageId }).catch(() => {})
       // The ❤ reaction stays gated behind the auto-react toggle.
       if (autoReact) {
-        reactToMessage({ chatId, postId, messageId }).catch(() => {})
+        callBot('/api/react', { chatId, postId, messageId }).catch(() => {})
       }
     } catch (error: any) {
       toast.error(error?.message || 'فشل إضافة المستخدم')

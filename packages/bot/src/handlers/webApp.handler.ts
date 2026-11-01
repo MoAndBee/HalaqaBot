@@ -1,4 +1,4 @@
-import type { Bot, Context } from "grammy";
+import type { Api, Bot, Context } from "grammy";
 import type { ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
 import type { Config } from "../config/environment";
@@ -57,26 +57,23 @@ export function registerWebAppHandler(
       );
     }
   });
+}
 
-  // Set menu button (persistent button at bottom of chat)
+/**
+ * Set the persistent menu button at the bottom of the chat. This is bot-wide
+ * Telegram state, so it is set once at startup or deploy, not per update.
+ */
+export async function configureMenuButton(telegramApi: Api, webAppUrl: string): Promise<void> {
   try {
-    console.log("🔧 Setting up menu button...");
-
-    bot.api
-      .setChatMenuButton({
-        menu_button: {
-          type: "web_app",
-          text: "لوحة التحكم",
-          web_app: { url: config.webAppUrl },
-        },
-      })
-      .then(() => {
-        console.log("✅ Menu button set successfully");
-      })
-      .catch((error) => {
-        console.error("❌ Error setting menu button:", error);
-      });
+    await telegramApi.setChatMenuButton({
+      menu_button: {
+        type: "web_app",
+        text: "لوحة التحكم",
+        web_app: { url: webAppUrl },
+      },
+    });
+    console.log("✅ Menu button set successfully");
   } catch (error) {
-    console.error("❌ Error setting up menu button:", error);
+    console.error("❌ Error setting menu button:", error);
   }
 }

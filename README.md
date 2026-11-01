@@ -1,95 +1,327 @@
 # HalakaBot
 
-A Telegram bot built with [Grammy](https://grammy.dev/) and [Bun](https://bun.sh/) that listens to message reactions and manages user lists with Convex.
+A Telegram bot for running Quran study circles (halaqas), built with
+[grammY](https://grammy.dev/) on [Cloudflare Workers](https://developers.cloudflare.com/workers/),
+with a Telegram Mini App admin panel. Data lives in [Convex](https://convex.dev).
 
-## Prerequisites
+## How it fits together
 
-- [Bun](https://bun.sh/) installed on your system
-- A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- A [Convex](https://convex.dev) account and project
-
-## Setup
-
-1. **Clone the repository** (if you haven't already):
-   ```bash
-   git clone <your-repo-url>
-   cd halakabot
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   bun install
-   ```
-
-3. **Set up Convex**:
-   - Install Convex CLI: `bun add -g convex`
-   - Initialize Convex: `cd packages/db && bunx convex dev`
-   - Follow the CLI prompts to authenticate and create a project
-   - See `packages/db/SETUP.md` for detailed instructions
-
-4. **Get a bot token from BotFather**:
-   - Open Telegram and search for [@BotFather](https://t.me/BotFather)
-   - Send `/newbot` and follow the instructions
-   - Copy the bot token you receive
-
-5. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   ```
-   Then edit `.env` and add your credentials:
-   ```
-   BOT_TOKEN=your_actual_bot_token_here
-   CONVEX_URL=your_convex_deployment_url
-   ```
-
-6. **Enable reactions for your bot** (Important!):
-   - Go to [@BotFather](https://t.me/BotFather)
-   - Send `/mybots`
-   - Select your bot
-   - Go to "Bot Settings" → "Group Privacy"
-   - Disable privacy mode (or add the bot as an admin) to receive reaction updates
-
-## Running the Bot
-
-Start the bot in development mode:
-```bash
-bun run dev
+```
+Telegram ──webhook──▶ Worker /telegram ──▶ Queue ──▶ bot handlers ──▶ Convex
+Mini App (web) ──────▶ Worker /api/*   ──▶ Telegram + Convex
+Mini App (web) ──────▶ Convex (data, live queries)
 ```
 
-Or use:
+- **`packages/bot`** is the Worker (`src/worker.ts`):
+  - **`POST /telegram`:** Telegram's webhook. Each update goes on a Cloudflare
+    Queue that runs one job at a time, so updates are handled in order and
+    can take up to 15 minutes (LLM calls, retries).
+  - **`/api/*`:** what the web app calls when the bot must act in Telegram:
+    sending the list, reacting, opening/closing registration, importing an old
+    post. Requests are signed with the Mini App's `initData`, which the Worker
+    verifies with the bot token, and the caller must administer the channel.
+    Post imports are long, so they run on a queue of their own.
+  - **Cron (hourly):** registers the configured channel and reconciles channel
+    admins. Admin changes normally arrive straight away as `chat_member` updates.
+- **`packages/db`** holds the Convex schema and functions. Convex never calls
+  the bot; the Worker and the web app call Convex.
+- **Who may call Convex.** Convex accepts only tokens the Worker signs
+  (`convex/auth.config.ts`, `packages/bot/src/convex-auth.ts`):
+  - the bot's own token;
+  - a Mini App user's, issued by `POST /api/auth/token` once their `initData`
+    checks out.
+
+  Every public function starts with a check from `convex/auth.ts`. Some are
+  bot-only, and the rest need the caller to be an admin of the channel the data
+  belongs to. Admins are read from `channelAdmins`, which the bot keeps in step
+  with Telegram.
+- **`packages/web`** is the Mini App.
+
+## Development
+
+Prerequisites: [Bun](https://bun.sh/). Run `bun install` first.
+
+### With the Telegram simulator (no Telegram, no accounts)
+
 ```bash
-bun start
+bun run sim
 ```
 
-The bot will start and log "Bot @your_bot_name is running!" when ready.
+This starts the bot Worker (real `wrangler dev`, with local queues) against a
+simulated Telegram, a fake Groq and an in-memory Convex. Open
+http://127.0.0.1:8790 for the simulator's dashboard: act as any user, publish a
+registration post, comment, react 👌, message the bot, promote admins. See
+`packages/testing/README.md` for how it works and what it doesn't simulate.
 
-## Features
+To use the web app too, it needs a real Convex dev deployment (its live queries
+use Convex's WebSocket protocol, which the in-memory one doesn't speak). That
+deployment has to trust a key you hold, so generate a pair once with
+`bun packages/bot/scripts/generate-auth-key.ts`, keep the private key, and give
+the deployment the public half:
 
-- Listens to individual message reactions (`message_reaction` updates)
-- Listens to reaction count updates (`message_reaction_count` updates)
-- Logs all reaction data to the console with details about:
-  - User who reacted
-  - Chat information
-  - Old and new reactions
-  - Timestamps
+```bash
+(cd packages/db && CONVEX_DEPLOY_KEY=<dev key> bunx convex env set CONVEX_AUTH_JWKS '<data: URI>')
+(cd packages/db && CONVEX_DEPLOY_KEY=<dev key> bunx convex dev --once)
+TEST_CONVEX_URL=https://<dev>.convex.cloud TEST_CONVEX_AUTH_PRIVATE_KEY='<private JWK>' bun run sim
+VITE_CONVEX_URL=https://<dev>.convex.cloud VITE_BOT_API_URL=http://127.0.0.1:8787 bun run dev:web
+```
+
+then use "Open Mini App as this user" in the dashboard.
+
+### With real Telegram
+
+You'll need a Cloudflare account, a Convex project and a separate **test bot**
+from [@BotFather](https://t.me/BotFather), so setting its webhook doesn't affect
+the production bot.
+
+1. Copy `.env.example` to `.env` (web app) and `packages/bot/.dev.vars.example`
+   to `packages/bot/.dev.vars` (Worker), and fill them in.
+2. Run the Worker (`bun run dev:bot`, on http://localhost:8787) and the web app
+   (`bun run dev:web`).
+3. Telegram can't reach localhost. To receive updates, expose the Worker (e.g.
+   `cloudflared tunnel --url http://localhost:8787`) and point the test bot at
+   it with `bun run webhook:set` from `packages/bot`.
+
+The bot needs reaction updates: either disable privacy mode in @BotFather
+(Bot Settings → Group Privacy) or make it an admin.
 
 ## Testing
 
-1. Add your bot to a Telegram chat or group
-2. Send a message in the chat
-3. Add a reaction to the message
-4. Check your console to see the logged reaction data
+```bash
+bun run test
+```
 
-## Deployment & CI/CD
+Runs, in about 20 seconds and with nothing external:
 
-### Setting up CI/CD (Netlify, Vercel, etc.)
+- **Scenarios** (`packages/testing/test/telegram-flow.test.ts`,
+  `web-api.test.ts`, `edge-cases.test.ts`): the real Worker under `wrangler
+  dev` (workerd + local queues), the real Convex functions (in memory, via
+  `convex-test`), a simulated Telegram and a fake Groq. They cover registration
+  posts, adding students with 👌 (also from nested replies, and when the
+  reaction arrives before the message), `/admin`, `/auto`, admin changes, the
+  bot being added or removed, the web API's authentication, sending the list,
+  registration, reactions, name detection and post imports, and that
+  anonymous admins and channels are never added as students.
+- **Simulator and auth checks** (`simulator.test.ts`): that the simulated
+  Telegram behaves like Telegram where the bot depends on it (update filtering,
+  ordering, retries, forwarding), plus Mini App signature verification checked
+  against an independent implementation.
+
+- **Convex access** (`convex-auth.test.ts`): anonymous and forged tokens are
+  refused, students see nothing, admins reach only their own channel's data,
+  demoted admins lose access at once, users can't call the bot's functions,
+  and every public function begins with an access check.
+
+The same scenarios run against a real Convex dev deployment with
+`TEST_CONVEX_URL=https://<dev>.convex.cloud bun run test` (plus
+`TEST_CONVEX_AUTH_PRIVATE_KEY`, as above), and
+`TEST_CONVEX_URL=... bun --filter @halakabot/testing test:web` also drives
+the real web app in a browser (Playwright): an admin opens the Mini App through
+simulated Telegram and sends the list.
+
+## Deploying
+
+Run from `packages/bot` unless noted.
+
+**Plan and cost.** Use the Workers Paid plan: the free plan's 10 ms CPU limit
+per request is likely too tight for LLM response parsing and bot startup. Each
+Telegram update costs about three Queues operations (write, read, ack), plus
+Workers requests and Convex calls; check Cloudflare's current Queues pricing
+against your message volume.
+
+### First deploy (cutover from the Docker bot)
+
+The order matters:
+- The new Convex functions only answer the new Worker, which signs its calls.
+  They shut out the Docker bot and the old web app.
+- The Worker's tokens are refused by Convex until its auth config is deployed.
+
+So: stop the Docker bot, deploy Convex, then the Worker and the web app, one
+after another. Telegram holds updates while no bot is reading them (up to 24
+hours), and delivers them once the webhook is set, so nothing is lost.
+
+1. **Create the queues:**
+   ```bash
+   bunx wrangler queues create halaqabot-updates
+   bunx wrangler queues create halaqabot-imports
+   bunx wrangler queues create halaqabot-dead-letters
+   ```
+   The dead-letter queue keeps batches the consumer itself couldn't run
+   (e.g. Telegram's `getMe` failing) instead of dropping them.
+2. **Set the Worker secrets.** Generate `TELEGRAM_WEBHOOK_SECRET` with
+   `openssl rand -hex 32`, and the Convex signing key pair with
+   `bun scripts/generate-auth-key.ts`.
+   ```bash
+   bunx wrangler secret put BOT_TOKEN
+   bunx wrangler secret put GROQ_API_KEY
+   bunx wrangler secret put FORWARD_CHAT_ID
+   bunx wrangler secret put CONVEX_URL
+   bunx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+   bunx wrangler secret put CONVEX_AUTH_PRIVATE_KEY   # the private JWK
+   ```
+   Give Convex the public half (from `packages/db`, with the production deploy
+   key) before deploying it. It takes effect at once:
+   ```bash
+   bunx convex env set CONVEX_AUTH_JWKS '<data: URI>' --prod
+   ```
+   `CHANNEL_ID`, `WEB_APP_URL` and `AUTO_REACTION_EMOJI` are optional
+   (defaults in `src/config/environment.ts`). `WEB_APP_URL` must be the exact
+   origin the web app is served from: it's the only origin allowed to call
+   `/api/*`.
+3. **Stop the Docker bot**, then **deploy Convex** (`bun run deploy:convex`
+   from the repo root).
+4. **Deploy the Worker** (`bun run deploy`; note the `*.workers.dev` URL) and
+   point Telegram at it:
+   ```bash
+   BOT_TOKEN=... WORKER_URL=https://halaqabot.<account>.workers.dev \
+   TELEGRAM_WEBHOOK_SECRET=... bun run webhook:set
+   ```
+5. **Deploy the web app**, built with `VITE_BOT_API_URL` set to the
+   Worker URL. It signs in to Convex through the Worker, so it doesn't work
+   before step 4. Set it wherever your web host supplies `VITE_CONVEX_URL` at
+   build time; it's read when Vite builds the app. (The web `Dockerfile`
+   declares no build args, so if you build that image, pass both the way you
+   pass `VITE_CONVEX_URL` today.) A web app built without it shows an error
+   for every action that goes through the bot.
+
+**If the Worker from before the Convex lockdown is already live**, there's no
+Docker bot to stop, but the old Worker can't call the new Convex functions and
+the new Worker's tokens need the new auth config. So pause Telegram's deliveries
+instead: remove the webhook with Telegram's `deleteWebhook` method (Telegram
+then holds updates). Deploy Convex, then the Worker, then run
+`bun run webhook:set`. Web app actions fail for the minute in between.
+
+Re-run `bun run webhook:set` whenever `ALLOWED_UPDATES` in `src/bot.ts`
+changes; Telegram only sends the update types registered with the webhook.
+
+To roll back:
+
+1. Take the Worker out: `bunx wrangler delete` (removes its routes, queue
+   consumers and cron), or at least remove its cron trigger.
+2. Redeploy the previous commit's Convex functions and web app.
+3. Start the previous Docker bot. It deletes the webhook on start, but with
+   `drop_pending_updates`, so updates Telegram was holding are lost.
+
+Logs: `bunx wrangler tail`, or the Workers dashboard (observability is enabled).
+
+**Rotating the Convex signing key** without downtime:
+1. Run `bun scripts/generate-auth-key.ts '<current CONVEX_AUTH_JWKS>'`.
+2. Set the JWKS holding both keys on Convex.
+3. Set the new `CONVEX_AUTH_PRIVATE_KEY` on the Worker.
+4. After an hour, when the old tokens have expired, set the new key's JWKS
+   alone.
+
+The maintenance scripts in `packages/bot/scripts` sign in as the bot, so they
+need `CONVEX_AUTH_PRIVATE_KEY` in their environment.
+
+### Previews
+
+Every pull request gets a preview that needs no Telegram account. It includes:
+- the bot;
+- a simulated Telegram in its place;
+- the web app;
+- the PR's own Convex deployment.
+
+Cloudflare builds it as [Worker Previews](https://developers.cloudflare.com/workers/previews/)
+and posts the links on the PR. A GitHub workflow then smoke-tests it and
+comments with the link to open.
+
+The link works on a phone as well as a computer. The Mini App fills the screen,
+as in Telegram, and a 🤖 bubble floats over it; drag it to either side. Tapping
+it opens the simulator, where you can:
+- act as the owner, an admin or a student (the Mini App reopens as them);
+- publish posts, comment, reply and react;
+- run one-tap set-ups;
+- see each update the bot received and what it did.
+
+**How it fits together**, for a branch whose Preview name is `my-branch`:
+
+| Part | |
+| --- | --- |
+| `my-branch-halaqabot` | The bot's Preview, built by `packages/bot/scripts/build-preview.ts`. It pushes the branch's Convex functions to a Convex preview deployment, builds the web app, and uploads the Preview with `wrangler preview`. It also serves the web app, so `/api` is same-origin. |
+| `my-branch-halaqabot-sim` | The simulator's Preview (`packages/testing/wrangler.toml`): Bot API, fake Groq and the page you open. Its world lives in the Preview's own Durable Object. |
+
+The two find each other from their own URLs, since Previews of one branch share
+a name (`packages/bot/src/preview.ts`). The simulator points its webhook at the
+bot on first use.
+
+Previews can't consume queues or run cron triggers, so the bot's Preview handles
+each update inside the webhook request. The simulator delivers one update at a
+time, which keeps them in order. Production keeps the queue; the test suite
+covers it.
+
+`.github/workflows/preview-check.yml` runs once Cloudflare's comment with both
+URLs appears. It runs `packages/testing/scripts/preview.ts check` against the
+live preview:
+- the bot registered the simulated channel;
+- a sign-up reaches the list;
+- the Mini App signs in;
+- the web app is served.
+
+On a fresh world it leaves that example halaqa in place. Then it comments with
+the link. "Reset world" starts over with new IDs and keeps the bot connected.
+
+**One-time setup**
+
+1. **Convex.** Generate a key pair with `bun packages/bot/scripts/generate-auth-key.ts`.
+   In the Convex dashboard, under project settings, set `CONVEX_AUTH_JWKS` to
+   its JWKS as a default environment variable for **preview** deployments.
+   Create a preview deploy key. Per-PR deployments need Convex Pro; with a dev
+   deploy key instead, previews share that dev deployment, and the branch built
+   last decides which functions run there.
+2. **Connect both Workers to this repository** with Workers Builds (Workers &
+   Pages → the Worker → Settings → Build). Root directory is the repository
+   root for both.
+
+   | | `halaqabot` (bot) | `halaqabot-sim` (simulator) |
+   | --- | --- | --- |
+   | Build command | `bun install --frozen-lockfile` | `bun install --frozen-lockfile` |
+   | Deploy command (production branch) | `echo "Production deploys are manual"` | `cd packages/testing && npx wrangler deploy` |
+   | Non-production branch deploy command | `bun packages/bot/scripts/build-preview.ts` | `cd packages/testing && npx wrangler preview` |
+   | Build variables | `CONVEX_DEPLOY_KEY` (the preview deploy key) | |
+
+   The bot's production deploy command is a no-op on purpose. Connecting the
+   repository builds the production branch on every merge, and production
+   deploys stay manual (see "First deploy") until that's decided.
+3. **Preview secrets**, on each Worker's Preview base config:
+   - Bot (in `packages/bot`), via `bunx wrangler preview base-config secret put <NAME>`:
+     `BOT_TOKEN` (any `<digits>:<text>`), `TELEGRAM_WEBHOOK_SECRET` and
+     `CONVEX_AUTH_PRIVATE_KEY` (the private key from step 1).
+   - Simulator (in `packages/testing`): `SIM_BOT_TOKEN` and `SIM_WEBHOOK_SECRET`,
+     the same values as the bot's `BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET`, and
+     `SIM_CONTROL_TOKEN` (any long random string).
+4. **GitHub:** the repository secret `PREVIEW_CONTROL_TOKEN`, the same value as
+   `SIM_CONTROL_TOKEN`.
+
+**To run a preview locally:** the same two Workers in the same preview mode,
+under `wrangler dev`, followed by the same check:
+
+```bash
+cd packages/testing
+CONVEX_DEPLOY_KEY=<dev key> PREVIEW_CONVEX_AUTH_PRIVATE_KEY='<private JWK>' bun run preview local
+```
+
+Previews can't show what the simulator doesn't model (see
+`packages/testing/README.md`), so check against a real test bot before
+releasing.
+
+### Tests in CI
+
+`.github/workflows/test.yml` runs `bun run test` on every pull request and on
+`main`, with no secrets. That's the real bot Worker under `wrangler dev`, with
+local queues, against the simulator and an in-memory Convex. The browser tests
+need a real Convex deployment, so they're skipped there. Run them with
+`TEST_CONVEX_URL` (see `packages/testing/README.md`). They run in Chromium at an
+iPhone's screen size, not in Safari or on iOS.
+
+### Web app CI/CD (Netlify, Vercel, etc.)
 
 The project uses Convex for the database, which requires deploying functions before building. The build process automatically handles this.
 
 **Required Environment Variables for CI:**
 - `CONVEX_DEPLOY_KEY` - Deploy key from your Convex dashboard
-- `CONVEX_URL` - Your Convex deployment URL
-- `BOT_TOKEN` - Your Telegram bot token
+- `VITE_CONVEX_URL` - Your Convex deployment URL
+- `VITE_BOT_API_URL` - The bot Worker's URL
 
 **Getting your Convex Deploy Key:**
 1. Go to your Convex dashboard: https://dashboard.convex.dev
@@ -104,26 +336,11 @@ bun run build
 ```
 
 This will:
-1. Deploy Convex functions (generates TypeScript types)
-2. Build the database package
-3. Build the bot package
+1. Deploy Convex functions to the deployment `CONVEX_DEPLOY_KEY` points at
+   (and generate their TypeScript types)
+2. Typecheck the database package
+3. Typecheck the bot package
 4. Build the web package
 
-## Project Structure
-
-```
-halakabot/
-├── src/
-│   └── index.ts          # Main bot implementation
-├── .env                  # Environment variables (create from .env.example)
-├── .env.example          # Example environment variables
-├── package.json          # Dependencies and scripts
-├── tsconfig.json         # TypeScript configuration
-└── README.md            # This file
-```
-
-## Technologies
-
-- **Bun**: Fast JavaScript runtime
-- **Grammy**: Telegram bot framework
-- **TypeScript**: Type-safe development
+The bot itself is deployed separately (`bun run deploy:bot`); `bun run test`
+is the check to run in CI before deploying it.

@@ -1,4 +1,4 @@
-import { ConvexHttpClient } from "convex/browser";
+import { botConvexClient } from "./convex-client";
 import { api } from "@halakabot/db";
 
 const CONVEX_URL = process.env.CONVEX_URL;
@@ -7,7 +7,7 @@ if (!CONVEX_URL) {
   throw new Error("Missing CONVEX_URL environment variable");
 }
 
-const convex = new ConvexHttpClient(CONVEX_URL);
+const convex = await botConvexClient(CONVEX_URL);
 
 async function checkSpecificUser(userId: number) {
   console.log(`\n🔍 Investigating user ${userId}...\n`);

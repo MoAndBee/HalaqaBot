@@ -1,0 +1,57 @@
+name = "halaqabot"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+# global_fetch_strictly_public: a preview bot and the Telegram simulator are
+# Workers on the same account, and fetch between them otherwise fails (1042).
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+# Secrets (set with `bunx wrangler secret put <NAME>`, never committed):
+#   BOT_TOKEN, GROQ_API_KEY, FORWARD_CHAT_ID, CONVEX_URL, TELEGRAM_WEBHOOK_SECRET,
+#   CONVEX_AUTH_PRIVATE_KEY (see scripts/generate-auth-key.ts)
+#
+# Optional, with defaults in src/config/environment.ts:
+#   CHANNEL_ID, WEB_APP_URL (also the only origin allowed to call /api/*),
+#   AUTO_REACTION_EMOJI, ALLOWED_REACTION_USER_IDS
+
+# Jobs too slow for an HTTP request (see src/jobs.ts). Each consumer runs one
+# job at a time; imports have their own queue so they never hold up updates.
+[[queues.producers]]
+binding = "UPDATES"
+queue = "halaqabot-updates"
+
+[[queues.producers]]
+binding = "IMPORTS"
+queue = "halaqabot-imports"
+
+[[queues.consumers]]
+queue = "halaqabot-updates"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 2
+retry_delay = 10
+# A batch the consumer itself couldn't run (e.g. getMe failing) after retries.
+dead_letter_queue = "halaqabot-dead-letters"
+
+[[queues.consumers]]
+queue = "halaqabot-imports"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 2
+retry_delay = 10
+dead_letter_queue = "halaqabot-dead-letters"
+
+[triggers]
+# Channel registration + admin reconciliation. Admin changes normally arrive as
+# chat_member updates; this catches any that were missed.
+crons = ["17 * * * *"]
+
+[[rules]]
+type = "Data"
+globs = ["**/*.jpeg"]
+fallthrough = true
+
+[observability]
+enabled = true
+
+# Previews (the bot against the Telegram simulator, one per pull request) are
+# deployed by packages/testing/scripts/preview.ts with a generated config.

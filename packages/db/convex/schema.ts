@@ -61,7 +61,8 @@ export default defineSchema({
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
     .index("by_chat_post_position", ["chatId", "postId", "position"])
     .index("by_chat_post", ["chatId", "postId"])
-    .index("by_channel_post", ["channelId", "postId"]),
+    .index("by_channel_post", ["channelId", "postId"])
+    .index("by_user", ["userId"]),
 
   // Historical record of all completed participations
   participationHistory: defineTable({
@@ -145,6 +146,10 @@ export default defineSchema({
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"]),
 
+  // Legacy: the queue the web app used to hand work to a long-polling bot. The
+  // bot now runs on Cloudflare Workers and the web app calls it directly, so
+  // nothing reads or writes this table. Kept so existing rows still validate;
+  // drop it once they are cleared.
   botTasks: defineTable({
     type: v.string(), // "send_participant_list" | "react_to_message" | "delete_message"
     chatId: v.number(),
@@ -205,7 +210,8 @@ export default defineSchema({
     updatedAt: v.number(), // Last sync timestamp
   })
     .index("by_channel", ["channelId"])
-    .index("by_channel_user", ["channelId", "userId"]),
+    .index("by_channel_user", ["channelId", "userId"])
+    .index("by_user", ["userId"]),
 
   // Registry of channels the bot serves. Maps a Telegram channel to its linked
   // discussion group (chatId), where posts/turns/history actually live. Rows are

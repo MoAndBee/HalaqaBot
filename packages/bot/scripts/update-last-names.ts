@@ -1,5 +1,5 @@
 import { Bot } from "grammy";
-import { ConvexHttpClient } from "convex/browser";
+import { botConvexClient } from "./convex-client";
 import { api } from "@halakabot/db";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -10,7 +10,7 @@ if (!BOT_TOKEN || !CONVEX_URL) {
 }
 
 const bot = new Bot(BOT_TOKEN);
-const convex = new ConvexHttpClient(CONVEX_URL);
+const convex = await botConvexClient(CONVEX_URL);
 
 async function updateLastNamesForPost(chatId: number, postId: number) {
   console.log(`\n📝 Fetching users for post ${postId} in chat ${chatId}...`);

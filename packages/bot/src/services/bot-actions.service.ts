@@ -1,167 +1,31 @@
-import type { Bot } from "grammy";
-import { InputFile } from "grammy";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
+import type { Bot, InputFile } from "grammy";
+import { api, type ConvexHttpClient, type Id } from "@halakabot/db";
 import type { Config } from "../config/environment";
-import type { MessageService } from "./message.service";
+import { SERVICE_ACCOUNT_IDS, type MessageService } from "./message.service";
 import type { ClassificationService } from "./classification.service";
 import { detectRealNameFromMessage } from "./name-detection.service";
 import { PostImportService } from "./post-import.service";
+import { UserFacingError } from "../errors";
 
-const REGISTRATION_CLOSED_IMAGE_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "assets",
-  "registration-closed.jpeg"
-);
-
-export class BotTaskService {
-  private bot: Bot;
-  private convex: ConvexHttpClient;
-  private reactiveClient: ConvexClient;
-  private config: Config;
-  private messageService: MessageService;
-  private classificationService: ClassificationService;
-  private isProcessing = false;
-  private unsubscribe: (() => void) | null = null;
-  // Latest pending-tasks snapshot from the subscription, drained by processLoop
-  private pendingTasks: any[] = [];
-  // Tasks already picked up in this process — a subscription snapshot can lag
-  // behind our own status mutations and re-deliver a task we just handled
-  private handledTaskIds = new Set<string>();
-
+/**
+ * Telegram actions the web app asks the bot to perform (see api.ts). Each one
+ * runs to completion within the request, so the caller learns whether it
+ * worked; post imports, which can run long, go through the job queue instead.
+ */
+export class BotActionsService {
   constructor(
-    bot: Bot,
-    convex: ConvexHttpClient,
-    reactiveClient: ConvexClient,
-    config: Config,
-    messageService: MessageService,
-    classificationService: ClassificationService,
-  ) {
-    this.bot = bot;
-    this.convex = convex;
-    this.reactiveClient = reactiveClient;
-    this.config = config;
-    this.messageService = messageService;
-    this.classificationService = classificationService;
-  }
+    private bot: Bot,
+    private convex: ConvexHttpClient,
+    private config: Config,
+    private messageService: MessageService,
+    private classificationService: ClassificationService,
+    private registrationClosedPhoto: () => InputFile,
+  ) {}
 
-  /**
-   * Start watching for pending bot tasks and process them reactively
-   */
-  start() {
-    console.log("Bot task service started, subscribing to pending tasks...");
-
-    // Subscribe to pending tasks - Convex will push updates when data changes
-    this.unsubscribe = this.reactiveClient.onUpdate(
-      api.queries.getPendingBotTasks,
-      {},
-      (tasks) => {
-        if (tasks === undefined) return; // Initial loading state
-        this.handleTasksUpdate(tasks);
-      }
-    );
-  }
-
-  /**
-   * Stop the task service and clean up subscription
-   */
-  stop() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-      console.log("Bot task service stopped");
-    }
-  }
-
-  private handleTasksUpdate(tasks: any[]) {
-    // Always record the latest snapshot; an update that arrives while a task
-    // is being processed must not be dropped, or the queued task sits pending
-    // until some unrelated database change re-fires the subscription.
-    this.pendingTasks = tasks;
-    void this.processLoop();
-  }
-
-  private async processLoop() {
-    if (this.isProcessing) return;
-
-    this.isProcessing = true;
-    try {
-      while (this.pendingTasks.length > 0) {
-        const tasks = this.pendingTasks;
-        this.pendingTasks = [];
-        for (const task of tasks) {
-          if (this.handledTaskIds.has(task._id)) continue;
-          this.handledTaskIds.add(task._id);
-          // Stale snapshots only ever re-deliver recent tasks; drop the
-          // oldest ids so the set doesn't grow for the life of the process
-          if (this.handledTaskIds.size > 1000) {
-            const oldest = this.handledTaskIds.values().next().value;
-            if (oldest !== undefined) this.handledTaskIds.delete(oldest);
-          }
-          await this.processTask(task);
-        }
-      }
-    } catch (error) {
-      console.error("Error processing bot tasks:", error);
-    } finally {
-      this.isProcessing = false;
-      // A snapshot may have arrived between the loop condition and the flag
-      // reset — re-enter instead of leaving those tasks stranded
-      if (this.pendingTasks.some((t) => !this.handledTaskIds.has(t._id))) {
-        void this.processLoop();
-      }
-    }
-  }
-
-  private async processTask(task: any) {
-    console.log(`Processing bot task: ${task.type}`, task);
-
-    // Mark as processing
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "processing",
-    });
-
-    try {
-      if (task.type === "send_participant_list") {
-        await this.handleSendParticipantList(task);
-      } else if (task.type === "react_to_message") {
-        await this.handleReactToMessage(task);
-      } else if (task.type === "detect_name") {
-        await this.handleDetectName(task);
-      } else if (task.type === "delete_message") {
-        await this.handleDeleteMessage(task);
-      } else if (task.type === "import_post") {
-        await this.handleImportPost(task);
-      } else {
-        throw new Error(`Unknown task type: ${task.type}`);
-      }
-    } catch (error) {
-      console.error(`Failed to process task ${task._id}:`, error);
-
-      // Mark as failed
-      await this.convex.mutation(api.mutations.updateBotTask, {
-        taskId: task._id,
-        status: "failed",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  }
-
-  private async handleReactToMessage(task: any) {
-    const { chatId, messageId } = task;
-
+  async reactToMessage(chatId: number, messageId: number) {
     await this.bot.api.setMessageReaction(chatId, messageId, [
       { type: "emoji", emoji: this.config.autoReactionEmoji },
     ]);
-
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "completed",
-    });
 
     console.log(`✅ Reacted to message ${messageId} in chat ${chatId}`);
   }
@@ -172,9 +36,7 @@ export class BotTaskService {
    * their real name the same way an admin 👌 reaction does. The user has already
    * been added to the queue by the web mutation, so this only resolves the name.
    */
-  private async handleDetectName(task: any) {
-    const { chatId, postId, messageId } = task;
-
+  async detectName(chatId: number, postId: number, messageId: number) {
     // Resolve the message author (from storage, or via forwarding).
     const messageAuthor = await this.messageService.getMessageAuthor(
       this.bot.api,
@@ -183,9 +45,8 @@ export class BotTaskService {
       messageId,
     );
 
-    if (!messageAuthor || messageAuthor.id === 0) {
+    if (!messageAuthor || messageAuthor.id === 0 || SERVICE_ACCOUNT_IDS.has(messageAuthor.id)) {
       console.log(`⏭️  detect_name: no resolvable author for message ${messageId}, skipping`);
-      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
       return;
     }
 
@@ -209,7 +70,6 @@ export class BotTaskService {
 
     if (!realName) {
       console.log(`ℹ️  detect_name: no name detected in message ${messageId}, leaving user's name unchanged`);
-      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
       return;
     }
 
@@ -219,7 +79,6 @@ export class BotTaskService {
       console.log(
         `ℹ️  detect_name: user ${messageAuthor.id} already has verified realName "${existingUser.realName}", keeping it`,
       );
-      await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
       return;
     }
 
@@ -239,7 +98,6 @@ export class BotTaskService {
     });
 
     console.log(`✅ detect_name: set realName for user ${messageAuthor.id} to "${realName}"`);
-    await this.convex.mutation(api.mutations.updateBotTask, { taskId: task._id, status: "completed" });
   }
 
   /**
@@ -248,31 +106,19 @@ export class BotTaskService {
    * to it, so they have to be located through the Telegram API — see
    * PostImportService for how.
    */
-  private async handleImportPost(task: any) {
-    if (!task.importId) {
-      throw new Error("import_post task has no importId");
-    }
-
-    const importRecord = await this.convex.query(api.queries.getPostImport, {
-      importId: task.importId,
-    });
+  async importPost(importId: Id<"postImports">) {
+    const importRecord = await this.convex.query(api.queries.getPostImport, { importId });
 
     if (!importRecord) {
-      throw new Error(`Post import ${task.importId} not found`);
+      throw new Error(`Post import ${importId} not found`);
     }
 
-    // A failed task may be retried; skip an import that already ran.
+    // The queue may redeliver a job; skip an import that already ran.
     if (importRecord.status === "completed") {
-      await this.convex.mutation(api.mutations.updateBotTask, {
-        taskId: task._id,
-        status: "completed",
-      });
       return;
     }
 
-    await this.convex.mutation(api.mutations.startPostImport, {
-      importId: task.importId,
-    });
+    await this.convex.mutation(api.mutations.startPostImport, { importId });
 
     const importService = new PostImportService(
       this.bot.api,
@@ -280,17 +126,11 @@ export class BotTaskService {
       this.config.forwardChatId,
     );
     // Resolution reports its own outcome on the import record, including
-    // failures the admin can act on, so the task itself always completes.
+    // failures the admin can act on.
     await importService.run(importRecord);
-
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "completed",
-    });
   }
 
-  private async handleDeleteMessage(task: any) {
-    const { chatId, messageId } = task;
+  async deleteMessage(chatId: number, messageId: number) {
 
     try {
       await this.bot.api.deleteMessage(chatId, messageId);
@@ -299,17 +139,17 @@ export class BotTaskService {
       // Telegram returns an error if the message is already gone — treat as success
       console.error(`Failed to delete message ${messageId} in chat ${chatId}:`, error);
     }
-
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "completed",
-    });
   }
 
-  private async handleSendParticipantList(task: any) {
-    const { chatId, postId } = task;
-    let { sessionNumber } = task;
-    const flower = task.flower || '🌸'; // Default to 🌸 if not specified
+  async sendParticipantList(args: {
+    chatId: number;
+    postId: number;
+    sessionNumber?: number;
+    flower?: string;
+  }): Promise<{ messageId: number }> {
+    const { chatId, postId } = args;
+    let { sessionNumber } = args;
+    const flower = args.flower || '🌸'; // Default to 🌸 if not specified
 
     // Get the latest session if not specified
     if (sessionNumber === undefined) {
@@ -318,11 +158,17 @@ export class BotTaskService {
         postId,
       });
 
-      if (allSessions.length === 0) {
-        sessionNumber = 1;
-      } else {
-        sessionNumber = allSessions[0].sessionNumber;
-      }
+      sessionNumber = allSessions[0]?.sessionNumber ?? 1;
+    }
+
+    // A closed (locked) halaqa is final — don't publish its list again.
+    const sessionInfo = await this.convex.query(api.queries.getSessionInfo, {
+      chatId,
+      postId,
+      sessionNumber,
+    });
+    if (sessionInfo?.isLocked) {
+      throw new UserFacingError("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
     }
 
     // Get session details (for teacher name)
@@ -470,7 +316,7 @@ export class BotTaskService {
     let registrationClosedImageMessageId: number | undefined;
     if (currentSession?.registrationClosed) {
       try {
-        const photoMessage = await this.bot.api.sendPhoto(chatId, new InputFile(REGISTRATION_CLOSED_IMAGE_PATH), {
+        const photoMessage = await this.bot.api.sendPhoto(chatId, this.registrationClosedPhoto(), {
           reply_to_message_id: postId,
         });
         registrationClosedImageMessageId = photoMessage.message_id;
@@ -480,7 +326,7 @@ export class BotTaskService {
     }
 
     // Store the new message ID with session number
-    await this.convex.mutation(api.mutations.setLastListMessage, {
+    const replaced = await this.convex.mutation(api.mutations.setLastListMessage, {
       chatId,
       postId,
       messageId: sentMessage.message_id,
@@ -488,13 +334,24 @@ export class BotTaskService {
       registrationClosedImageMessageId,
     });
 
-    // Mark task as completed
-    await this.convex.mutation(api.mutations.updateBotTask, {
-      taskId: task._id,
-      status: "completed",
-      resultMessageId: sentMessage.message_id,
-    });
+    // Another send for this session ran alongside this one (two admins at once)
+    // and its list landed after we looked: remove it so only one list remains.
+    if (
+      replaced &&
+      replaced.sessionNumber === sessionNumber &&
+      replaced.messageId !== lastListMessage?.messageId
+    ) {
+      for (const messageId of [replaced.messageId, replaced.registrationClosedImageMessageId]) {
+        if (messageId === undefined) continue;
+        try {
+          await this.bot.api.deleteMessage(chatId, messageId);
+        } catch (error) {
+          console.error('Failed to delete concurrently sent list message:', error);
+        }
+      }
+    }
 
     console.log(`✅ Sent participant list message ${sentMessage.message_id}`);
+    return { messageId: sentMessage.message_id };
   }
 }

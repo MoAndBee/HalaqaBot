@@ -1,4 +1,4 @@
-import { ConvexHttpClient } from "convex/browser";
+import { botConvexClient } from "./convex-client";
 import { api } from "@halakabot/db";
 import { groq } from "@ai-sdk/groq";
 import { generateText } from "ai";
@@ -10,7 +10,7 @@ if (!CONVEX_URL || !GROQ_API_KEY) {
   throw new Error("Missing CONVEX_URL or GROQ_API_KEY environment variables");
 }
 
-const convex = new ConvexHttpClient(CONVEX_URL);
+const convex = await botConvexClient(CONVEX_URL);
 
 async function detectNamesInMessage(messageText: string): Promise<string[]> {
   try {

@@ -1,83 +1,7 @@
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import { api, internal } from "./_generated/api";
-
-/**
- * Creates a bot task to send the participant list as a message to the post
- */
-export const sendParticipantList = action({
-  args: {
-    chatId: v.number(),
-    postId: v.number(),
-    sessionNumber: v.optional(v.number()),
-    flower: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // A closed (locked) halaqa is final — don't publish its list again. Resolve
-    // the target session the same way the bot does when none is given: the most
-    // recent one for this post.
-    let sessionNumber = args.sessionNumber;
-    if (sessionNumber === undefined) {
-      const sessions = await ctx.runQuery(api.queries.getAvailableSessions, {
-        chatId: args.chatId,
-        postId: args.postId,
-      });
-      sessionNumber = sessions[0]?.sessionNumber;
-    }
-
-    if (sessionNumber !== undefined) {
-      const sessionInfo = await ctx.runQuery(api.queries.getSessionInfo, {
-        chatId: args.chatId,
-        postId: args.postId,
-        sessionNumber,
-      });
-
-      if (sessionInfo?.isLocked) {
-        throw new Error("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
-      }
-    }
-
-    // Query the user list first to ensure the cache is warmed up with fresh data
-    // This prevents the bot from hitting stale cached data when it processes the task
-    await ctx.runQuery(api.queries.getUserList, {
-      chatId: args.chatId,
-      postId: args.postId,
-      sessionNumber: args.sessionNumber,
-    });
-
-    // Create a task for the bot to process
-    const result = await ctx.runMutation(api.mutations.createBotTask, {
-      type: "send_participant_list",
-      chatId: args.chatId,
-      postId: args.postId,
-      sessionNumber: args.sessionNumber,
-      flower: args.flower,
-    });
-
-    return { success: true, taskId: result.taskId };
-  },
-});
-
-/**
- * Creates a bot task to react to a specific message with a heart emoji
- */
-export const reactToMessage = action({
-  args: {
-    chatId: v.number(),
-    postId: v.number(),
-    messageId: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const result = await ctx.runMutation(api.mutations.createBotTask, {
-      type: "react_to_message",
-      chatId: args.chatId,
-      postId: args.postId,
-      messageId: args.messageId,
-    });
-
-    return { success: true, taskId: result.taskId };
-  },
-});
+import { internal } from "./_generated/api";
+import type { RegisteredAction } from "convex/server";
 
 interface BulkScoreMatch {
   /** Client-supplied id of the matched student, or null when nothing matched */
@@ -179,9 +103,11 @@ export const matchBulkScores = action({
     ),
   },
   handler: async (
-    _ctx,
+    ctx,
     args
   ): Promise<{ matches: BulkScoreMatch[]; otherStudentsSearched: boolean }> => {
+    // A paid LLM call: admins only.
+    await ctx.runQuery(internal.auth.checkAnyAdmin, {});
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       throw bulkScoreError({
@@ -465,36 +391,13 @@ Respond with ONLY a JSON object of this exact shape:
 });
 
 /**
- * Creates a bot task to detect the sender's real name from a message and store
- * it. Used by the web "add turn" (دور+) flow so adding a participant from a
- * message populates their real name the same way an admin 👌 reaction does.
- */
-export const detectNameFromMessage = action({
-  args: {
-    chatId: v.number(),
-    postId: v.number(),
-    messageId: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const result = await ctx.runMutation(api.mutations.createBotTask, {
-      type: "detect_name",
-      chatId: args.chatId,
-      postId: args.postId,
-      messageId: args.messageId,
-    });
-
-    return { success: true, taskId: result.taskId };
-  },
-});
-
-/**
  * One-time backfill: populates the posts table from turnQueue and participationHistory.
  * Only creates post records for posts that have actual participants — informational
  * channel posts (with no users) are excluded.
  *
  * Uses _creationTime (Convex's immutable system field) for reliable timestamps.
  */
-export const backfillPosts = action({
+export const backfillPosts = internalAction({
   args: {},
   handler: async (ctx) => {
     // Collect unique chatId+postId pairs with earliest timestamp
@@ -543,3 +446,18 @@ export const backfillPosts = action({
     return { totalUpserted };
   },
 });
+
+/**
+ * Removed: the web app now asks the bot Worker directly (packages/bot/src/api.ts).
+ * Kept for one release so a Mini App still running an old cached bundle tells
+ * the admin to reopen it instead of failing silently. Delete afterwards.
+ */
+// No args validator: old clients pass their old arguments, which must reach the
+// handler so the admin sees the message rather than a validation error.
+const outdatedApp = async (): Promise<never> => {
+  throw new ConvexError("يرجى إغلاق التطبيق وفتحه من جديد للحصول على آخر تحديث.");
+};
+type OutdatedAppAction = RegisteredAction<"public", Record<string, unknown>, Promise<never>>;
+export const sendParticipantList: OutdatedAppAction = action({ handler: outdatedApp });
+export const reactToMessage: OutdatedAppAction = action({ handler: outdatedApp });
+export const detectNameFromMessage: OutdatedAppAction = action({ handler: outdatedApp });
