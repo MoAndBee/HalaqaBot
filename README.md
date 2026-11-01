@@ -216,68 +216,103 @@ need `CONVEX_AUTH_PRIVATE_KEY` in their environment.
 
 ### Previews
 
-Every pull request gets a preview that needs no Telegram account
-(`.github/workflows/preview.yml`). It includes:
+Every pull request gets a preview that needs no Telegram account. It includes:
 - the bot;
 - a simulated Telegram in its place;
 - the web app;
-- a Convex deployment of its own.
+- the PR's own Convex deployment.
 
-The PR gets a comment with a link that works on a phone as well as a
-computer. The Mini App fills the screen, as in Telegram, and a 🤖 bubble floats
-over it; drag it to either side. Tapping it opens the simulator, where you can:
+Cloudflare builds it as [Worker Previews](https://developers.cloudflare.com/workers/previews/)
+and posts the links on the PR. A GitHub workflow then smoke-tests it and
+comments with the link to open.
+
+The link works on a phone as well as a computer. The Mini App fills the screen,
+as in Telegram, and a 🤖 bubble floats over it; drag it to either side. Tapping
+it opens the simulator, where you can:
 - act as the owner, an admin or a student (the Mini App reopens as them);
 - publish posts, comment, reply and react;
 - run one-tap set-ups;
 - see each update the bot received and what it did.
 
-Closing the PR removes the preview.
-
-**One-time setup:**
-1. Generate a key pair with `bun packages/bot/scripts/generate-auth-key.ts`.
-2. In the Convex dashboard, under project settings, set `CONVEX_AUTH_JWKS` to
-   the key's JWKS as a default environment variable for **preview**
-   deployments.
-3. Add these repository secrets:
-   - `CLOUDFLARE_API_TOKEN` (Workers Scripts and Queues: Edit)
-   - `CLOUDFLARE_ACCOUNT_ID`
-   - `CONVEX_PREVIEW_DEPLOY_KEY`
-   - `PREVIEW_CONVEX_AUTH_PRIVATE_KEY` (the private key)
-   - `PREVIEW_CONTROL_TOKEN` (any long random string)
-
-Per-PR Convex deployments need Convex's preview deploy keys. With a dev deploy
-key instead, previews share that dev deployment: each still gets its own
-simulated channel, but the PR deployed last decides which functions run there.
-
-**What a preview is**, for PR 12 (`packages/testing/scripts/preview.ts`):
+**How it fits together**, for a branch whose Preview name is `my-branch`:
 
 | Part | |
 | --- | --- |
-| `halaqabot-pr-12` | the bot Worker, with its own queues. It also serves the web app, so `/api` is same-origin. |
-| `halaqabot-sim-pr-12` | the simulator Worker: Bot API, fake Groq and the dashboard. Its world lives in a Durable Object. |
-| Convex `pr-12` | the PR's Convex functions. |
+| `my-branch-halaqabot` | The bot's Preview, built by `packages/bot/scripts/build-preview.ts`. It pushes the branch's Convex functions to a Convex preview deployment, builds the web app, and uploads the Preview with `wrangler preview`. It also serves the web app, so `/api` is same-origin. |
+| `my-branch-halaqabot-sim` | The simulator's Preview (`packages/testing/wrangler.toml`): Bot API, fake Groq and the page you open. Its world lives in the Preview's own Durable Object. |
 
-After deploying, the script runs a smoke test against the live preview:
+The two find each other from their own URLs, since Previews of one branch share
+a name (`packages/bot/src/preview.ts`). The simulator points its webhook at the
+bot on first use.
+
+Previews can't consume queues or run cron triggers, so the bot's Preview handles
+each update inside the webhook request. The simulator delivers one update at a
+time, which keeps them in order. Production keeps the queue; the test suite
+covers it.
+
+`.github/workflows/preview-check.yml` runs once Cloudflare's comment with both
+URLs appears. It runs `packages/testing/scripts/preview.ts check` against the
+live preview:
 - the bot registered the simulated channel;
 - a sign-up reaches the list;
 - the Mini App signs in;
 - the web app is served.
 
-On a fresh world it leaves that example halaqa in place. "Reset world" starts
-over with new IDs and keeps the bot connected.
+On a fresh world it leaves that example halaqa in place. Then it comments with
+the link. "Reset world" starts over with new IDs and keeps the bot connected.
 
-**To run a preview locally**, with the same configs and checks under
-`wrangler dev`:
+**One-time setup**
+
+1. **Convex.** Generate a key pair with `bun packages/bot/scripts/generate-auth-key.ts`.
+   In the Convex dashboard, under project settings, set `CONVEX_AUTH_JWKS` to
+   its JWKS as a default environment variable for **preview** deployments.
+   Create a preview deploy key. Per-PR deployments need Convex Pro; with a dev
+   deploy key instead, previews share that dev deployment, and the branch built
+   last decides which functions run there.
+2. **Connect both Workers to this repository** with Workers Builds (Workers &
+   Pages → the Worker → Settings → Build). Root directory is the repository
+   root for both.
+
+   | | `halaqabot` (bot) | `halaqabot-sim` (simulator) |
+   | --- | --- | --- |
+   | Build command | `bun install --frozen-lockfile` | `bun install --frozen-lockfile` |
+   | Deploy command (production branch) | `echo "Production deploys are manual"` | `cd packages/testing && npx wrangler deploy` |
+   | Non-production branch deploy command | `bun packages/bot/scripts/build-preview.ts` | `cd packages/testing && npx wrangler preview` |
+   | Build variables | `CONVEX_DEPLOY_KEY` (the preview deploy key) | |
+
+   The bot's production deploy command is a no-op on purpose. Connecting the
+   repository builds the production branch on every merge, and production
+   deploys stay manual (see "First deploy") until that's decided.
+3. **Preview secrets**, on each Worker's Preview base config:
+   - Bot (in `packages/bot`), via `bunx wrangler preview base-config secret put <NAME>`:
+     `BOT_TOKEN` (any `<digits>:<text>`), `TELEGRAM_WEBHOOK_SECRET` and
+     `CONVEX_AUTH_PRIVATE_KEY` (the private key from step 1).
+   - Simulator (in `packages/testing`): `SIM_BOT_TOKEN` and `SIM_WEBHOOK_SECRET`,
+     the same values as the bot's `BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET`, and
+     `SIM_CONTROL_TOKEN` (any long random string).
+4. **GitHub:** the repository secret `PREVIEW_CONTROL_TOKEN`, the same value as
+   `SIM_CONTROL_TOKEN`.
+
+**To run a preview locally:** the same two Workers in the same preview mode,
+under `wrangler dev`, followed by the same check:
 
 ```bash
 cd packages/testing
-CONVEX_DEPLOY_KEY=<dev key> PREVIEW_CONVEX_AUTH_PRIVATE_KEY='<private JWK>' \
-PREVIEW_CONTROL_TOKEN=anything bun run preview local mine
+CONVEX_DEPLOY_KEY=<dev key> PREVIEW_CONVEX_AUTH_PRIVATE_KEY='<private JWK>' bun run preview local
 ```
 
 Previews can't show what the simulator doesn't model (see
 `packages/testing/README.md`), so check against a real test bot before
 releasing.
+
+### Tests in CI
+
+`.github/workflows/test.yml` runs `bun run test` on every pull request and on
+`main`, with no secrets. That's the real bot Worker under `wrangler dev`, with
+local queues, against the simulator and an in-memory Convex. The browser tests
+need a real Convex deployment, so they're skipped there. Run them with
+`TEST_CONVEX_URL` (see `packages/testing/README.md`). They run in Chromium at an
+iPhone's screen size, not in Safari or on iOS.
 
 ### Web app CI/CD (Netlify, Vercel, etc.)
 

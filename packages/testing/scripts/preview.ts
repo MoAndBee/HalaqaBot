@@ -1,222 +1,38 @@
 /**
- * A preview of the whole system that needs no Telegram account: the bot, the
- * Telegram simulator it talks to instead of Telegram, the web app and a Convex
- * deployment, all for one name (one per pull request in CI, see
- * .github/workflows/preview.yml).
+ * Previews of a branch: the bot (serving the web app) and the Telegram
+ * simulator, built by Cloudflare as Worker Previews for every pull request
+ * (see "Previews" in the README and bot/scripts/build-preview.ts).
  *
- *   bun scripts/preview.ts deploy <name>     create or update
- *   bun scripts/preview.ts destroy <name>    remove the Workers and queues
- *   bun scripts/preview.ts local <name>      the same two Workers under
- *                                            `wrangler dev`, against the Convex
- *                                            deployment CONVEX_DEPLOY_KEY names
+ *   bun scripts/preview.ts check <bot-url> <simulator-url>
+ *       Smoke-tests a running preview the way a reviewer would use it; CI runs
+ *       it once Cloudflare has posted the Preview URLs. Needs
+ *       PREVIEW_CONTROL_TOKEN (the simulator's SIM_CONTROL_TOKEN).
  *
- * What it deploys, for name "pr-12":
- *   halaqabot-pr-12        the bot Worker, with its own queues, also serving
- *                          the web app (so /api is same-origin)
- *   halaqabot-sim-pr-12    the simulator Worker: the dashboard to drive it all
- *   Convex                 a preview deployment named "pr-12" (with a preview
- *                          deploy key), or a shared dev deployment (dev key)
- *
- * Environment:
- *   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID   for wrangler
- *   CONVEX_DEPLOY_KEY            a preview deploy key, or a dev deploy key
- *   PREVIEW_CONVEX_AUTH_PRIVATE_KEY   signing key the Convex deployment trusts:
- *                                its public half must be CONVEX_AUTH_JWKS (for
- *                                previews, a default environment variable)
- *   PREVIEW_CONTROL_TOKEN        guards the simulator's controls; the bot token
- *                                and webhook secret are derived from it
- *   PREVIEW_ID_OFFSET            optional: shifts the simulated IDs, so
- *                                previews sharing a dev deployment don't meet
- *   GITHUB_OUTPUT                optional: where to write the URLs for CI
+ *   bun scripts/preview.ts local
+ *       Runs the same two Workers, in the same preview mode, under
+ *       `wrangler dev`, then checks them. Needs CONVEX_DEPLOY_KEY (a dev key)
+ *       and PREVIEW_CONVEX_AUTH_PRIVATE_KEY (set as that deployment's
+ *       CONVEX_AUTH_JWKS here). Ctrl+C to stop.
  */
 import path from "node:path";
-import { mkdirSync, writeFileSync, appendFileSync, readFileSync, rmSync } from "node:fs";
-import { Api } from "grammy";
+import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { ConvexHttpClient } from "@halakabot/db";
-import { configureTelegram } from "../../bot/src/setup";
-import { BOT_SUBJECT, importSigningKey, jwksForPrivateKey, signToken } from "../../bot/src/convex-auth";
+import { jwksForPrivateKey } from "../../bot/src/convex-auth";
+import { deployConvexAndBuildWebApp, previewConfig } from "../../bot/scripts/build-preview";
 
 const ROOT = path.resolve(import.meta.dir, "../../..");
 const BOT_DIR = path.join(ROOT, "packages/bot");
 const SIM_DIR = path.join(ROOT, "packages/testing");
 const DB_DIR = path.join(ROOT, "packages/db");
-const WEB_DIR = path.join(ROOT, "packages/web");
 const OUT_DIR = path.join(SIM_DIR, ".preview");
+const WRANGLER = path.join(BOT_DIR, "node_modules/.bin/wrangler");
 
 const REGISTRATION_POST = "حللتم أهلا ونزلتم سهلا 🌸\nسجلي اسمك للحلقة";
-
-const [command, name] = process.argv.slice(2);
-if (!["deploy", "destroy", "local"].includes(command ?? "") || !name || !/^[a-z0-9-]{1,30}$/.test(name)) {
-  console.error("usage: bun scripts/preview.ts deploy|destroy|local <name: lowercase letters, digits, dashes>");
-  process.exit(2);
-}
-
-const names = {
-  bot: `halaqabot-${name}`,
-  sim: `halaqabot-sim-${name}`,
-  queues: ["updates", "imports", "dead-letters"].map((q) => `halaqabot-${name}-${q}`),
-};
 
 function env(key: string): string {
   const value = process.env[key];
   if (!value) throw new Error(`${key} is not set`);
   return value;
-}
-
-/** Runs a command, failing loudly with its output. Secrets never go on the command line. */
-async function run(
-  cmd: string[],
-  options: { cwd: string; env?: Record<string, string>; unset?: string[]; allowFailure?: RegExp },
-) {
-  const childEnv: Record<string, string | undefined> = { ...process.env, ...options.env };
-  for (const key of options.unset ?? []) delete childEnv[key];
-  const proc = Bun.spawn(cmd, {
-    cwd: options.cwd,
-    env: childEnv,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
-  if (code !== 0 && !(options.allowFailure && options.allowFailure.test(out + err))) {
-    throw new Error(`${cmd.slice(0, 3).join(" ")} failed (${code}):\n${out}\n${err}`);
-  }
-  return out;
-}
-const wrangler = (args: string[], options: Parameters<typeof run>[1]) =>
-  run([path.join(BOT_DIR, "node_modules/.bin/wrangler"), ...args], options);
-
-/** Stable per preview, so redeploys keep links and the simulated world working. */
-async function derive(label: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(env("PREVIEW_CONTROL_TOKEN")),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${name}:${label}`)));
-  return [...mac].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function workersSubdomain(): Promise<string> {
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${env("CLOUDFLARE_ACCOUNT_ID")}/workers/subdomain`,
-    { headers: { Authorization: `Bearer ${env("CLOUDFLARE_API_TOKEN")}` } },
-  );
-  const body = (await response.json()) as { success: boolean; result?: { subdomain: string } };
-  if (!body.success || !body.result) throw new Error(`Couldn't read the workers.dev subdomain: ${JSON.stringify(body)}`);
-  return body.result.subdomain;
-}
-
-/** Pushes the Convex functions and returns the deployment's URL. */
-async function deployConvex(): Promise<string> {
-  const deployKey = env("CONVEX_DEPLOY_KEY");
-  const jwks = jwksForPrivateKey(env("PREVIEW_CONVEX_AUTH_PRIVATE_KEY"));
-  const convexEnv = { CONVEX_DEPLOY_KEY: deployKey };
-
-  if (deployKey.startsWith("preview:")) {
-    // A deployment of its own, created on first push. It gets CONVEX_AUTH_JWKS
-    // from the project's default environment variables for previews (Convex
-    // won't push auth.config.ts without it); setting it again keeps it in step
-    // with PREVIEW_CONVEX_AUTH_PRIVATE_KEY.
-    const urlFile = path.join(OUT_DIR, "convex-url");
-    await run(
-      ["bunx", "convex", "deploy", "--preview-create", name!, "--typecheck", "disable",
-        "--cmd-url-env-var-name", "PREVIEW_CONVEX_URL", "--cmd", `printenv PREVIEW_CONVEX_URL > ${urlFile}`],
-      { cwd: DB_DIR, env: convexEnv },
-    );
-    await run(["bunx", "convex", "env", "set", "--preview-name", name!, "CONVEX_AUTH_JWKS", jwks], { cwd: DB_DIR, env: convexEnv });
-    return readFileSync(urlFile, "utf8").trim();
-  }
-
-  // A shared dev deployment (Convex's free plan has no previews): the last
-  // preview deployed decides which functions run there.
-  const deployment = deployKey.match(/^dev:([a-z0-9-]+)\|/)?.[1];
-  if (!deployment) throw new Error("CONVEX_DEPLOY_KEY must be a preview or dev deploy key");
-  await run(["bunx", "convex", "env", "set", "CONVEX_AUTH_JWKS", jwks], { cwd: DB_DIR, env: convexEnv });
-  await run(["bunx", "convex", "dev", "--once", "--typecheck", "disable"], { cwd: DB_DIR, env: convexEnv });
-  return `https://${deployment}.convex.cloud`;
-}
-
-function botConfig(simUrl: string) {
-  const consumer = (queue: string) => ({
-    queue,
-    max_batch_size: 1,
-    max_concurrency: 1,
-    max_retries: 2,
-    retry_delay: 10,
-    dead_letter_queue: names.queues[2],
-  });
-  return {
-    name: names.bot,
-    main: path.join(BOT_DIR, "src/worker.ts"),
-    compatibility_date: "2026-09-01",
-    compatibility_flags: ["nodejs_compat", "global_fetch_strictly_public"],
-    workers_dev: true,
-    queues: {
-      producers: [
-        { binding: "UPDATES", queue: names.queues[0] },
-        { binding: "IMPORTS", queue: names.queues[1] },
-      ],
-      consumers: [consumer(names.queues[0]!), consumer(names.queues[1]!)],
-    },
-    triggers: { crons: ["17 * * * *"] },
-    rules: [{ type: "Data", globs: ["**/*.jpeg"], fallthrough: true }],
-    // The web app, served by the bot itself: same origin as /api, no other host.
-    assets: {
-      directory: path.join(WEB_DIR, "dist"),
-      not_found_handling: "single-page-application",
-      run_worker_first: ["/api/*", "/telegram"],
-    },
-    observability: { enabled: true },
-    vars: {
-      TELEGRAM_API_ROOT: simUrl,
-      GROQ_BASE_URL: `${simUrl}/groq/openai/v1`,
-    },
-  };
-}
-
-function simConfig(botUrl: string) {
-  return {
-    name: names.sim,
-    main: path.join(SIM_DIR, "src/sim-worker.ts"),
-    compatibility_date: "2026-09-01",
-    compatibility_flags: ["global_fetch_strictly_public"],
-    workers_dev: true,
-    vars: { SIM_WEB_APP_URL: botUrl, SIM_ID_OFFSET: process.env.PREVIEW_ID_OFFSET ?? "0" },
-    durable_objects: { bindings: [{ name: "SIMULATOR", class_name: "Simulator" }] },
-    migrations: [{ tag: "v1", new_sqlite_classes: ["Simulator"] }],
-  };
-}
-
-/** Writes a wrangler config and secrets file, deploys, and cleans the secrets up. */
-async function deployWorker(config: { name: string }, secrets: Record<string, string>) {
-  const configFile = path.join(OUT_DIR, `${config.name}.json`);
-  const secretsFile = path.join(OUT_DIR, `${config.name}.secrets.json`);
-  writeFileSync(configFile, JSON.stringify(config, null, 2));
-  writeFileSync(secretsFile, JSON.stringify(secrets), { mode: 0o600 });
-  try {
-    // Wrangler lets the environment override the secrets file; it mustn't.
-    await wrangler(["deploy", "--config", configFile, "--secrets-file", secretsFile], {
-      cwd: OUT_DIR,
-      unset: Object.keys(secrets),
-    });
-  } finally {
-    rmSync(secretsFile, { force: true });
-  }
-}
-
-async function controlApi(simUrl: string, control: string) {
-  return async function sim(route: string, body?: unknown): Promise<any> {
-    const response = await fetch(`${simUrl}/sim/${route}`, {
-      method: body ? "POST" : "GET",
-      headers: { Authorization: `Bearer ${control}`, "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`/sim/${route}: ${response.status} ${JSON.stringify(data)}`);
-    return data;
-  };
 }
 
 async function waitFor<T>(what: string, check: () => Promise<T | null | undefined | false>, timeoutMs = 60_000): Promise<T> {
@@ -235,24 +51,43 @@ async function waitFor<T>(what: string, check: () => Promise<T | null | undefine
 }
 
 /**
- * Checks the deployed preview end to end, the way a reviewer would use it. On a
- * fresh world it also leaves an example halaqa behind: a registration post and
- * an approved sign-up.
+ * Checks a running preview end to end: the bot registered the simulated
+ * channel, a sign-up reaches the turn list, the Mini App signs in, and the bot
+ * serves the web app. On a fresh world it leaves that example halaqa behind.
  */
-async function smokeTest(urls: { sim: string; bot: string }, control: string, convexUrl: string): Promise<string[]> {
-  const sim = await controlApi(urls.sim, control);
+export async function check(urls: { bot: string; sim: string }, control: string): Promise<string[]> {
+  async function sim(route: string, body?: unknown): Promise<any> {
+    const response = await fetch(`${urls.sim}/sim/${route}`, {
+      method: body ? "POST" : "GET",
+      headers: { Authorization: `Bearer ${control}`, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(`/sim/${route}: ${response.status} ${JSON.stringify(data)}`);
+    return data;
+  }
   const checks: string[] = [];
-  const state = await sim("state");
+
+  // The first request connects the simulator to the bot.
+  const state = await waitFor("the simulator to answer", () => sim("state"), 120_000);
+  if (!state.webhook) throw new Error("The simulator isn't connected to the bot (no webhook)");
   const channel = state.chats.find((c: any) => c.type === "channel");
   const groupId = channel.linked_chat_id;
   const admin = state.users.find((u: any) => !u.is_bot && channel.members[u.id] === "administrator");
   const student = state.users.find((u: any) => !u.is_bot && !channel.members[u.id]);
 
+  // Convex, signed in as the admin through the bot, like the Mini App.
+  const { convexUrl } = await (await fetch(`${urls.bot}/preview/info`)).json() as { convexUrl: string };
+  const { initData, url: miniAppUrl } = await sim("mini-app", { userId: admin.id });
+  const tokenResponse = await fetch(`${urls.bot}/api/auth/token`, {
+    method: "POST",
+    headers: { Authorization: `tma ${initData}`, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  if (!tokenResponse.ok) throw new Error(`/api/auth/token answered ${tokenResponse.status}`);
   const convex = new ConvexHttpClient(convexUrl);
-  const signing = await importSigningKey(env("PREVIEW_CONVEX_AUTH_PRIVATE_KEY"));
-  convex.setAuth((await signToken(signing, BOT_SUBJECT, 600)).token);
+  convex.setAuth(((await tokenResponse.json()) as { token: string }).token);
 
-  // The bot heard it was added to the channel and registered it with its admins.
   await waitFor("the bot to register the channel", async () => {
     const channels = await convex.query("queries:getMyChannels" as any, { userId: admin.id });
     return channels.length > 0;
@@ -270,160 +105,97 @@ async function smokeTest(urls: { sim: string; bot: string }, control: string, co
     });
     checks.push("registration post → sign-up → 👌 → student on the list");
   }
-
-  // The Mini App's sign-in: simulated Telegram initData → a Convex token.
-  const { initData, url } = await sim("mini-app", { userId: admin.id });
-  const tokenResponse = await fetch(`${urls.bot}/api/auth/token`, {
-    method: "POST",
-    headers: { Authorization: `tma ${initData}`, Origin: urls.bot, "Content-Type": "application/json" },
-    body: "{}",
-  });
-  if (!tokenResponse.ok) throw new Error(`/api/auth/token answered ${tokenResponse.status}`);
   checks.push("Mini App sign-in issues a Convex token");
 
-  const page = await fetch(url);
-  if (!page.ok || !(await page.text()).includes('id="root"')) throw new Error(`The web app isn't served at ${url}`);
+  const page = await fetch(miniAppUrl);
+  if (!page.ok || !(await page.text()).includes('id="root"')) throw new Error(`The web app isn't served at ${miniAppUrl}`);
   checks.push("web app served by the bot Worker");
   return checks;
 }
 
-/** What both the deployed and the local preview are made of. */
-async function prepare(urls: { bot: string; sim: string }) {
-  mkdirSync(OUT_DIR, { recursive: true });
-  const control = env("PREVIEW_CONTROL_TOKEN");
-  const botToken = `${7_000_000_000 + (parseInt((await derive("bot")).slice(0, 6), 16) % 1_000_000)}:${await derive("token")}`;
-  const webhookSecret = (await derive("webhook")).slice(0, 48);
-
-  console.log(`Convex…`);
-  const convexUrl = await deployConvex();
-
-  console.log(`Web app…`);
-  await run(["bunx", "vite", "build"], {
-    cwd: WEB_DIR,
-    env: { VITE_CONVEX_URL: convexUrl, VITE_BOT_API_URL: urls.bot },
-  });
-
-  const sim = { config: simConfig(urls.bot), secrets: { SIM_BOT_TOKEN: botToken, SIM_CONTROL_TOKEN: control } };
-  const bot = {
-    config: botConfig(urls.sim),
-    secrets: {
-    BOT_TOKEN: botToken,
-    CONVEX_URL: convexUrl,
-    CONVEX_AUTH_PRIVATE_KEY: env("PREVIEW_CONVEX_AUTH_PRIVATE_KEY"),
-    TELEGRAM_WEBHOOK_SECRET: webhookSecret,
-    WEB_APP_URL: urls.bot,
-    GROQ_API_KEY: "simulated",
-    // The simulated world's channel and scratch group (see src/world.ts).
-    CHANNEL_ID: String(-1001000000001 - Number(process.env.PREVIEW_ID_OFFSET ?? 0)),
-    FORWARD_CHAT_ID: String(-1001000000003 - Number(process.env.PREVIEW_ID_OFFSET ?? 0)),
-    },
-  };
-  return { control, botToken, webhookSecret, convexUrl, sim, bot };
-}
-
-/** Points the simulator's webhook at the bot, then checks the whole thing. */
-async function connectAndCheck(
-  urls: { bot: string; sim: string },
-  { control, botToken, webhookSecret, convexUrl }: Awaited<ReturnType<typeof prepare>>,
-): Promise<string[]> {
-  console.log(`Connecting the bot to the simulator…`);
-  // Fresh workers.dev hostnames can take a moment to resolve.
-  await waitFor("the simulator to answer", async () => (await fetch(`${urls.sim}/sim/state`, {
-    headers: { Authorization: `Bearer ${control}` },
-  })).ok);
-  await configureTelegram(new Api(botToken, { apiRoot: urls.sim }), {
-    workerUrl: urls.bot,
-    secret: webhookSecret,
-    webAppUrl: urls.bot,
-  });
-
-  console.log(`Smoke test…`);
-  const checks = await smokeTest(urls, control, convexUrl);
-  for (const check of checks) console.log(`  ✓ ${check}`);
-  return checks;
-}
-
-async function deploy() {
-  const subdomain = process.env.WORKERS_SUBDOMAIN ?? (await workersSubdomain());
-  const urls = {
-    bot: `https://${names.bot}.${subdomain}.workers.dev`,
-    sim: `https://${names.sim}.${subdomain}.workers.dev`,
-  };
-  const parts = await prepare(urls);
-
-  console.log(`Queues…`);
-  for (const queue of names.queues) {
-    await wrangler(["queues", "create", queue], { cwd: BOT_DIR, allowFailure: /already (exists|taken)/i });
-  }
-  console.log(`Simulator Worker…`);
-  await deployWorker(parts.sim.config, parts.sim.secrets);
-  console.log(`Bot Worker…`);
-  await deployWorker(parts.bot.config, parts.bot.secrets);
-
-  const checks = await connectAndCheck(urls, parts);
-  const convexUrl = parts.convexUrl;
-  console.log(`\nDashboard: ${urls.sim}\nWeb app:   ${urls.bot}\nConvex:    ${convexUrl}`);
-  if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      [`dashboard=${urls.sim}`, `web_app=${urls.bot}`, `convex=${convexUrl}`, `checks=${checks.join("; ")}`]
-        .map((line) => `${line}\n`)
-        .join(""),
-    );
-  }
-}
-
-async function destroy() {
-  // The bot first: its queue consumers must go before the queues can.
-  for (const worker of [names.bot, names.sim]) {
-    await wrangler(["delete", worker, "--force"], { cwd: BOT_DIR, allowFailure: /not found|does not exist|10007/i });
-  }
-  for (const queue of names.queues) {
-    await wrangler(["queues", "delete", queue], { cwd: BOT_DIR, allowFailure: /not found|does not exist|11000/i });
-  }
-  console.log(`Removed ${names.bot}, ${names.sim} and their queues. Convex previews expire on their own.`);
-}
-
-/**
- * The preview's two Workers under `wrangler dev` (local queues, Durable Object
- * and assets), with the same configs and checks as a deploy. Ctrl+C to stop.
- */
 async function local() {
   const urls = { bot: "http://127.0.0.1:8802", sim: "http://127.0.0.1:8801" };
-  const parts = await prepare(urls);
+  const control = process.env.PREVIEW_CONTROL_TOKEN ?? "local";
+  const privateKey = env("PREVIEW_CONVEX_AUTH_PRIVATE_KEY");
+  const botToken = `7${Date.now() % 1_000_000_000}:LOCAL-${crypto.randomUUID()}`;
+  const webhookSecret = crypto.randomUUID();
+  mkdirSync(OUT_DIR, { recursive: true });
+
+  console.log("Convex and the web app…");
+  await Bun.spawn(["bunx", "convex", "env", "set", "CONVEX_AUTH_JWKS", jwksForPrivateKey(privateKey)], {
+    cwd: DB_DIR,
+    stdout: "ignore",
+  }).exited;
+  const convexUrl = await deployConvexAndBuildWebApp("local", env("CONVEX_DEPLOY_KEY"));
+
+  // `wrangler dev` runs a Worker's top-level settings, so the preview vars go there.
+  const bot = previewConfig();
+  const botConfig = { ...bot, vars: bot.previews.vars };
+  const workers = [
+    {
+      name: "simulator",
+      port: 8801,
+      cwd: SIM_DIR,
+      config: path.join(SIM_DIR, "wrangler.toml"),
+      vars: { SIM_BOT_TOKEN: botToken, SIM_CONTROL_TOKEN: control, SIM_WEBHOOK_SECRET: webhookSecret, SIM_BOT_URL: urls.bot },
+    },
+    {
+      name: "bot",
+      port: 8802,
+      cwd: OUT_DIR,
+      config: path.join(OUT_DIR, "bot.json"),
+      vars: {
+        BOT_TOKEN: botToken,
+        TELEGRAM_WEBHOOK_SECRET: webhookSecret,
+        CONVEX_URL: convexUrl,
+        CONVEX_AUTH_PRIVATE_KEY: privateKey,
+        TELEGRAM_API_ROOT: urls.sim,
+      },
+    },
+  ];
+  writeFileSync(path.join(OUT_DIR, "bot.json"), JSON.stringify(botConfig, null, 2));
+
   const processes: ReturnType<typeof Bun.spawn>[] = [];
   const varsFiles: string[] = [];
-  const stopAll = () => {
+  process.on("exit", () => {
     processes.forEach((p) => p.kill());
     varsFiles.forEach((file) => rmSync(file, { force: true }));
-  };
-  process.on("exit", stopAll);
+  });
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => process.exit(0));
-
-  for (const [part, port] of [[parts.sim, 8801], [parts.bot, 8802]] as const) {
-    const configFile = path.join(OUT_DIR, `${part.config.name}.json`);
-    const varsFile = path.join(OUT_DIR, `${part.config.name}.dev.vars`);
-    writeFileSync(configFile, JSON.stringify(part.config, null, 2));
+  for (const worker of workers) {
+    const varsFile = path.join(OUT_DIR, `${worker.name}.dev.vars`);
     // Single-quoted: taken literally, JSON keys and all.
-    writeFileSync(varsFile, Object.entries(part.secrets).map(([k, v]) => `${k}='${v}'`).join("\n"), { mode: 0o600 });
+    writeFileSync(varsFile, Object.entries(worker.vars).map(([k, v]) => `${k}='${v}'`).join("\n"), { mode: 0o600 });
     varsFiles.push(varsFile);
-    const proc = Bun.spawn(
-      [path.join(BOT_DIR, "node_modules/.bin/wrangler"), "dev", "--config", configFile, "--env-file", varsFile,
-        "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(port + 100),
-        "--persist-to", path.join(OUT_DIR, "state"), "--show-interactive-dev-session=false"],
-      { cwd: OUT_DIR, stdout: process.env.VERBOSE ? "inherit" : "ignore", stderr: "inherit" },
+    processes.push(
+      Bun.spawn(
+        [WRANGLER, "dev", "--config", worker.config, "--env-file", varsFile, "--ip", "127.0.0.1",
+          "--port", String(worker.port), "--inspector-port", String(worker.port + 100),
+          "--persist-to", path.join(OUT_DIR, "state"), "--show-interactive-dev-session=false"],
+        { cwd: worker.cwd, stdout: process.env.VERBOSE ? "inherit" : "ignore", stderr: "inherit" },
+      ),
     );
-    processes.push(proc);
   }
   await waitFor("both Workers to start", async () => {
-    const answers = await Promise.all([fetch(`${urls.sim}/`), fetch(`${urls.bot}/`)].map((p) => p.then((r) => r.ok).catch(() => false)));
-    return answers.every(Boolean);
+    const up = await Promise.all([urls.sim, urls.bot].map((u) => fetch(`${u}/`).then((r) => r.ok).catch(() => false)));
+    return up.every(Boolean);
   }, 90_000);
 
-  await connectAndCheck(urls, parts);
-  console.log(`\nDashboard: ${urls.sim}/#token=${parts.control}\nWeb app:   ${urls.bot}\nCtrl+C to stop.`);
+  for (const line of await check(urls, control)) console.log(`  ✓ ${line}`);
+  console.log(`\nSimulator: ${urls.sim}/#token=${control}\nWeb app:   ${urls.bot}\nCtrl+C to stop.`);
   if (process.env.PREVIEW_EXIT_AFTER_CHECK) process.exit(0);
   await new Promise(() => {});
 }
 
-await (command === "deploy" ? deploy() : command === "local" ? local() : destroy());
+const [command, ...args] = process.argv.slice(2);
+if (command === "check" && args.length === 2) {
+  const [bot, sim] = args.map((u) => u!.replace(/\/$/, ""));
+  const checks = await check({ bot: bot!, sim: sim! }, env("PREVIEW_CONTROL_TOKEN"));
+  for (const line of checks) console.log(`✓ ${line}`);
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `checks=${checks.join("; ")}\n`);
+} else if (command === "local") {
+  await local();
+} else {
+  console.error("usage: bun scripts/preview.ts check <bot-url> <simulator-url> | local");
+  process.exit(2);
+}

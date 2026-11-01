@@ -16,17 +16,7 @@ import { registerChatMemberHandler } from "./handlers/chatMember.handler";
 import { registerChannelDiscoveryHandler } from "./handlers/channelDiscovery.handler";
 import { registerChannelFromChat } from "./services/channel-registry.service";
 
-/**
- * Update types the bot handles, registered with Telegram by scripts/set-webhook.ts.
- * Changing this list only takes effect after re-running that script.
- */
-export const ALLOWED_UPDATES = [
-  "message",
-  "message_reaction",
-  "channel_post",
-  "my_chat_member",
-  "chat_member",
-] as const;
+export { ALLOWED_UPDATES } from "./allowed-updates";
 
 export interface BotApp {
   bot: Bot;

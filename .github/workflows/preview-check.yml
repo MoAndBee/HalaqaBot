@@ -1,0 +1,131 @@
+# Smoke-tests a pull request's preview once Cloudflare has built it.
+#
+# Cloudflare (Workers Builds) builds a Worker Preview of the bot and of the
+# Telegram simulator for each PR and comments with their URLs. When that comment
+# appears or changes, this finds both Preview URLs in it, runs
+# `scripts/preview.ts check` against them, and comments with the simulator link
+# and the result. It deploys nothing.
+#
+# issue_comment workflows run from the default branch, so this starts working
+# once it's merged there. Until then, or to re-run: Actions → Preview check →
+# Run workflow, with the two URLs.
+#
+# Repository secret: PREVIEW_CONTROL_TOKEN (the simulator's SIM_CONTROL_TOKEN).
+
+name: Preview check
+
+on:
+  issue_comment:
+    types: [created, edited]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+      bot_url:
+        description: The bot's Preview URL (https://<preview>-halaqabot.<account>.workers.dev)
+        required: true
+      sim_url:
+        description: The simulator's Preview URL (https://<preview>-halaqabot-sim.<account>.workers.dev)
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: preview-check-${{ github.event.issue.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # A bot's comment on a PR that mentions a Preview URL, and not our own.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request &&
+       github.event.comment.user.type == 'Bot' &&
+       github.event.comment.user.login != 'github-actions[bot]' &&
+       contains(github.event.comment.body, 'workers.dev'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Find the Preview URLs
+        id: urls
+        uses: actions/github-script@v7
+        env:
+          BOT_URL: ${{ inputs.bot_url }}
+          SIM_URL: ${{ inputs.sim_url }}
+          PR: ${{ github.event.issue.number || inputs.pr }}
+        with:
+          script: |
+            let bot = process.env.BOT_URL, sim = process.env.SIM_URL;
+            if (!bot || !sim) {
+              // Cloudflare may post per Worker, and lists Deployment URLs too: a
+              // matching pair shares the Preview name, which is what the two
+              // Workers use to find each other.
+              const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number: Number(process.env.PR) });
+              const text = comments.filter((c) => c.user.type === "Bot" && c.user.login !== "github-actions[bot]").map((c) => c.body).join("\n");
+              const found = (worker) => [...new Set(text.match(new RegExp(`https://[a-z0-9-]+-${worker}\\.[a-z0-9-]+\\.workers\\.dev`, "g")) ?? [])];
+              const prefix = (url, worker) => url.slice("https://".length, url.indexOf(`-${worker}.`));
+              // Newest first: a later comment wins.
+              const bots = found("halaqabot").reverse(), sims = found("halaqabot-sim").reverse();
+              for (const s of sims) {
+                const match = bots.find((b) => prefix(b, "halaqabot") === prefix(s, "halaqabot-sim"));
+                if (match) { bot = match; sim = s; break; }
+              }
+            }
+            if (!bot || !sim) {
+              core.notice("Both Previews' URLs aren't posted yet; waiting for the next comment.");
+              return;
+            }
+            core.setOutput("bot", bot);
+            core.setOutput("sim", sim);
+
+      - uses: actions/checkout@v4
+        if: steps.urls.outputs.sim
+      - uses: oven-sh/setup-bun@v2
+        if: steps.urls.outputs.sim
+      - run: bun install --frozen-lockfile
+        if: steps.urls.outputs.sim
+
+      - name: Smoke-test the preview
+        id: check
+        if: steps.urls.outputs.sim
+        working-directory: packages/testing
+        env:
+          PREVIEW_CONTROL_TOKEN: ${{ secrets.PREVIEW_CONTROL_TOKEN }}
+        run: bun scripts/preview.ts check "${{ steps.urls.outputs.bot }}" "${{ steps.urls.outputs.sim }}"
+
+      - name: Comment on the PR
+        if: steps.urls.outputs.sim && always()
+        uses: actions/github-script@v7
+        env:
+          OUTCOME: ${{ steps.check.outcome }}
+          SIM: ${{ steps.urls.outputs.sim }}
+          BOT: ${{ steps.urls.outputs.bot }}
+          CHECKS: ${{ steps.check.outputs.checks }}
+          PR: ${{ github.event.issue.number || inputs.pr }}
+          CONTROL_TOKEN: ${{ secrets.PREVIEW_CONTROL_TOKEN }}
+        with:
+          script: |
+            const marker = "<!-- halaqabot-preview-check -->";
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: repo } = await github.rest.repos.get(context.repo);
+            // Only a private repo's comments may carry the control token.
+            const link = repo.private ? `${process.env.SIM}/#token=${process.env.CONTROL_TOKEN}` : process.env.SIM;
+            const body = process.env.OUTCOME === "success"
+              ? [
+                  marker,
+                  `### 🧪 Try it without a Telegram account`,
+                  ``,
+                  `**[Open the preview](${link})** (works on a phone): the Mini App fills the screen; tap the 🤖 bubble to act as the owner, an admin or a student, post, comment and react 👌.`,
+                  ``,
+                  `Smoke test passed: ${process.env.CHECKS.split("; ").map((c) => "✓ " + c).join(" · ")}`,
+                  ...(repo.private ? [] : [``, `The simulator asks for the control token (the PREVIEW_CONTROL_TOKEN secret).`]),
+                ].join("\n")
+              : [marker, `### 🧪 Preview smoke test failed`, ``, `Bot: ${process.env.BOT} · Simulator: ${process.env.SIM}`, ``, `See the [workflow run](${run}).`].join("\n");
+            const issue_number = Number(process.env.PR);
+            const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ ...context.repo, issue_number, body });

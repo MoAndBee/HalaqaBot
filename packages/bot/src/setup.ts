@@ -1,5 +1,5 @@
 import type { Api } from "grammy";
-import { ALLOWED_UPDATES } from "./bot";
+import { ALLOWED_UPDATES } from "./allowed-updates";
 import { configureMenuButton } from "./handlers/webApp.handler";
 
 /**

@@ -4,8 +4,9 @@
 // Requests are signed with the Mini App's initData, which the bot verifies with
 // its token, so they only work inside Telegram (or the Telegram simulator).
 
-// The Worker's origin, e.g. https://halaqabot.<account>.workers.dev
-const botApiUrl = import.meta.env.VITE_BOT_API_URL as string | undefined
+// The Worker's origin, e.g. https://halaqabot.<account>.workers.dev. Unset when
+// the bot Worker serves the web app itself (previews): then it's this origin.
+const botApiUrl = (import.meta.env.VITE_BOT_API_URL as string | undefined) || window.location.origin
 
 // Long enough for sending the list with its image; a hung request must not
 // leave the UI waiting forever.
@@ -19,11 +20,6 @@ export class BotApiError extends Error {
 }
 
 export async function callBot<T = unknown>(path: string, body: unknown): Promise<T> {
-  if (!botApiUrl) {
-    console.error('VITE_BOT_API_URL is not set')
-    throw new BotApiError('')
-  }
-
   const initData = window.Telegram?.WebApp?.initData ?? ''
   let response: Response
   try {
