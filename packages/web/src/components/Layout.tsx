@@ -3,6 +3,7 @@ import { Moon, Sun, Repeat } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from './ThemeProvider'
 import { useTelegramAuthContext } from '../contexts/TelegramAuthContext'
+import { ConnectionBanner } from './ConnectionBanner'
 
 interface LayoutProps {
   children: ReactNode
@@ -35,6 +36,7 @@ export default function Layout({ children }: LayoutProps) {
           </Button>
         )}
       </div>
+      <ConnectionBanner />
       <div className="flex-1 min-h-0 flex flex-col">
         {children}
       </div>

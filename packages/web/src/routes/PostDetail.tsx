@@ -1,7 +1,7 @@
 import React from 'react'
 import { tgConfirm, formatHijriDate } from '@/lib/utils'
 import { Link, useParams } from 'wouter'
-import { useQuery, useMutation, useAction } from 'convex/react'
+import { useQuery, useMutation, useAction, useConvex } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
@@ -94,6 +94,8 @@ const FLOWER_STORAGE_KEY = 'halaqa-selected-flower'
 
 // Single toast id so queueing/progress/result replace each other in place
 const SEND_LIST_TOAST_ID = 'send-participant-list'
+// How long to wait for the server to queue the send before telling the admin
+const SEND_LIST_QUEUE_TIMEOUT_MS = 15000
 
 export default function PostDetail() {
   const params = useParams<{ chatId: string; postId: string }>()
@@ -202,6 +204,7 @@ export default function PostDetail() {
   const unlockSession = useMutation(api.mutations.unlockSession)
   const setSessionRegistrationClosed = useMutation(api.mutations.setSessionRegistrationClosed)
   const sendParticipantList = useAction(api.actions.sendParticipantList)
+  const convex = useConvex()
   const sendListTaskStatus = useQuery(
     api.queries.getBotTaskStatus,
     sendListTaskId ? { taskId: sendListTaskId as any } : 'skip'
@@ -265,6 +268,39 @@ export default function PostDetail() {
     }, 20000)
     return () => clearTimeout(timer)
   }, [sendListTaskId])
+
+  // Ask the server to queue the participant list send, then track the bot task.
+  // The Convex client holds a request while its connection is down and has no
+  // timeout of its own, so on a dropped connection the "sending" toast would
+  // spin forever — say what's wrong instead once it has taken too long.
+  const queueParticipantListSend = async (sessionNumber: number) => {
+    toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
+    const slowTimer = setTimeout(() => {
+      if (convex.connectionState().isWebSocketConnected) {
+        toast.loading('الخادم لم يرد بعد... قد يكون الاتصال بطيئاً', { id: SEND_LIST_TOAST_ID })
+      } else {
+        toast.error('لا يوجد اتصال بالخادم. تحققي من الإنترنت ثم حاولي مرة أخرى', {
+          id: SEND_LIST_TOAST_ID,
+          duration: 10000,
+        })
+      }
+    }, SEND_LIST_QUEUE_TIMEOUT_MS)
+
+    try {
+      const result = await sendParticipantList({
+        chatId,
+        postId,
+        sessionNumber,
+        flower: selectedFlower,
+      })
+      // Replace any slow/offline notice — the send did get through
+      toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
+      // Success is reported when the bot task actually completes (see effect)
+      setSendListTaskId(result.taskId)
+    } finally {
+      clearTimeout(slowTimer)
+    }
+  }
 
   const handleReorder = async (entryId: string, newPosition: number) => {
     await updatePosition({ entryId, newPosition })
@@ -636,16 +672,7 @@ export default function PostDetail() {
     }
 
     try {
-      const currentSession = selectedSession ?? data.currentSession
-      toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
-      const result = await sendParticipantList({
-        chatId,
-        postId,
-        sessionNumber: currentSession,
-        flower: selectedFlower,
-      })
-      // Success is reported when the bot task actually completes (see effect)
-      setSendListTaskId(result.taskId)
+      await queueParticipantListSend(selectedSession ?? data.currentSession)
     } catch (error) {
       toast.error('فشل إرسال قائمة الأسماء', { id: SEND_LIST_TOAST_ID })
       console.error('Send participant list failed:', error)
@@ -885,14 +912,7 @@ export default function PostDetail() {
       // image is pushed to the chat immediately — same as clicking إرسال قائمة الأسماء.
       if (nextValue) {
         try {
-          toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
-          const result = await sendParticipantList({
-            chatId,
-            postId,
-            sessionNumber: currentSession,
-            flower: selectedFlower,
-          })
-          setSendListTaskId(result.taskId)
+          await queueParticipantListSend(currentSession)
         } catch (sendError) {
           console.error('Auto-send list after closing registration failed:', sendError)
           toast.error('تم إغلاق تسجيل الأدوار، لكن فشل إرسال القائمة', { id: SEND_LIST_TOAST_ID })
