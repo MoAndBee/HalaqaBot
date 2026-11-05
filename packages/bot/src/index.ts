@@ -6,6 +6,7 @@ import { UserListService } from "./services/user-list.service";
 import { ClassificationService } from "./services/classification.service";
 import { BotTaskService } from "./services/bot-task.service";
 import { AdminSyncService } from "./services/admin-sync.service";
+import { SendProblemAlertService } from "./services/send-problem-alert.service";
 import { registerMessageHandler } from "./handlers/message.handler";
 import { registerReactionHandler } from "./handlers/reaction.handler";
 import { registerAutoClassifyHandler } from "./handlers/auto-classify.handler";
@@ -44,6 +45,10 @@ registerChatMemberHandler(bot, convex, adminSyncService);
 // Start bot task service with reactive subscriptions
 const botTaskService = new BotTaskService(bot, convex, reactiveConvex, config, messageService, classificationService);
 botTaskService.start();
+
+// Post an alert whenever the web app reports a stuck participant list send
+const sendProblemAlertService = new SendProblemAlertService(bot.api, convex, reactiveConvex, config.alertChatId);
+sendProblemAlertService.start();
 
 // Handle errors
 bot.catch((err) => {
@@ -84,6 +89,7 @@ const shutdown = async () => {
   console.log("\nStopping bot...");
   adminSyncService.stopPeriodicSync();
   botTaskService.stop();
+  sendProblemAlertService.stop();
   await reactiveConvex.close();
   bot.stop();
 };

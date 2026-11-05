@@ -11,8 +11,12 @@ export const sendParticipantList = action({
     postId: v.number(),
     sessionNumber: v.optional(v.number()),
     flower: v.optional(v.string()),
+    // Client-generated id, for matching stuck-send reports (see sendProblems)
+    requestId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const actionStartedAt = Date.now();
+
     // A closed (locked) halaqa is final — don't publish its list again. Resolve
     // the target session the same way the bot does when none is given: the most
     // recent one for this post.
@@ -52,6 +56,8 @@ export const sendParticipantList = action({
       postId: args.postId,
       sessionNumber: args.sessionNumber,
       flower: args.flower,
+      clientRequestId: args.requestId,
+      actionStartedAt,
     });
 
     return { success: true, taskId: result.taskId };

@@ -1829,6 +1829,8 @@ export const createBotTask = mutation({
     messageId: v.optional(v.number()),
     sessionNumber: v.optional(v.number()),
     flower: v.optional(v.string()),
+    clientRequestId: v.optional(v.string()),
+    actionStartedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const taskId = await ctx.db.insert("botTasks", {
@@ -1838,6 +1840,8 @@ export const createBotTask = mutation({
       messageId: args.messageId,
       sessionNumber: args.sessionNumber,
       flower: args.flower,
+      clientRequestId: args.clientRequestId,
+      actionStartedAt: args.actionStartedAt,
       status: "pending",
       createdAt: Date.now(),
     });
@@ -2490,5 +2494,187 @@ export const registerDiscoveredPost = mutation({
     await upsertPost(ctx, args.chatId, args.postId, createdAt);
 
     return { postId: args.postId, createdAt };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Stuck participant list sends: was it the server or the admin's connection?
+// ---------------------------------------------------------------------------
+
+// The server taking longer than this to queue a send counts as the server's fault
+const SLOW_SERVER_MS = 5000;
+// Window for "other admins hit this too", which points at the server
+const OTHERS_AFFECTED_WINDOW_MS = 15 * 60 * 1000;
+
+const CONNECTION_LOST_ERROR = "Connection lost while action was in flight";
+
+interface SendProblemEvidence {
+  kind: string;
+  error?: string;
+  wsConnected: boolean;
+  serverReachable: boolean;
+  internetReachable: boolean;
+  reportedLate: boolean;
+  taskFound: boolean;
+  serverMs?: number;
+  othersAffected: number;
+}
+
+/**
+ * Decide from the phone's report and the server's own records which side was
+ * at fault. The key fact is whether the server received the request at all:
+ * the web app tags each send with an id that the server stores on the task.
+ */
+function classifySendProblem(e: SendProblemEvidence): { verdict: string; reason: string } {
+  let verdict: string;
+  let reason: string;
+
+  if (e.taskFound && e.serverMs !== undefined && e.serverMs > SLOW_SERVER_MS) {
+    verdict = "server";
+    reason = `The server received the request but took ${Math.round(e.serverMs / 1000)}s to process it.`;
+  } else if (e.taskFound) {
+    verdict = "user";
+    reason =
+      "The server received and processed the request quickly, but the reply never reached the phone — its connection dropped mid-request.";
+  } else if (e.error?.includes(CONNECTION_LOST_ERROR)) {
+    verdict = "user";
+    reason = "The phone's connection to the server dropped while the request was in flight.";
+  } else if (e.kind === "failed" && e.error) {
+    verdict = "server";
+    reason = `The server rejected the request with an error: ${e.error.slice(0, 300)}`;
+  } else if (!e.wsConnected && !e.internetReachable) {
+    verdict = "user";
+    reason = "The phone was offline: it couldn't reach our server or the wider internet.";
+  } else if (!e.wsConnected && !e.serverReachable) {
+    verdict = "user";
+    reason =
+      "The phone had internet but couldn't reach our server at all — something on their network (ISP, VPN, proxy or firewall) is blocking it.";
+  } else if (!e.wsConnected) {
+    verdict = "unclear";
+    reason =
+      "The phone's live connection was down, but our server was reachable over plain HTTPS — usually an unstable mobile connection, but check whether other admins were affected.";
+  } else {
+    verdict = "server";
+    reason =
+      "The phone was connected and sent the request, but the server never processed it — the server is likely stuck.";
+  }
+
+  if (e.reportedLate) {
+    reason += " The phone couldn't even send this report at the time; it was delivered on a later app open.";
+  }
+  if (e.othersAffected > 0 && verdict !== "server") {
+    reason += ` ${e.othersAffected} other admin(s) reported the same problem in the last 15 minutes, which points to the server.`;
+  }
+
+  return { verdict, reason };
+}
+
+/**
+ * Called by the web app (over plain HTTPS, not the live connection) when a
+ * participant list send is stuck or failed. Safe to call twice for the same
+ * request: later calls are ignored.
+ */
+export const reportSendProblem = mutation({
+  args: {
+    requestId: v.string(),
+    kind: v.string(),
+    userId: v.optional(v.number()),
+    userName: v.optional(v.string()),
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.optional(v.number()),
+    waitedMs: v.number(),
+    error: v.optional(v.string()),
+    wsConnected: v.boolean(),
+    connectionCount: v.number(),
+    connectionRetries: v.number(),
+    navigatorOnline: v.boolean(),
+    serverReachable: v.boolean(),
+    internetReachable: v.boolean(),
+    pageVisible: v.boolean(),
+    reportedLate: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("sendProblems")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .first();
+    if (existing) return { verdict: existing.verdict };
+
+    const now = Date.now();
+    const task = await ctx.db
+      .query("botTasks")
+      .withIndex("by_client_request", (q) => q.eq("clientRequestId", args.requestId))
+      .first();
+    const serverMs =
+      task && task.actionStartedAt !== undefined ? task.createdAt - task.actionStartedAt : undefined;
+
+    const recent = await ctx.db
+      .query("sendProblems")
+      .withIndex("by_created", (q) => q.gte("createdAt", now - OTHERS_AFFECTED_WINDOW_MS))
+      .collect();
+    const othersAffected = new Set(
+      recent
+        .filter((p) => p.userId !== undefined && p.userId !== args.userId)
+        .map((p) => p.userId)
+    ).size;
+
+    const { verdict, reason } = classifySendProblem({
+      kind: args.kind,
+      error: args.error,
+      wsConnected: args.wsConnected,
+      serverReachable: args.serverReachable,
+      internetReachable: args.internetReachable,
+      reportedLate: args.reportedLate,
+      taskFound: task !== null,
+      serverMs,
+      othersAffected,
+    });
+
+    await ctx.db.insert("sendProblems", {
+      ...args,
+      error: args.error?.slice(0, 1000),
+      taskId: task?._id,
+      serverMs,
+      othersAffected,
+      verdict,
+      reason,
+      createdAt: now,
+    });
+
+    return { verdict };
+  },
+});
+
+/**
+ * Called by the web app when a send it already reported as stuck finally
+ * completes or fails, so the record shows how it ended.
+ */
+export const recordSendProblemOutcome = mutation({
+  args: {
+    requestId: v.string(),
+    finalOutcome: v.string(),
+    finalMs: v.number(),
+    finalError: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const problem = await ctx.db
+      .query("sendProblems")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .first();
+    if (!problem || problem.finalOutcome) return;
+    await ctx.db.patch(problem._id, {
+      finalOutcome: args.finalOutcome,
+      finalMs: args.finalMs,
+      finalError: args.finalError?.slice(0, 1000),
+    });
+  },
+});
+
+/** Called by the bot once it has posted the alert for a send problem. */
+export const markSendProblemAlerted = mutation({
+  args: { problemId: v.id("sendProblems") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.problemId, { alertedAt: Date.now() });
   },
 });

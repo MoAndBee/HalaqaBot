@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Loader } from '~/components/Loader'
+import { newRequestId, reportSendProblem, reportSendOutcome } from '~/lib/send-diagnostics'
 import { UserList } from '~/components/UserList'
 import { AddUserModal } from '~/components/AddUserModal'
 import { RegisterUserModal } from '~/components/RegisterUserModal'
@@ -272,18 +273,35 @@ export default function PostDetail() {
   // Ask the server to queue the participant list send, then track the bot task.
   // The Convex client holds a request while its connection is down and has no
   // timeout of its own, so on a dropped connection the "sending" toast would
-  // spin forever — say what's wrong instead once it has taken too long.
+  // spin forever — say what's wrong instead once it has taken too long. Stuck
+  // and failed sends are also reported, so each incident can be pinned on the
+  // server or on the admin's connection (see lib/send-diagnostics).
   const queueParticipantListSend = async (sessionNumber: number) => {
+    const sendContext = {
+      requestId: newRequestId(),
+      userId: telegramUser?.id,
+      userName: telegramUser
+        ? [telegramUser.firstName, telegramUser.lastName].filter(Boolean).join(' ')
+        : undefined,
+      chatId,
+      postId,
+      sessionNumber,
+    }
+    const startedAt = Date.now()
+    let reportedStuck = false
+
     toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
     const slowTimer = setTimeout(() => {
       if (convex.connectionState().isWebSocketConnected) {
-        toast.loading('الخادم لم يرد بعد... قد يكون الاتصال بطيئاً', { id: SEND_LIST_TOAST_ID })
+        toast.loading('الخادم لم يرد بعد... ما زلنا ننتظر', { id: SEND_LIST_TOAST_ID })
       } else {
         toast.error('لا يوجد اتصال بالخادم. تحققي من الإنترنت ثم حاولي مرة أخرى', {
           id: SEND_LIST_TOAST_ID,
           duration: 10000,
         })
       }
+      reportedStuck = true
+      void reportSendProblem(convex, sendContext, 'stuck', Date.now() - startedAt)
     }, SEND_LIST_QUEUE_TIMEOUT_MS)
 
     try {
@@ -292,11 +310,23 @@ export default function PostDetail() {
         postId,
         sessionNumber,
         flower: selectedFlower,
+        requestId: sendContext.requestId,
       })
+      if (reportedStuck) {
+        void reportSendOutcome(sendContext.requestId, 'completed_late', Date.now() - startedAt)
+      }
       // Replace any slow/offline notice — the send did get through
       toast.loading('جاري إرسال قائمة الأسماء...', { id: SEND_LIST_TOAST_ID })
       // Success is reported when the bot task actually completes (see effect)
       setSendListTaskId(result.taskId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (reportedStuck) {
+        void reportSendOutcome(sendContext.requestId, 'failed', Date.now() - startedAt, message)
+      } else {
+        void reportSendProblem(convex, sendContext, 'failed', Date.now() - startedAt, message)
+      }
+      throw error
     } finally {
       clearTimeout(slowTimer)
     }

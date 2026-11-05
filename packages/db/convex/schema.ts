@@ -158,9 +158,53 @@ export default defineSchema({
     error: v.optional(v.string()), // error message if failed
     createdAt: v.number(), // timestamp in ms
     processedAt: v.optional(v.number()), // timestamp when processed
+    // Id the web app generated for this request, so a stuck-send report can be
+    // matched against what the server actually received
+    clientRequestId: v.optional(v.string()),
+    actionStartedAt: v.optional(v.number()), // when the server started handling the request
   })
     .index("by_status", ["status"])
-    .index("by_chat_post", ["chatId", "postId"]),
+    .index("by_chat_post", ["chatId", "postId"])
+    .index("by_client_request", ["clientRequestId"]),
+
+  // Reports from the web app when a participant list send got stuck or failed,
+  // with the server's verdict on whether the server or the admin's connection
+  // was at fault. The bot posts each one to ALERT_CHAT_ID.
+  sendProblems: defineTable({
+    requestId: v.string(), // matches botTasks.clientRequestId
+    kind: v.string(), // "stuck" (no answer after a while) | "failed" (request errored)
+    userId: v.optional(v.number()), // admin who pressed send
+    userName: v.optional(v.string()), // their Telegram name, for the alert
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.optional(v.number()),
+    waitedMs: v.number(), // how long the phone had waited when it reported
+    error: v.optional(v.string()),
+    // The phone's view, taken when it reported
+    wsConnected: v.boolean(), // live connection to the server was up
+    connectionCount: v.number(), // live connections opened since the app loaded
+    connectionRetries: v.number(), // failed attempts to (re)open it
+    navigatorOnline: v.boolean(), // the OS thought the device was online
+    serverReachable: v.boolean(), // a plain HTTPS request to the server got through
+    internetReachable: v.boolean(), // a plain HTTPS request to telegram.org got through
+    pageVisible: v.boolean(), // app was in the foreground
+    reportedLate: v.boolean(), // couldn't report at the time; sent on a later app open
+    // The server's view
+    taskId: v.optional(v.id("botTasks")), // set if the server received the request
+    serverMs: v.optional(v.number()), // how long the server took to queue it
+    othersAffected: v.number(), // other admins who reported a problem in the last 15 min
+    verdict: v.string(), // "server" | "user" | "unclear"
+    reason: v.string(),
+    // What eventually happened on the phone, if it found out
+    finalOutcome: v.optional(v.string()), // "completed_late" | "failed"
+    finalMs: v.optional(v.number()),
+    finalError: v.optional(v.string()),
+    createdAt: v.number(),
+    alertedAt: v.optional(v.number()), // when the bot posted the alert
+  })
+    .index("by_request", ["requestId"])
+    .index("by_created", ["createdAt"])
+    .index("by_alerted", ["alertedAt"]),
 
   // Unique posts (chatId + postId pairs) for efficient pagination
   posts: defineTable({

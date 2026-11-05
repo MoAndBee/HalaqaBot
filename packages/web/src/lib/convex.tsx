@@ -4,7 +4,7 @@ import { ConvexProvider, ConvexReactClient } from 'convex/react'
 import type { ReactNode } from 'react'
 
 // Create the Convex client
-const convexUrl = import.meta.env.VITE_CONVEX_URL || 'http://localhost:3210'
+export const convexUrl = import.meta.env.VITE_CONVEX_URL || 'http://localhost:3210'
 const convex = new ConvexReactClient(convexUrl)
 
 interface ConvexClientProviderProps {

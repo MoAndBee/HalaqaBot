@@ -1673,3 +1673,26 @@ export const getUnregisteredPosts = query({
     };
   },
 });
+
+/** Send problems the bot hasn't posted an alert for yet, oldest first. */
+export const getUnalertedSendProblems = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("sendProblems")
+      .withIndex("by_alerted", (q) => q.eq("alertedAt", undefined))
+      .take(20);
+  },
+});
+
+/** Most recent send problems, newest first — for looking back at past incidents. */
+export const getRecentSendProblems = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("sendProblems")
+      .withIndex("by_created")
+      .order("desc")
+      .take(Math.min(args.limit ?? 50, 200));
+  },
+});

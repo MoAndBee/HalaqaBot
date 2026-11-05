@@ -6,6 +6,8 @@ export interface Config {
   allowedReactionUserIds: number[];
   webAppUrl: string;
   channelId: number;
+  // Chat that receives alerts when a participant list send gets stuck (optional)
+  alertChatId?: string;
 }
 
 export function loadConfig(): Config {
@@ -17,6 +19,7 @@ export function loadConfig(): Config {
     ? process.env.ALLOWED_REACTION_USER_IDS.split(",").map((id: string) => parseInt(id.trim(), 10))
     : [5627601992, 1093520031];
   const webAppUrl = process.env.WEB_APP_URL || "https://halakabot.app.thawabcoding.work";
+  const alertChatId = process.env.ALERT_CHAT_ID || undefined;
   const channelId = process.env.CHANNEL_ID ? parseInt(process.env.CHANNEL_ID, 10) : -1002081068866;
 
   if (!botToken) {
@@ -51,5 +54,6 @@ export function loadConfig(): Config {
     allowedReactionUserIds,
     webAppUrl,
     channelId,
+    alertChatId,
   };
 }

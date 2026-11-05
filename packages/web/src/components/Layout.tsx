@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Moon, Sun, Repeat } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from './ThemeProvider'
 import { useTelegramAuthContext } from '../contexts/TelegramAuthContext'
 import { ConnectionBanner } from './ConnectionBanner'
+import { flushPendingSendReports } from '../lib/send-diagnostics'
 
 interface LayoutProps {
   children: ReactNode
@@ -13,6 +14,11 @@ export default function Layout({ children }: LayoutProps) {
   const { theme, toggleTheme } = useTheme()
   const { channels, clearSelectedChannel } = useTelegramAuthContext()
   const canSwitchChannel = (channels?.length ?? 0) > 1
+
+  // Deliver stuck-send reports a previous session couldn't get through
+  useEffect(() => {
+    void flushPendingSendReports()
+  }, [])
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground" dir="rtl">
