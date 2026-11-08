@@ -9,7 +9,7 @@ configured; this does not validate real LLM accuracy or bulk-score matching.
 The user has already passed registration, personal-account signup + admin 👌,
 deletion cancel/confirm, reapproval without duplication, panel opening and
 background/resume on desktop and Android. Do not repeat all of that unless the
-tested code or deployment changes. The following checks are still unverified.
+tested code or deployment changes. The checklist below records remaining checks and the completed permissions test.
 
 ## 1. Send and replace the participant list (desktop, then phone)
 
@@ -66,7 +66,12 @@ Telegram's real limits differ from the simulator's. The earlier simulated
 rate-limit import completed manually in 14.25 seconds and in later full tests;
 one original timeout was not reproduced and remains documented.
 
-## 4. Team permissions (when a second tester is available)
+## 4. Team permissions — passed
+
+On 2026-11-08, Mohanad reported all steps below behaved as expected on the
+live staging bot: ordinary-member denial, access after channel-admin promotion,
+denial after demotion, and approval restricted to an administrator's reaction.
+This is a manual tester report, not an automated cross-channel privacy test.
 
 1. Invite a teammate as an ordinary member of both private chats, with no admin
    role. They press Start in the bot's private chat and use **لوحة التحكم**.

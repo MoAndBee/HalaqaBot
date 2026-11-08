@@ -72,6 +72,12 @@ isolation and incomplete repeat checks). The security finding blocks release.
 
 ## Verification and limits
 
+- Manual staging follow-up on 2026-11-08: Mohanad reported the complete
+  second-account permissions test passed: ordinary-member denial, channel-admin
+  promotion granting access, demotion revoking access after reopening the panel,
+  and ordinary-member reactions not approving turns while an admin reaction did.
+  This does not resolve or retest the separate cross-channel name disclosure.
+
 - Reachability follow-up on 2026-11-08: the desktop Wi-Fi failure occurred before
   TLS while connecting to its resolved Cloudflare addresses. HTTPS requests to
   alternative addresses returned HTTP 200, and the user confirmed the Mini App
