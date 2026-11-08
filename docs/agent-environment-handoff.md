@@ -558,6 +558,7 @@ through private-token tooling; report URL, pending count and last error only.
 | Reply/reaction ignored | Logs show `GroupAnonymousBot` or anonymous reaction; disable Remain Anonymous and submit a **new** personal reply/reaction. |
 | Panel denies tester | They must be channel admin, have pressed Start, and open inside Telegram. Check admin sync and JWT/JWKS match. |
 | Panel actions fail after hostname change | Check runtime `WEB_APP_URL`, Vite build-time URL, exact browser origin, and destination secrets. |
+| Panel cannot load on Wi-Fi, but opens on mobile data | Check DNS answers and TCP/TLS reachability before changing application code. This occurred on 2026-11-08; alternate Cloudflare addresses returned HTTP 200. Use a phone hotspot temporarily; do not hardcode edge IPs. See staging.md. |
 | Webhook 200 but no turn | Check queue consumer executions, handler errors and dead letters; 200 only acknowledges enqueueing. |
 | Classifier 401/1042 | Check the identical fake-classifier bearer token, destination URL and both Workers' compatibility flags. |
 | Convex auth/config errors | Verify the staging selector, current CLI login/deploy key, and matching signing pair. Never change actual production to work around it. |

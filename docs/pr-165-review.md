@@ -72,6 +72,11 @@ isolation and incomplete repeat checks). The security finding blocks release.
 
 ## Verification and limits
 
+- Reachability follow-up on 2026-11-08: the desktop Wi-Fi failure occurred before
+  TLS while connecting to its resolved Cloudflare addresses. HTTPS requests to
+  alternative addresses returned HTTP 200, and the user confirmed the Mini App
+  opens on Android mobile data. The webhook had no pending updates or last error.
+  This is network-specific evidence; no Worker redeploy or app fix was required.
 - Stacked environment/handoff PR verification on 2026-11-08: account-free suite
   **78 passed, 4 skipped, 0 failed** (82 tests). The four browser checks require
   a real personal-dev deployment and are skipped in this run. All three separate

@@ -88,6 +88,22 @@ in the staging bot's private chat before using it.
 
 ## Operations
 
+### Panel stuck loading on one network
+
+On 2026-11-08, desktop Telegram on Mohanad's Wi-Fi could not open the panel,
+while Android on mobile data opened it successfully. The Wi-Fi resolver returned
+Cloudflare edge addresses whose TCP connections timed out before TLS. Requests
+to alternative addresses returned by Google DNS succeeded with HTTPS/HTTP 200;
+the deployed Worker and Telegram webhook were still healthy.
+
+Use mobile data or connect the laptop to a phone hotspot to continue testing.
+Close and reopen the Mini App after switching networks. This does not require
+restarting local development servers, changing bot code, or redeploying staging.
+For persistent network/DNS troubleshooting, involve the network owner. Edge IPs
+change: do not turn a temporary `curl --resolve` diagnostic into a fixed hosts
+entry or assume every blank Telegram panel has this cause. If the problem also
+occurs on mobile data, investigate the application/API again.
+
 Private settings live in ignored `.env.staging.local` with permissions 600.
 Never commit it. Staging uses a distinct signing key and three queues prefixed
 `halaqabot-staging-`. Bot deployment config: `packages/bot/wrangler.staging.toml`.
