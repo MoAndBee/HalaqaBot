@@ -4,7 +4,7 @@
   "source_branch": "codex/pr-165-staging-handoff",
   "source_repository": "https://github.com/mohanad-80/HalaqaBot.git",
   "snapshot_date": "2026-11-08",
-  "patch_sha256": "3696c707bfc2bf51c6f6eaaf2343959f3a87105242e2ca3faf4779074d16ce76",
+  "patch_sha256": "4779c0def0282d07ec2b3a72f90c05b821c4d636fa9489a16e3f5bf1e6f348b9",
   "source_paths": [
     ".gitignore",
     "README.md",
@@ -40,5 +40,5 @@
     "packages/testing/test/preview-check.test.ts"
   ],
   "contains_secrets": false,
-  "archive_sha256": "46b665667481b641f3c9d643d58876de7d7410ef79d87ebc4bd61456e167f9fc"
+  "archive_sha256": "ae7c75187741ec29c13690fe9199131136139a228255962e30fc39c87e1e0564"
 }

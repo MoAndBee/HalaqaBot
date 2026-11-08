@@ -15,7 +15,8 @@ test("every preview smoke check proves a fresh signup without resetting existing
       const url = new URL(request.url);
       if (url.pathname === "/preview/info") return Response.json({ convexUrl: stack.convexUrl });
       if (url.pathname === "/") return new Response('<div id="root"></div>');
-      const response = await fetch(new Request(new URL(url.pathname + url.search, stack.workerUrl), request));
+      const upstream = new URL(url.pathname + url.search, stack.workerUrl).toString();
+      const response = await fetch(new Request(upstream, request));
       const headers = new Headers(response.headers);
       // fetch has already decompressed the upstream body before we relay it.
       headers.delete("content-encoding");

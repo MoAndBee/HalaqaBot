@@ -104,6 +104,20 @@ isolation and incomplete repeat checks). The security fix in #169 must be includ
 
 ## Verification and limits
 
+- Combined validation on 2026-11-08: PR #168 runtime changes at `4478147`
+  plus #169 security commit `0e4e8c9` were combined on local branch
+  `codex/pr-165-combined-validation` (head `1bb58c4`). The complete personal-cloud
+  suite passed **101 tests, skipped 2 emulator-only cases, failed 0** in 203.41s.
+  All four browser checks passed. The combined backend sources are identical to
+  the already deployed #169 backend; this run did not redeploy shared staging.
+  A subsequent test-proxy typing correction converts its URL to a string and
+  does not change runtime behavior; the targeted preview regressions were rerun.
+  GitHub Actions remains a separate gate: the latest #168/#169 fork workflows
+  require maintainer approval, and this account has read-only upstream access.
+- The optional strict testing-project typecheck reports existing backend/test
+  typing diagnostics outside the changed preview files. The normal database,
+  bot and web package builds pass; no new preview-file diagnostics remain.
+
 - Manual staging follow-up on 2026-11-08: Mohanad reported the complete
   second-account permissions test passed: ordinary-member denial, channel-admin
   promotion granting access, demotion revoking access after reopening the panel,

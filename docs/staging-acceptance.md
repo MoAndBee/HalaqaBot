@@ -103,6 +103,35 @@ The manual permissions checks alone did not establish that fix.
   a properly isolated Convex preview, and the repeat smoke-check behavior. Do not
   run preview builders against the shared staging database.
 
+## Integration and domain order
+
+1. A repository maintainer approves the latest fork workflow on PR #168. The
+   contributor account has no upstream write permission. Once CI passes, merge
+   #168 into #165's migration branch, which adds first-run generation and the
+   preview fixes. This does not mean merging #165 into `main`.
+2. Update #169 from that updated migration branch so its CI includes the
+   generation fix. Approve/run its fork workflow, then merge #169 into the same
+   migration branch after checks pass. Do not merge with missing/failing checks.
+3. Verify #165's resulting head. The pre-merge combination of #168's runtime
+   changes and #169 was tested locally against personal cloud dev on 2026-11-08:
+   **101 passed, 2 emulator-only skips, 0 failed** (103 tests), including all
+   browser checks. This is independent of GitHub Actions, which still needs
+   maintainer approval. No shared staging or production data was used.
+4. Use the Bosla-account handoff to prepare the team staging hostname
+   `halaqabot-staging.bosla.to` (proposed; confirm it is unused). Keep the existing
+   staging bot, private chats and `perfect-clam-401`; coordinate the webhook and
+   single active cron during the hosting cutover. This requires Bosla Cloudflare
+   zone/account access; the current hosting belongs to the personal account.
+5. After the staging URL changes, use a fresh `/admin` button in Telegram on
+   Android: confirm it opens the new URL, loads the existing halaqa and can send
+   its list. Check that a new staging signup reaches the same database/thread.
+   Do not repeat the full already-passed checklist. Test real Groq classification
+   once its key is available, and record iOS as unverified until a real test.
+6. Keep #165 open until the combined checks and release preparation are agreed.
+   The production hostname is `https://halaqabot.bosla.to/`; attach it and change
+   production links/webhook in the coordinated production cutover described in
+   the domain and migration docs. The staging hostname is separate.
+
 ## Merge decision
 
 Record the tested commit and deployed Worker version with results. Check that

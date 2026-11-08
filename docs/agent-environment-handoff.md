@@ -604,7 +604,15 @@ this simple hosting rollback may not be sufficient—review compatibility first.
   cases, failed 0; the additional staging-classifier tests passed 3/3. An earlier
   import timeout was not reproduced later; diagnostic output was added, not a
   larger timeout. Matching Playwright Chromium resolved the phone automation failure.
-- Before merging #165, complete [the remaining staging acceptance checks](staging-acceptance.md).
+- The combined environment + security branch passed 101 cloud-backed tests,
+  skipped 2 emulator-only checks, failed 0 on 2026-11-08. The separate #168 clean-
+  checkout run generated missing bindings and passed 82 tests with 4 browser
+  skips. GitHub CI still needs maintainer approval for fork workflows.
+- Before merging #165, follow [the integration/domain order and remaining checks](staging-acceptance.md).
+  Merge #168 into the migration branch first, update and merge #169 there, then
+  validate the combined #165 head. Prepare the Bosla staging hostname before the
+  final production domain/bot cutover; do not treat merging a companion PR as
+  permission to deploy to production.
 
 When finished, report the exact destination Cloudflare account, hostname, Worker
 names, queue names, Convex project/deployment, deployed source SHA plus local diff
