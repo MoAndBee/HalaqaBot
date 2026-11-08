@@ -17,6 +17,10 @@ Extract outside your checkout before switching branches. Read the extracted
 base commit in `manifest.json`, the runbook and supporting docs; it contains no
 environment files, dependency folders, built web assets, or live credentials.
 Obtain private secrets separately. Do not apply its patch over the stacked branch.
+The archive contains environment helpers, not the backend security fix in
+[PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169). Follow the runbook
+to include commit `0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a` before deploying;
+shared staging already runs that fix.
 
 From the repository root, regenerate after changing included sources:
 

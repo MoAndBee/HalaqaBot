@@ -9,9 +9,11 @@ configured; this does not validate real LLM accuracy or bulk-score matching.
 The user has already passed registration, personal-account signup + admin 👌,
 deletion cancel/confirm, reapproval without duplication, panel opening and
 background/resume on desktop and Android. Do not repeat all of that unless the
-tested code or deployment changes. The checklist below records remaining checks and the completed permissions test.
+tested code or deployment changes. List replacement, registration close/reopen,
+and the second-account permissions test have also passed. Keep these recorded
+results; do not ask the tester to repeat them as unverified work.
 
-## 1. Send and replace the participant list (desktop, then phone)
+## 1. Send and replace the participant list — passed
 
 1. Open the staging bot privately, send `/admin`, open **🎛️ فتح لوحة التحكم**,
    then **الحلقات** and the test halaqa containing `فاطمة احمد`.
@@ -26,7 +28,7 @@ Report if the panel reports success but no Telegram reply appears, or if the
 list is attached to the wrong thread. An agent should inspect the queue/API logs
 and stored last-list message before asking the tester to repeat actions.
 
-## 2. Close and reopen registration
+## 2. Close and reopen registration — passed
 
 1. In the same **top ⋮ menu**, choose **إغلاق تسجيل الأدوار**. Do not choose
    **إنهاء الحلقة**, which locks the session and is a different feature.
@@ -84,8 +86,9 @@ This is a manual tester report, not an automated cross-channel privacy test.
    own 👌 should not approve a turn. A channel admin's 👌 should approve it.
 
 A single-owner happy-path test does not cover these permission transitions.
-The separate cross-channel name-disclosure finding needs a backend regression
-test and fix; these UI checks do not prove it is closed.
+The separate cross-channel finding is fixed and regression-tested in
+[PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169); the fix is deployed to shared staging.
+The manual permissions checks alone did not establish that fix.
 
 ## 5. Remaining provider/platform checks
 
@@ -104,11 +107,16 @@ test and fix; these UI checks do not prove it is closed.
 
 Record the tested commit and deployed Worker version with results. Check that
 staging is running the code under review before using manual passes as evidence.
-Resolve the confirmed P1 cross-channel private-name disclosure before merging.
+Include the P1 fix from [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169) before merging
+the migration. Backend commit `0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a` is deployed
+to personal dev and shared staging. Its cloud-backed suite passed 93 tests,
+skipped 2 emulator-only checks, and failed 0. A read-only staging smoke verified
+owner access to an existing halaqa and supervisor details, plus denial of a
+mismatched-channel probe. No further manual reproduction of the leak is required.
 Review the two preview findings and either fix them or explicitly agree on their
-scope/limitations. CI and manual checks must be assessed together; passing the
-current test suite does not cover the P1 leak. Missing iOS/provider tests must be
-stated explicitly rather than reported as passed.
+scope/limitations. Assess CI and manual checks together. The original PR #165
+test suite did not cover the P1 leak; PR #169 adds that coverage. Missing
+iOS/provider tests must be stated explicitly rather than reported as passed.
 
 No production domain change or production bot/database cutover is needed for
 these staging checks.

@@ -108,6 +108,11 @@ ask for tokens in ordinary chat, PR comments, terminal output or source files.
 The additions were initially uncommitted on Mohanad's local branch. They are
 being published in the stacked branch `codex/pr-165-staging-handoff`, targeting
 PR #165's branch. Checking out PR #165 alone does not include them.
+The security fix is a separate [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169), at
+`0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a`. It is already deployed to shared staging.
+The environment branch/archive excludes those backend changes: include this
+commit as shown below before deploying, so the setup does not revert the fix.
+If your base already contains this commit, skip cherry-picking it again.
 
 Preferred: in a checkout of the repository, fetch the stacked environment branch
 from the contributor fork. It already includes
@@ -117,6 +122,8 @@ archive's patch over that branch:
 ```bash
 git fetch https://github.com/mohanad-80/HalaqaBot.git codex/pr-165-staging-handoff
 git switch -c setup/bosla-staging FETCH_HEAD
+git fetch https://github.com/mohanad-80/HalaqaBot.git codex/fix-cross-channel-names
+git cherry-pick 0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a
 bun install --frozen-lockfile
 bun run test
 ```
@@ -135,7 +142,10 @@ cd HalaqaBot
 git fetch origin pull/165/head
 git switch -c setup/bosla-staging 5b00b67d2378d8f7f29073ab4fc58d1d833742f8
 git apply --check /path/to/handoff/pr-165-environment.patch
-git apply /path/to/handoff/pr-165-environment.patch
+git apply --index /path/to/handoff/pr-165-environment.patch
+git commit -m "Apply staging environment handoff"
+git fetch https://github.com/mohanad-80/HalaqaBot.git codex/fix-cross-channel-names
+git cherry-pick 0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a
 git status --short
 bun install --frozen-lockfile
 bun run test
@@ -576,11 +586,14 @@ this simple hosting rollback may not be sufficient—review compatibility first.
 
 - Name detection is currently deterministic fake classification; real Groq and
   bulk-score matching remain separate acceptance work.
-- The cross-channel name/privacy finding in `docs/pr-165-review.md` remains a
-  release blocker. Use synthetic data in staging. Migrating hosting does not fix it.
+- The cross-channel name/privacy fix is in [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169),
+  already deployed to personal dev and shared staging. Include its pinned
+  security commit before deploying from this handoff, and before releasing #165.
+  Its cloud-backed suite passed 93 tests, skipped 2 emulator-only cases, failed 0.
+  The two PR preview findings remain separate. Use synthetic data in staging.
 - The PR preview shared-dev ID collision and repeat-smoke-test gaps remain
   documented. Do not point PR previews at this shared staging database.
-- The latest full personal-dev cloud suite passed 77 tests, skipped 2 emulator-only
+- The earlier environment snapshot's full cloud suite passed 77 tests, skipped 2 emulator-only
   cases, failed 0; the additional staging-classifier tests passed 3/3. An earlier
   import timeout was not reproduced later; diagnostic output was added, not a
   larger timeout. Matching Playwright Chromium resolved the phone automation failure.

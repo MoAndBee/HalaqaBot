@@ -9,7 +9,11 @@ sending, registration controls, old-post imports, team access and missing platfo
 
 This environment runs the PR #165 bot on real Cloudflare Workers/Queues, with
 real Telegram and a separate Convex database. No existing production deployment
-or `bosla.to` DNS was changed.
+or `bosla.to` DNS was changed. On 2026-11-08, Convex backend commit
+`0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a` from [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169)
+was deployed to shared staging and personal dev to fix cross-channel name
+disclosure. The Cloudflare Worker/frontend were not redeployed for this fix.
+Include that security commit when deploying from the handoff branch/archive.
 
 | Resource | Staging value |
 | --- | --- |
@@ -37,7 +41,7 @@ authenticated fake classifier that uses the same deterministic rules as the
 simulator. Telegram, queues, the API, Mini App, and database are real. Natural
 language classification quality and bulk-score matching are not validated by
 this fake service. No real Groq API is contacted. Use synthetic student names
-and test data; the cross-channel privacy review finding is still unresolved.
+and test data; real classifier quality is still unverified.
 
 The existing discussion group is temporarily used as the forwarding/probe chat
 (`FORWARD_CHAT_ID`). Name lookups/imports may briefly forward messages there
@@ -74,8 +78,10 @@ panel, registering a halaqa, adding one named turn through a personal-account
 reply plus admin 👌, cancelling deletion, confirming deletion, restoring the
 turn through a fresh approval, and background/resume behavior. The initially
 ignored reply/reaction were sent anonymously; turning off **Remain Anonymous**
-resolved that setup issue. iOS and a second tester's access transitions remain
-unverified. Name classification still uses the fake staging service.
+resolved that setup issue. List replacement, registration closing/reopening,
+and a second account's promotion/demotion and reaction permissions were also
+reported passed. iOS remains unverified. Name classification still uses the fake
+staging service.
 
 After the laptop flow works, repeat opening the panel and viewing the turn list
 in Telegram on a phone. Test background/resume, scrolling, menus and deletion

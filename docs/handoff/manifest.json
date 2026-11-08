@@ -4,7 +4,7 @@
   "source_branch": "codex/pr-165-staging-handoff",
   "source_repository": "https://github.com/mohanad-80/HalaqaBot.git",
   "snapshot_date": "2026-11-08",
-  "patch_sha256": "f80272b7313c8032b7beeca09d0dabbf37b04a599937b9a4ff11ebfd22b53ca2",
+  "patch_sha256": "bdd0f649932c76212a07e6c7cc45d3baee1522aff1994868a8bb61393f329589",
   "source_paths": [
     ".gitignore",
     "README.md",
@@ -35,5 +35,5 @@
     "packages/testing/wrangler.staging-classifier.toml"
   ],
   "contains_secrets": false,
-  "archive_sha256": "4b3e88fa6e39587551bf6fd9778f0623a3cda25fba638e80ba521a9c41104c61"
+  "archive_sha256": "c8df61042472a72ca49591aad6b7c8134650750b2f99f0860e7e4882293b591f"
 }
