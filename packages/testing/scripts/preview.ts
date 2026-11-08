@@ -16,9 +16,9 @@
  */
 import path from "node:path";
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { ConvexHttpClient } from "@halakabot/db";
+import { api, ConvexHttpClient } from "@halakabot/db";
 import { jwksForPrivateKey } from "../../bot/src/convex-auth";
-import { deployConvexAndBuildWebApp, previewConfig } from "../../bot/scripts/build-preview";
+import { deployConvexAndBuildWebApp, previewConfig, previewDeploymentForKey } from "../../bot/scripts/build-preview";
 
 const ROOT = path.resolve(import.meta.dir, "../../..");
 const BOT_DIR = path.join(ROOT, "packages/bot");
@@ -53,7 +53,8 @@ async function waitFor<T>(what: string, check: () => Promise<T | null | undefine
 /**
  * Checks a running preview end to end: the bot registered the simulated
  * channel, a sign-up reaches the turn list, the Mini App signs in, and the bot
- * serves the web app. On a fresh world it leaves that example halaqa behind.
+ * serves the web app. Every run leaves its own example halaqa behind, without
+ * resetting any existing reviewer data.
  */
 export async function check(urls: { bot: string; sim: string }, control: string): Promise<string[]> {
   async function sim(route: string, body?: unknown): Promise<any> {
@@ -89,22 +90,20 @@ export async function check(urls: { bot: string; sim: string }, control: string)
   convex.setAuth(((await tokenResponse.json()) as { token: string }).token);
 
   await waitFor("the bot to register the channel", async () => {
-    const channels = await convex.query("queries:getMyChannels" as any, { userId: admin.id });
+    const channels = await convex.query(api.queries.getMyChannels, { userId: admin.id });
     return channels.length > 0;
   });
   checks.push("bot registered the simulated channel and its admins");
 
-  if (state.chats.find((c: any) => c.id === groupId).messageCount === 0) {
-    const { groupMessage } = await sim("channel-posts", { channelId: channel.id, text: REGISTRATION_POST });
-    const postId = groupMessage.message_id;
-    const comment = await sim("messages", { chatId: groupId, userId: student.id, text: "انا فاطمة احمد تسميع", replyTo: postId });
-    await sim("reactions", { chatId: groupId, messageId: comment.message_id, userId: admin.id, emojis: ["👌"] });
-    await waitFor("the student to be added", async () => {
-      const list = await convex.query("queries:getUserList" as any, { chatId: groupId, postId });
-      return list.activeUsers.length === 1;
-    });
-    checks.push("registration post → sign-up → 👌 → student on the list");
-  }
+  const { groupMessage } = await sim("channel-posts", { channelId: channel.id, text: REGISTRATION_POST });
+  const postId = groupMessage.message_id;
+  const comment = await sim("messages", { chatId: groupId, userId: student.id, text: "انا فاطمة احمد تسميع", replyTo: postId });
+  await sim("reactions", { chatId: groupId, messageId: comment.message_id, userId: admin.id, emojis: ["👌"] });
+  await waitFor("the student to be added", async () => {
+    const list = await convex.query(api.queries.getUserList, { chatId: groupId, postId });
+    return list.activeUsers.length === 1 && list.activeUsers[0]?.id === student.id;
+  });
+  checks.push("registration post → sign-up → 👌 → student on the list");
   checks.push("Mini App sign-in issues a Convex token");
 
   const page = await fetch(miniAppUrl);
@@ -117,6 +116,11 @@ async function local() {
   const urls = { bot: "http://127.0.0.1:8802", sim: "http://127.0.0.1:8801" };
   const control = process.env.PREVIEW_CONTROL_TOKEN ?? "local";
   const privateKey = env("PREVIEW_CONVEX_AUTH_PRIVATE_KEY");
+  const deployKey = env("CONVEX_DEPLOY_KEY");
+  // Reject production/preview keys before changing any backend's auth config.
+  if (previewDeploymentForKey(deployKey, true).kind !== "dev") {
+    throw new Error("The local preview command requires your own Convex dev deploy key");
+  }
   const botToken = `7${Date.now() % 1_000_000_000}:LOCAL-${crypto.randomUUID()}`;
   const webhookSecret = crypto.randomUUID();
   mkdirSync(OUT_DIR, { recursive: true });
@@ -126,7 +130,7 @@ async function local() {
     cwd: DB_DIR,
     stdout: "ignore",
   }).exited;
-  const convexUrl = await deployConvexAndBuildWebApp("local", env("CONVEX_DEPLOY_KEY"));
+  const convexUrl = await deployConvexAndBuildWebApp("local", deployKey, { local: true });
 
   // `wrangler dev` runs a Worker's top-level settings, so the preview vars go there.
   const bot = previewConfig();
@@ -187,15 +191,17 @@ async function local() {
   await new Promise(() => {});
 }
 
-const [command, ...args] = process.argv.slice(2);
-if (command === "check" && args.length === 2) {
-  const [bot, sim] = args.map((u) => u!.replace(/\/$/, ""));
-  const checks = await check({ bot: bot!, sim: sim! }, env("PREVIEW_CONTROL_TOKEN"));
-  for (const line of checks) console.log(`✓ ${line}`);
-  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `checks=${checks.join("; ")}\n`);
-} else if (command === "local") {
-  await local();
-} else {
-  console.error("usage: bun scripts/preview.ts check <bot-url> <simulator-url> | local");
-  process.exit(2);
+if (import.meta.main) {
+  const [command, ...args] = process.argv.slice(2);
+  if (command === "check" && args.length === 2) {
+    const [bot, sim] = args.map((u) => u!.replace(/\/$/, ""));
+    const checks = await check({ bot: bot!, sim: sim! }, env("PREVIEW_CONTROL_TOKEN"));
+    for (const line of checks) console.log(`✓ ${line}`);
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `checks=${checks.join("; ")}\n`);
+  } else if (command === "local") {
+    await local();
+  } else {
+    console.error("usage: bun scripts/preview.ts check <bot-url> <simulator-url> | local");
+    process.exit(2);
+  }
 }

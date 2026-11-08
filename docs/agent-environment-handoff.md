@@ -590,9 +590,16 @@ this simple hosting rollback may not be sufficient—review compatibility first.
   already deployed to personal dev and shared staging. Include its pinned
   security commit before deploying from this handoff, and before releasing #165.
   Its cloud-backed suite passed 93 tests, skipped 2 emulator-only cases, failed 0.
-  The two PR preview findings remain separate. Use synthetic data in staging.
-- The PR preview shared-dev ID collision and repeat-smoke-test gaps remain
-  documented. Do not point PR previews at this shared staging database.
+  Use synthetic data in staging.
+- The preview fixes are included in this environment branch/archive: cloud
+  previews require isolated Convex preview deployments and reject shared dev
+  keys before any build/deploy; every smoke check verifies a fresh signup.
+  Branch names include a stable hash to avoid normalization collisions. Local
+  preview commands may use a developer's own dedicated dev deployment. Do not
+  point PR previews at the shared staging database. If isolated deployments
+  are unavailable, keep cloud previews disabled and use personal dev/staging.
+  Actual Workers Builds/Convex preview hosting remains unverified; local tests
+  establish the key guard and repeat-signup behavior.
 - The earlier environment snapshot's full cloud suite passed 77 tests, skipped 2 emulator-only
   cases, failed 0; the additional staging-classifier tests passed 3/3. An earlier
   import timeout was not reproduced later; diagnostic output was added, not a

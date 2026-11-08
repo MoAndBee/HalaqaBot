@@ -4,7 +4,7 @@
   "source_branch": "codex/pr-165-staging-handoff",
   "source_repository": "https://github.com/mohanad-80/HalaqaBot.git",
   "snapshot_date": "2026-11-08",
-  "patch_sha256": "bdd0f649932c76212a07e6c7cc45d3baee1522aff1994868a8bb61393f329589",
+  "patch_sha256": "3696c707bfc2bf51c6f6eaaf2343959f3a87105242e2ca3faf4779074d16ce76",
   "source_paths": [
     ".gitignore",
     "README.md",
@@ -32,8 +32,13 @@
     "packages/testing/scripts/prepare-local.ts",
     "packages/testing/src/staging-classifier.ts",
     "packages/testing/test/staging-classifier.test.ts",
-    "packages/testing/wrangler.staging-classifier.toml"
+    "packages/testing/wrangler.staging-classifier.toml",
+    ".github/workflows/preview-check.yml",
+    "packages/bot/scripts/build-preview.ts",
+    "packages/testing/scripts/preview.ts",
+    "packages/testing/test/preview.test.ts",
+    "packages/testing/test/preview-check.test.ts"
   ],
   "contains_secrets": false,
-  "archive_sha256": "c8df61042472a72ca49591aad6b7c8134650750b2f99f0860e7e4882293b591f"
+  "archive_sha256": "46b665667481b641f3c9d643d58876de7d7410ef79d87ebc4bd61456e167f9fc"
 }

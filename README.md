@@ -221,7 +221,8 @@ need `CONVEX_AUTH_PRIVATE_KEY` in their environment.
 
 ### Previews
 
-Every pull request gets a preview that needs no Telegram account. It includes:
+When cloud previews are configured, every pull request gets a preview that needs
+no Telegram account. It includes:
 - the bot;
 - a simulated Telegram in its place;
 - the web app;
@@ -263,17 +264,24 @@ live preview:
 - the Mini App signs in;
 - the web app is served.
 
-On a fresh world it leaves that example halaqa in place. Then it comments with
-the link. "Reset world" starts over with new IDs and keeps the bot connected.
+Every check creates a fresh example halaqa and proves a new signup reaches its
+list, even if reviewers have already used the preview. Existing halaqas and
+turns stay intact. Then it comments with the link. "Reset world" starts over
+with new IDs and keeps the bot connected.
 
 **One-time setup**
 
 1. **Convex.** Generate a key pair with `bun packages/bot/scripts/generate-auth-key.ts`.
    In the Convex dashboard, under project settings, set `CONVEX_AUTH_JWKS` to
    its JWKS as a default environment variable for **preview** deployments.
-   Create a preview deploy key. Per-PR deployments need Convex Pro; with a dev
-   deploy key instead, previews share that dev deployment, and the branch built
-   last decides which functions run there.
+   Create a preview deploy key. Cloud preview builds require an isolated Convex
+   preview deployment per branch and reject dev/production deploy keys before
+   running a deployment. A shared dev backend would mix simulated records and
+   let each branch replace the others' functions. If your account cannot create
+   isolated preview deployments, leave automatic cloud previews disabled and use
+   the local simulator/personal dev setup or the shared Telegram staging bot.
+   The deployment name includes a stable branch hash so similarly named branches
+   such as `feature/a` and `feature-a` do not reuse a backend.
 2. **Connect both Workers to this repository** with Workers Builds (Workers &
    Pages → the Worker → Settings → Build). Root directory is the repository
    root for both.
@@ -299,7 +307,9 @@ the link. "Reset world" starts over with new IDs and keeps the bot connected.
    `SIM_CONTROL_TOKEN`.
 
 **To run a preview locally:** the same two Workers in the same preview mode,
-under `wrangler dev`, followed by the same check:
+under `wrangler dev`, followed by the same check. Use your own dedicated dev
+deployment and key; this command updates its functions and authentication key.
+Do not use the team staging or another developer's deployment:
 
 ```bash
 cd packages/testing
@@ -313,7 +323,8 @@ releasing.
 ### Tests in CI
 
 `.github/workflows/test.yml` runs `bun run test` on every pull request and on
-`main`, with no secrets. That's the real bot Worker under `wrangler dev`, with
+`main`, with no secrets. The test command generates missing Convex bindings
+before Bun resolves the test modules; a fresh checkout needs no prior deployment. That's the real bot Worker under `wrangler dev`, with
 local queues, against the simulator and an in-memory Convex. The browser tests
 need a real Convex deployment, so they're skipped there. Run them with
 `TEST_CONVEX_URL` (see `packages/testing/README.md`). They run in Chromium at an

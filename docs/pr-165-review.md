@@ -45,7 +45,14 @@ No additional code-smell findings warranted flagging.
 
 ## Spec
 
-**[P2] Shared dev previews reuse the same Convex IDs.**
+**[P2] Shared dev previews reuse the same Convex IDs — fixed in #168.**
+
+Cloud preview builds now reject dev/production deploy keys before running any
+deployment. They require separate Convex preview deployments, whose names include
+a stable hash of the original branch so normalized branch names do not collide.
+The explicit local preview command may still use the developer's own dedicated
+dev deployment; it validates the key before changing backend authentication.
+The following paragraph records the original shared-dev fallback finding.
 `packages/testing/src/sim-worker.ts`, lines 73–77, defaults `SIM_ID_OFFSET` to
 zero. The build does not supply a unique offset. When using the README's
 shared-dev-deployment fallback, separate preview worlds reuse user, channel and
@@ -53,7 +60,12 @@ message identifiers, interfering with each other's backend records. Separate
 Durable Objects isolate simulator storage, but not those Convex rows. Require
 separate deployments or assign a unique, persisted namespace per preview/world.
 
-**[P2] Repeat preview smoke checks can skip the signup flow.**
+**[P2] Repeat preview smoke checks can skip the signup flow — fixed in #168.**
+
+Every smoke check now creates and verifies a fresh registration/sign-up/approval
+scenario. A regression runs the check twice on an already used world and verifies
+that both new signups complete and the existing participant list stays intact.
+The following paragraph records the original conditional-check finding.
 `packages/testing/scripts/preview.ts`, lines 97–107, tests signup only if the
 discussion group is empty. Once someone has used the preview, a subsequent
 check can pass with broken update handling. This misses the README promise
@@ -64,6 +76,15 @@ Standards: 1 finding (cross-channel disclosure). Spec: 2 findings (preview
 isolation and incomplete repeat checks). The security fix in #169 must be included before release.
 
 ## Setup blockers found and fixed locally
+
+- Fresh-checkout CI regression verified on 2026-11-08: moved the complete
+  `convex/_generated` directory aside, ran `bun run test`, and verified automatic
+  generation before test imports. Result: **82 passed, 4 browser skips, 0 failed**.
+  Private environment files were unchanged; original generated bindings were
+  restored afterward. Database, bot and web builds all passed. The preview-check
+  workflow also uses the package preparation step now. Real GitHub Actions runs
+  currently require a repository maintainer to approve workflows from the fork;
+  the contributing account has read-only upstream access.
 
 - Simulator deletion appeared inert because its host ignored the Telegram SDK's
   `web_app_open_popup` event. The Mini App correctly waited for confirmation and

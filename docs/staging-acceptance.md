@@ -113,8 +113,10 @@ to personal dev and shared staging. Its cloud-backed suite passed 93 tests,
 skipped 2 emulator-only checks, and failed 0. A read-only staging smoke verified
 owner access to an existing halaqa and supervisor details, plus denial of a
 mismatched-channel probe. No further manual reproduction of the leak is required.
-Review the two preview findings and either fix them or explicitly agree on their
-scope/limitations. Assess CI and manual checks together. The original PR #165
+The preview findings are fixed in #168: cloud previews reject shared dev keys,
+and every smoke check exercises a fresh signup. Verify actual hosted previews
+if enabling that optional feature; leave it disabled if isolated backends are
+unavailable. Assess CI and manual checks together. The original PR #165
 test suite did not cover the P1 leak; PR #169 adds that coverage. Missing
 iOS/provider tests must be stated explicitly rather than reported as passed.
 
