@@ -33,6 +33,8 @@ SOURCES = [
     ".github/workflows/preview-check.yml", "packages/bot/scripts/build-preview.ts",
     "packages/testing/scripts/preview.ts", "packages/testing/test/preview.test.ts",
     "packages/testing/test/preview-check.test.ts",
+    "scripts/verify-staging-target.ts",
+    "docs/staging-convex-migration.md",
 ]
 
 

@@ -21,7 +21,9 @@ Include that security commit when deploying from the handoff branch/archive.
 | Channel | `HalaqaBot Staging — Channel` |
 | Discussion | `HalaqaBot Staging — Discussion` |
 | Mini App / API | https://halaqabot-staging.mhndahmd031.workers.dev |
-| Convex project | `Bosla / halaqabot-staging` |
+| Convex project | `Bosla / halaqabotdb` |
+| Named deployment | `staging`, type `prod`, non-default |
+| Physical deployment / URL | `perfect-clam-401` / https://perfect-clam-401.convex.cloud |
 | Database dashboard | https://dashboard.convex.dev/d/perfect-clam-401 |
 | Classifier | `halaqabot-staging-classifier` Worker, simulated rules |
 
@@ -30,9 +32,17 @@ the shared Telegram chats and bot without a Cloudflare login. To use the admin
 Mini App, a tester must also be an administrator of the **channel**; group admin
 alone does not grant access.
 
-The separate Convex project uses its production slot for stable shared staging.
-That is **not** `halaqabotdb`'s production database, and is independent of
-Mohanad's personal `doting-viper-550` dev deployment.
+Staging is a dedicated named deployment inside the original Convex project.
+On 2026-11-08 it was transferred into `halaqabotdb` as `staging`, retaining the
+same backend URL, data, IDs and auth configuration. The old `halaqabot-staging`
+Convex project was deleted after testing; the Cloudflare Worker and Telegram
+names still use `halaqabot-staging` and must stay that way.
+
+The project's default production deployment remains `incredible-lyrebird-981`;
+Mohanad's personal dev remains `doting-viper-550`. Use the non-empty staging-scoped
+key from the private staging env file for all shared-stage backend operations,
+never the project's default production target. See the
+[completed migration and live checks](staging-convex-migration.md).
 
 ## Important test boundary
 

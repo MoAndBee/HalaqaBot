@@ -3,6 +3,11 @@
 Prefer checking out `mohanad-80/HalaqaBot:codex/pr-165-staging-handoff`: it already contains the
 environment helpers and [full runbook](../agent-environment-handoff.md).
 
+Shared Convex staging is now `Bosla / halaqabotdb / staging`
+(`perfect-clam-401`). Its old separate project was deleted. Reuse the existing
+deployment and obtain its staging-scoped key privately; follow the runbook
+for the Bosla Cloudflare/domain migration.
+
 For an agent starting from the pinned PR #165 commit, download this directory's
 `halaqabot-agent-handoff.tar.gz` and `SHA256SUMS`, then:
 

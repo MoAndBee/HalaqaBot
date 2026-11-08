@@ -53,19 +53,35 @@ personal Cloudflare hosting stays available during preparation and rollback.
 | Import queue | `halaqabot-staging-imports` |
 | Dead-letter queue | `halaqabot-staging-dead-letters` |
 | Scheduled admin reconciliation | `17 * * * *` |
-| Shared Convex team/project | `bosla / halaqabot-staging` |
+| Shared Convex team/project | `bosla / halaqabotdb` |
+| Shared Convex named reference | `staging` (`bosla:halaqabotdb:staging`), non-default |
 | Shared Convex deployment | `perfect-clam-401` |
 | Shared Convex URL | `https://perfect-clam-401.convex.cloud` |
 | Shared database dashboard | https://dashboard.convex.dev/d/perfect-clam-401 |
 | Mohanad's personal dev | `doting-viper-550`, in `bosla / halaqabotdb` |
-| Existing live app's Convex project | `bosla / halaqabotdb`; do not deploy its production slot |
+| Existing live app's Convex project | Same project, `bosla / halaqabotdb`; leave its default production deployment unchanged |
 | Known production deployment in that project | `incredible-lyrebird-981`; confirm inventory before any future production work |
-| Other historical deployment in CLAUDE.md | `wry-crab-519`; do not treat that URL as the staging target |
+| Teammate dev mentioned in CLAUDE.md | `wry-crab-519`, reference `dev/mohmed-nasser`; do not use or alter it |
 
-The shared staging project uses Convex's **production slot inside the staging-only
-project** so it is stable for the team. It is separate from the application's
-actual production project and from each developer's dev deployment. CLI wording
-like “production” is insufficient: verify the project and deployment name.
+Shared staging is now a dedicated, long-lived **named deployment inside the
+original project**: `bosla / halaqabotdb / staging`. Its physical deployment is
+still `perfect-clam-401`, type `prod`, with `isDefault = false`. The original
+project's default production deployment remains `incredible-lyrebird-981` and
+Mohanad's dev remains `doting-viper-550`.
+
+On 2026-11-08 the existing staging deployment was transferred into this project,
+retaining its URL, data, IDs, environment and signing keys. The former
+`halaqabot-staging` Convex project and its empty leftover dev deployment were
+deleted after live verification. **Do not recreate that project or transfer the
+staging deployment again for the Cloudflare/domain handoff.** See the
+[completed migration and tests](staging-convex-migration.md).
+
+The private staging file now contains a **deployment-scoped staging deploy key**.
+The `prod:` prefix identifies its deployment type; it does not mean the default
+production deployment. A selector alone is insufficient for `convex deploy`:
+without a scoped key, that command can target the project's default production.
+Run `scripts/verify-staging-target.ts` with the private staging file before a
+backend deployment; never use an empty staging deploy key or `--prod`.
 
 ### URLs to use after moving hosting
 
@@ -89,7 +105,7 @@ like “production” is insufficient: verify the project and deployment name.
 | Mini App administration | Promote them to **channel** admin. Discussion-group admin alone does not grant app access. |
 | Telegram bot credential | Share the existing staging token through the team's password manager/private secret input. BotFather ownership is not required merely to deploy it. |
 | Bosla Cloudflare | Invite their Cloudflare login to the account containing `bosla.to`, with Worker deployment/secrets, Queues, logs and domain/DNS permissions appropriate to their task. |
-| Bosla Convex | Invite their Convex login to the Bosla team with access to `halaqabot-staging`, and to the project where their personal dev deployment will live. |
+| Bosla Convex | Invite their login to the Bosla team/project `halaqabotdb`. Shared staging is its `staging` deployment. Provide the staging-scoped deploy key privately for authorized staging writes; do not share a production key or another developer's key. |
 | Old hosting retirement | Mohanad must retain access to the personal Cloudflare account for disabling its cron and rollback/cleanup. Bosla membership does not confer that access. |
 
 The teammate must press **Start** in the staging bot's private chat before using
@@ -366,8 +382,9 @@ BOT_TOKEN=<existing-team-staging-bot-token>
 TELEGRAM_WEBHOOK_SECRET=<existing-staging-webhook-secret>
 CHANNEL_ID=-1004434414328
 FORWARD_CHAT_ID=-1004415858273
+# Named reference: bosla:halaqabotdb:staging; physical deployment stays fixed.
 CONVEX_DEPLOYMENT=prod:perfect-clam-401
-CONVEX_DEPLOY_KEY=
+CONVEX_DEPLOY_KEY=<STAGING_DEPLOYMENT_SCOPED_KEY>
 CONVEX_URL=https://perfect-clam-401.convex.cloud
 VITE_CONVEX_URL=https://perfect-clam-401.convex.cloud
 VITE_BOT_API_URL=
@@ -400,12 +417,29 @@ the token lifetime and rollback window. Do not replace shared JWKS with an
 unrelated fresh key while the old Worker or clients are still in use. The
 generator supports two-key JWKS output, and tokens currently last one hour.
 
-The CLI version here requires `CONVEX_DEPLOY_KEY=` in a custom `--env-file` to
-initialize logged-in auth correctly. Leaving the key absent caused a misleading
-MissingAccessToken error. Running `--deployment-name perfect-clam-401` while the
-CLI is selected to `halaqabotdb` also failed because it is a different project.
-Use the explicit staging selector file; never “fix” this by rebinding another
-developer's normal `.env.local` or deploying a similarly named production target.
+The shared-stage deploy key must be non-empty and scoped exactly to
+`perfect-clam-401`. The authoritative local `.env.staging.local` already contains
+it; transfer it privately to the destination file. Do not copy the old empty-key
+workaround from earlier staging instructions. Keep personal-dev `.env.local`
+files unchanged and use the explicit staging file on every shared-stage command.
+Do not upload this deployment key to the bot Worker or frontend.
+
+Before a shared-stage backend deployment, from `packages/db`, run:
+
+```bash
+bun --env-file=../../.env.staging.bosla.local ../../scripts/verify-staging-target.ts
+```
+
+The verifier refuses an empty/different deploy key, mismatched backend/frontend
+URLs, or a production app hostname. Its output contains no secret values. The
+currently installed bot-package Convex 1.34 CLI supports named deployments; the
+database package's 1.27 CLI works with this scoped key. No dependency upgrade is
+needed merely to move Cloudflare hosting. If the named deployment ever genuinely
+needs recreating, a project admin can use the 1.34+ `deployment create` command
+with the fully qualified `bosla:halaqabotdb:staging` reference and `--type prod`,
+without `--default` or `--select`, then privately issue a key for that new
+staging deployment and update/verify the inventory. That is not part of this
+existing-environment handoff.
 
 ## 7. Build and deploy the candidate
 
@@ -417,8 +451,8 @@ production data into it.
 If an agreed backend change does need deploying, the explicit command from
 `packages/db` is `CONVEX_DEPLOY_KEY='' ./node_modules/.bin/convex deploy --env-file ../../.env.staging.bosla.local --yes`.
 Verify it targets `https://perfect-clam-401.convex.cloud` before proceeding;
-the destination file must contain both the staging selector and empty deploy-key
-line as described above.
+the destination file must contain both the staging selector and its non-empty,
+deployment-scoped key as described above. Never use the default production key.
 
 From `packages/web` build isolated staging assets:
 
@@ -629,7 +663,9 @@ verifies patch application, and excludes environment files and built assets.
 
 > Read this entire handoff and the repository instructions. Set up your personal
 > dev environment independently, then prepare the existing HalaqaBot team staging
-> in Bosla Cloudflare using the existing Telegram bot/chats and `perfect-clam-401`.
+> in Bosla Cloudflare using the existing Telegram bot/chats and
+> `bosla/halaqabotdb:staging` (`perfect-clam-401`). Do not recreate the retired
+> separate staging project or change the original project's production default.
 > Verify the destination account and unused staging hostname. Obtain secrets
 > privately. Keep current staging running during preparation; coordinate only
 > the final webhook/queue/cron cutover. Do not use production resources, rotate

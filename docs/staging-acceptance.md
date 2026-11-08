@@ -105,6 +105,11 @@ The manual permissions checks alone did not establish that fix.
 
 ## Integration and domain order
 
+The Convex consolidation is complete: shared staging is the non-default
+`staging` deployment inside `Bosla / halaqabotdb`. The prior separate staging
+project was deleted after [data and live app verification](staging-convex-migration.md).
+The Cloudflare account/domain handoff below reuses this existing deployment.
+
 1. A repository maintainer approves the latest fork workflow on PR #168. The
    contributor account has no upstream write permission. Once CI passes, merge
    #168 into #165's migration branch, which adds first-run generation and the
@@ -119,7 +124,7 @@ The manual permissions checks alone did not establish that fix.
    maintainer approval. No shared staging or production data was used.
 4. Use the Bosla-account handoff to prepare the team staging hostname
    `halaqabot-staging.bosla.to` (proposed; confirm it is unused). Keep the existing
-   staging bot, private chats and `perfect-clam-401`; coordinate the webhook and
+   staging bot, private chats and `halaqabotdb:staging` (`perfect-clam-401`); coordinate the webhook and
    single active cron during the hosting cutover. This requires Bosla Cloudflare
    zone/account access; the current hosting belongs to the personal account.
 5. After the staging URL changes, use a fresh `/admin` button in Telegram on

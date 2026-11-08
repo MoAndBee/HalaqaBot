@@ -104,6 +104,16 @@ isolation and incomplete repeat checks). The security fix in #169 must be includ
 
 ## Verification and limits
 
+- Shared staging consolidation on 2026-11-08: transferred `perfect-clam-401`
+  into `Bosla / halaqabotdb` as the non-default `staging` deployment. All 13
+  application table exports matched before/after; existing production/personal/
+  teammate deployments retained their IDs, references, defaults and last-deploy
+  timestamps. Live Worker authentication, existing halaqa reads, desktop/mobile-
+  viewport UI, reversible note writes/subscriptions and access denials passed
+  before and after deleting the retired staging project. See the
+  [completed operation and handoff details](staging-convex-migration.md).
+  The backend URL stayed the same, so no Worker/frontend redeploy was required.
+
 - Combined validation on 2026-11-08: PR #168 runtime changes at `4478147`
   plus #169 security commit `0e4e8c9` were combined on local branch
   `codex/pr-165-combined-validation` (head `1bb58c4`). The complete personal-cloud

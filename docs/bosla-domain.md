@@ -8,6 +8,11 @@ The bot API can keep its deployed `https://halaqabot.<account>.workers.dev`
 address, supplied as `VITE_BOT_API_URL`. A separate API custom domain is optional.
 Telegram's `t.me/<bot_username>` address and the Convex URL do not change.
 
+The existing shared staging backend is `Bosla / halaqabotdb / staging`
+(`perfect-clam-401`), a non-default deployment. Moving staging hosting to Bosla
+keeps that backend, the Telegram bot and the private chats. The old separate
+Convex staging project was retired; follow the [agent handoff](agent-environment-handoff.md).
+
 ## Configuration that must move together
 
 1. Attach the `halaqabot.bosla.to` hostname to the web host, with HTTPS and SPA
