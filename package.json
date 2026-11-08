@@ -17,7 +17,10 @@
     "deploy:convex": "bun --filter @halakabot/db deploy",
     "deploy:bot": "bun --filter @halakabot/bot deploy",
     "test": "bun --filter @halakabot/testing test",
-    "sim": "bun --filter @halakabot/testing sim"
+    "sim": "bun --filter @halakabot/testing sim",
+    "sim:cloud": "bun --env-file=.env.sim.local run sim",
+    "dev:web:cloud": "bun --env-file=.env.sim.local run dev:web",
+    "test:web:cloud": "bun --env-file=.env.sim.local run --filter @halakabot/testing test:web"
   },
   "keywords": ["telegram", "bot", "grammy", "bun", "monorepo"],
   "author": "",

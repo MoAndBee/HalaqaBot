@@ -108,6 +108,51 @@ test.skipIf(!convexUrl)("a student who opens the web app is turned away", async 
   await expect(page.getByText("الحلقات").count()).resolves.toBe(0);
 });
 
+test.skipIf(!convexUrl)("the simulator confirms or cancels deleting a student's turn", async () => {
+  const { sim, world } = stack;
+  const { groupMessage } = sim.postToChannel(world.channelId, REGISTRATION_POST);
+  const postId = groupMessage!.message_id;
+  const student = world.students[0]!;
+  const comment = sim.sendUserMessage(world.groupId, student.id, "انا فاطمة احمد تسميع", { replyTo: postId });
+  sim.react(world.groupId, comment.message_id, world.admin.id, ["👌"]);
+  const list = () => stack.query(api.queries.getUserList, { chatId: world.groupId, postId });
+  await stack.waitFor(async () => (await list()).activeUsers.length === 1);
+
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  try {
+    const page = await context.newPage();
+    await page.goto(stack.simulatorUrl);
+    await page.locator("#whoName", { hasText: "admin" }).waitFor();
+    await page.locator("#close").click();
+    const app = page.frameLocator("#app");
+    await app.getByText("الحلقات").first().waitFor({ timeout: 30_000 });
+    // Navigate the real Mini App inside its simulator host, preserving signed login.
+    await page.locator("#app").evaluate((iframe: HTMLIFrameElement, route) => {
+      const url = new URL(iframe.src);
+      url.pathname = route;
+      iframe.src = url.toString();
+    }, `/posts/${world.groupId}/${postId}`);
+    await app.getByText("فاطمة احمد", { exact: true }).first().waitFor({ timeout: 30_000 });
+    const openDelete = async () => {
+      const row = app.locator("div.border.rounded-lg").filter({ has: app.getByText("فاطمة احمد", { exact: true }) }).last();
+      await row.locator("button:has(svg.lucide-more-vertical), button:has(svg.lucide-ellipsis-vertical)").click();
+      await app.getByRole("menuitem", { name: "حذف", exact: true }).click();
+      await page.getByRole("dialog").waitFor();
+    };
+
+    await openDelete();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    expect((await list()).activeUsers).toHaveLength(1);
+
+    await openDelete();
+    await page.getByRole("dialog").getByRole("button", { name: "OK", exact: true }).click();
+    await stack.waitFor(async () => (await list()).activeUsers.length === 0, { message: "the confirmed turn to be deleted" });
+    await app.getByText("فاطمة احمد", { exact: true }).waitFor({ state: "hidden" });
+  } finally {
+    await context.close();
+  }
+});
+
 test.skipIf(!convexUrl)("on a phone, the simulator floats over the Mini App and switches who's signed in", async () => {
   const context = await browser.newContext({ ...devices["iPhone 13"], ignoreHTTPSErrors: true });
   const page = await context.newPage();

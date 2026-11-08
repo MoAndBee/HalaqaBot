@@ -113,6 +113,14 @@ export function renderDashboard(options: { needsToken: boolean; hasMiniApp: bool
   .log div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ok { color:var(--ok); } .fail { color:var(--bad); }
 
+  #popup { width:min(360px, calc(100% - 32px)); padding:20px; border:1px solid var(--line); border-radius:16px; background:var(--panel); color:var(--text); }
+  #popup::backdrop { background:var(--shade); }
+  #popup h2 { margin:0 0 12px; font-size:18px; }
+  #popup p { white-space:pre-wrap; overflow-wrap:anywhere; }
+  #popupButtons { display:flex; justify-content:flex-end; gap:8px; }
+  #popupButtons button { padding:8px 14px; border-radius:8px; background:var(--bg); }
+  #popupButtons button.destructive { color:var(--bad); }
+
   #toast { position:fixed; z-index:40; left:50%; bottom:calc(24px + env(safe-area-inset-bottom)); transform:translateX(-50%); max-width:calc(100% - 32px);
     background:#17212b; color:#fff; padding:9px 14px; border-radius:12px; font-size:14px; display:none; }
 </style>
@@ -159,6 +167,11 @@ ${options.hasMiniApp
   </div>
 </section>
 <div id="toast"></div>
+<dialog id="popup" aria-labelledby="popupTitle" aria-describedby="popupMessage">
+  <h2 id="popupTitle" dir="auto"></h2>
+  <p id="popupMessage" dir="auto"></p>
+  <div id="popupButtons"></div>
+</dialog>
 
 <script>
 const NEEDS_TOKEN = ${options.needsToken};
@@ -479,11 +492,44 @@ if ($("reset")) $("reset").onclick = act(async () => {
   actorId = chatId = null; appFor = null; seenMessages = 0; store.set("seen", 0);
 });
 
+// Telegram's SDK waits for popup_closed before resolving showConfirm/showAlert.
+// Reply only to the configured Mini App, never to another window or iframe.
+let popupReply = null;
+function closePopup(buttonId) {
+  const reply = popupReply;
+  popupReply = null;
+  $("popup").close();
+  reply?.source.postMessage(JSON.stringify({
+    eventType: "popup_closed",
+    eventData: buttonId === undefined ? {} : { button_id: buttonId },
+  }), reply.origin);
+}
+$("popup").addEventListener("cancel", (e) => { e.preventDefault(); closePopup(); });
+
 // The Mini App talks to Telegram through postMessage; answer what matters.
 addEventListener("message", (e) => {
+  const app = $("app");
+  if (!app?.src || e.source !== app.contentWindow || e.origin !== new URL(app.src).origin) return;
   let data = e.data;
   try { if (typeof data === "string") data = JSON.parse(data); } catch { return; }
   if (data?.eventType === "web_app_close") toast("The Mini App asked to close (Telegram would close it here)");
+  if (data?.eventType === "web_app_open_popup" && !popupReply) {
+    const popup = data.eventData;
+    if (!popup || typeof popup.message !== "string" || !Array.isArray(popup.buttons) || !popup.buttons.length) return;
+    $("popupTitle").textContent = popup.title || "Telegram";
+    $("popupMessage").textContent = popup.message;
+    $("popupButtons").replaceChildren();
+    const labels = { ok: "OK", cancel: "Cancel", close: "Close" };
+    for (const spec of popup.buttons) {
+      const button = document.createElement("button");
+      button.textContent = spec.text || labels[spec.type] || "OK";
+      if (spec.type === "destructive") button.className = "destructive";
+      button.onclick = () => closePopup(spec.id);
+      $("popupButtons").append(button);
+    }
+    popupReply = { source: e.source, origin: e.origin };
+    $("popup").showModal();
+  }
 });
 
 (async () => {

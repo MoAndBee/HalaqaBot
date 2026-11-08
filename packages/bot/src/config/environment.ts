@@ -60,7 +60,7 @@ export function loadConfig(env: ConfigSource): Config {
   const allowedReactionUserIds = allowedReactionUserIdsValue
     ? allowedReactionUserIdsValue.split(",").map((id: string) => parseInt(id.trim(), 10))
     : [5627601992, 1093520031];
-  const webAppUrl = read(env, "WEB_APP_URL") || "https://halakabot.app.thawabcoding.work";
+  const webAppUrl = read(env, "WEB_APP_URL") || "https://halaqabot.bosla.to";
   const channelIdValue = read(env, "CHANNEL_ID");
   const channelId = channelIdValue ? parseInt(channelIdValue, 10) : -1002081068866;
 

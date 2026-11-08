@@ -39,6 +39,11 @@ Mini App (web) ──────▶ Convex (data, live queries)
 
 ## Development
 
+New to this project? Start with [the local testing walkthrough](docs/local-testing.md).
+Real Telegram testing uses [the separate team staging environment](docs/staging.md).
+Handing setup to a teammate? Use [the agent environment handoff](docs/agent-environment-handoff.md).
+The pending domain migration is covered in [the bosla.to cutover plan](docs/bosla-domain.md).
+
 Prerequisites: [Bun](https://bun.sh/). Run `bun install` first.
 
 ### With the Telegram simulator (no Telegram, no accounts)
