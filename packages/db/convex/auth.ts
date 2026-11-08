@@ -97,6 +97,22 @@ export async function requireChannelAccess(ctx: Ctx, channelId: number): Promise
   return caller;
 }
 
+/** Authorize both IDs and verify that the channel actually owns this discussion. */
+export async function requireChannelChatAccess(
+  ctx: Ctx,
+  channelId: number,
+  chatId: number,
+): Promise<Caller> {
+  const caller = await requireChatAccess(ctx, chatId);
+  await requireChannelAccess(ctx, channelId);
+  const channel = await ctx.db
+    .query("channels")
+    .withIndex("by_channel", (q) => q.eq("channelId", channelId))
+    .first();
+  if (!channel || channel.chatId !== chatId) denied();
+  return caller;
+}
+
 /** Access to a turn-queue or participation row: through the chat it belongs to. */
 export async function requireEntryAccess(
   ctx: Ctx,
@@ -111,9 +127,33 @@ export async function requireEntryAccess(
 }
 
 /**
+ * Stored activity in a discussion, without scanning a user's other channels.
+ * Public queue/history writers must authorize the student before inserting, so
+ * a caller cannot manufacture this evidence with an unrelated Telegram ID.
+ */
+export async function hasStudentActivityInChat(
+  ctx: { db: GenericDatabaseReader<DataModel> },
+  userId: number,
+  chatId: number,
+): Promise<boolean> {
+  const [message, queued, completed] = await Promise.all([
+    ctx.db.query("messageAuthors")
+      .withIndex("by_user_chat", (q) => q.eq("userId", userId).eq("chatId", chatId))
+      .first(),
+    ctx.db.query("turnQueue")
+      .withIndex("by_user_chat", (q) => q.eq("userId", userId).eq("chatId", chatId))
+      .first(),
+    ctx.db.query("participationHistory")
+      .withIndex("by_user_chat", (q) => q.eq("userId", userId).eq("chatId", chatId))
+      .first(),
+  ]);
+  return Boolean(message || queued || completed);
+}
+
+/**
  * A student's profile and history, through a chat the caller administers that
- * the student belongs to: queued or took a turn there, or was registered into
- * it. The bot may read anyone's, with or without a chat.
+ * the student belongs to: posted a message, queued or took a turn there, or was
+ * registered into it. The bot may read anyone's, with or without a chat.
  */
 export async function requireStudentAccess(
   ctx: Ctx,
@@ -133,16 +173,7 @@ export async function requireStudentAccess(
   // (see searchUsers), so reachable from every channel too.
   const legacyManual = userId < 0 && user !== null && user.homeChatId === undefined;
   if (user?.homeChatId === chatId || legacyManual) return caller;
-  const history = await ctx.db
-    .query("participationHistory")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .collect();
-  if (history.some((row) => row.chatId === chatId)) return caller;
-  const queued = await ctx.db
-    .query("turnQueue")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .collect();
-  if (queued.some((row) => row.chatId === chatId)) return caller;
+  if (await hasStudentActivityInChat(ctx, userId, chatId)) return caller;
   denied();
 }
 
