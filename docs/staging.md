@@ -96,13 +96,22 @@ Cloudflare edge addresses whose TCP connections timed out before TLS. Requests
 to alternative addresses returned by Google DNS succeeded with HTTPS/HTTP 200;
 the deployed Worker and Telegram webhook were still healthy.
 
-Use mobile data or connect the laptop to a phone hotspot to continue testing.
-Close and reopen the Mini App after switching networks. This does not require
-restarting local development servers, changing bot code, or redeploying staging.
-For persistent network/DNS troubleshooting, involve the network owner. Edge IPs
-change: do not turn a temporary `curl --resolve` diagnostic into a fixed hosts
-entry or assume every blank Telegram panel has this cause. If the problem also
-occurs on mobile data, investigate the application/API again.
+The Wi-Fi supplied a mix of `1.1.1.1` and `8.8.4.4`. Both Google resolvers
+(`8.8.8.8` and `8.8.4.4`) returned reachable addresses. The laptop's active Wi-Fi
+profile was therefore changed to use those Google resolvers exclusively, with
+automatic IPv4/IPv6 DNS disabled for that profile. After reapplying the profile
+and flushing the system DNS cache, a normal HTTPS request returned HTTP 200.
+The router, application and other devices were not changed. Previous profile
+settings were saved privately under `~/.local/state/halaqabot-network/`.
+
+For this specific setup, fully quit/reopen Telegram after the DNS change to
+clear its own cached address. On another device, diagnose its resolver first;
+the laptop change does not fix Android's Wi-Fi DNS. Involve the network owner
+for a router-wide change. A hotspot is only a temporary diagnostic workaround.
+No local development server restart or Worker redeploy is needed. Edge IPs
+change: do not turn `curl --resolve` into a fixed hosts entry or assume every
+blank Telegram panel has this cause. If it also fails on mobile data, investigate
+the application/API again.
 
 Private settings live in ignored `.env.staging.local` with permissions 600.
 Never commit it. Staging uses a distinct signing key and three queues prefixed
