@@ -2,7 +2,7 @@ import type { Bot } from "grammy";
 import { InputFile } from "grammy";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ConvexClient, ConvexHttpClient, api } from "@halakabot/db";
+import { ConvexClient, ConvexHttpClient, api, isExternalSession } from "@halakabot/db";
 import type { Config } from "../config/environment";
 import type { MessageService } from "./message.service";
 import type { ClassificationService } from "./classification.service";
@@ -318,11 +318,9 @@ export class BotTaskService {
         postId,
       });
 
-      if (allSessions.length === 0) {
-        sessionNumber = 1;
-      } else {
-        sessionNumber = allSessions[0].sessionNumber;
-      }
+      // The newest Telegram session — an external (Zoom) one's list was
+      // already posted by hand. No session yet means session 1.
+      sessionNumber = allSessions.find((s: any) => !isExternalSession(s))?.sessionNumber ?? 1;
     }
 
     // Get session details (for teacher name)
