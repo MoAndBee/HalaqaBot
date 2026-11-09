@@ -1,6 +1,7 @@
 import { action } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { api, internal } from "./_generated/api";
+import { isExternalSession } from "../src/sessionOrigin";
 
 /**
  * Creates a bot task to send the participant list as a message to the post
@@ -15,14 +16,16 @@ export const sendParticipantList = action({
   handler: async (ctx, args) => {
     // A closed (locked) halaqa is final — don't publish its list again. Resolve
     // the target session the same way the bot does when none is given: the most
-    // recent one for this post.
+    // recent Telegram one for this post.
     let sessionNumber = args.sessionNumber;
     if (sessionNumber === undefined) {
       const sessions = await ctx.runQuery(api.queries.getAvailableSessions, {
         chatId: args.chatId,
         postId: args.postId,
       });
-      sessionNumber = sessions[0]?.sessionNumber;
+      sessionNumber = sessions.find(
+        (s: { sessionNumber: number; origin: string | null }) => !isExternalSession(s)
+      )?.sessionNumber;
     }
 
     if (sessionNumber !== undefined) {
@@ -34,6 +37,12 @@ export const sendParticipantList = action({
 
       if (sessionInfo?.isLocked) {
         throw new Error("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
+      }
+
+      // An external halaqa's list was already posted by hand — the bot posting
+      // it again would put a second copy in the discussion group
+      if (sessionInfo && isExternalSession(sessionInfo)) {
+        throw new Error("لا يمكن إرسال القائمة: هذه الحلقة أُقيمت خارج تيليجرام.");
       }
     }
 
@@ -146,6 +155,179 @@ function readUpstreamMessage(body: string): string {
     // not JSON — fall through to the raw body
   }
   return body.slice(0, 300);
+}
+
+/**
+ * Sends a matching prompt to Groq and returns the raw "matches" array from its
+ * JSON answer. Shared by the bulk score and manual list matchers; every
+ * failure goes out as a ConvexError the modals can explain.
+ *
+ * @param smallerBatchHint Arabic advice appended when the answer was cut off
+ *   for length, e.g. to paste fewer lines at a time
+ */
+async function requestGroqMatches({
+  apiKey,
+  prompt,
+  maxCompletionTokens,
+  sizeContext,
+  candidateCount,
+  smallerBatchHint,
+}: {
+  apiKey: string;
+  prompt: string;
+  maxCompletionTokens: number;
+  sizeContext: string;
+  candidateCount: number;
+  smallerBatchHint: string;
+}): Promise<unknown[]> {
+  // Deliberately no response_format: Groq's json_object and json_schema
+  // modes both fail intermittently with the gpt-oss reasoning models
+  // (json_validate_failed with an empty failed_generation), and a retry
+  // would double token usage against the free tier's 8000 TPM budget.
+  // Plain text with server-side JSON extraction and validation is reliable.
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-oss-120b",
+      messages: [{ role: "user", content: prompt }],
+      // gpt-oss models emit a reasoning channel; without "hidden" the
+      // final answer may never land in message.content
+      reasoning_format: "hidden",
+      // "low" — at medium the model can burn the whole completion budget
+      // on reasoning and finish with reason "length" and empty content
+      reasoning_effort: "low",
+      max_completion_tokens: maxCompletionTokens,
+      temperature: 0,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    const upstream = readUpstreamMessage(body);
+    const detail = `Groq HTTP ${response.status}: ${upstream} (${sizeContext})`;
+
+    if (response.status === 429) {
+      // Groq reports the wait either in the Retry-After header or inside the
+      // message ("Please try again in 5.4s")
+      const header = Number(response.headers.get("retry-after"));
+      const fromMessage = upstream.match(/try again in ([\d.]+)s/);
+      const seconds = Number.isFinite(header) && header > 0
+        ? Math.ceil(header)
+        : fromMessage
+          ? Math.ceil(Number(fromMessage[1]))
+          : undefined;
+
+      throw bulkScoreError({
+        stage: "rate_limit",
+        message: seconds
+          ? `تم تجاوز الحد المسموح لاستخدام الذكاء الاصطناعي. حاولي بعد ${seconds} ثانية.`
+          : "تم تجاوز الحد المسموح لاستخدام الذكاء الاصطناعي. حاولي بعد قليل.",
+        detail,
+        ...(seconds !== undefined ? { retryAfterSeconds: seconds } : {}),
+      });
+    }
+
+    // 413: the request exceeded the per-minute token limit on its own,
+    // rather than being throttled against recent usage. Waiting won't help.
+    if (response.status === 413) {
+      throw bulkScoreError({
+        stage: "too_large",
+        message: `الطلب أكبر من الحد المسموح للذكاء الاصطناعي (${candidateCount} طالبة). الرجاء إبلاغ المسؤول التقني.`,
+        detail,
+      });
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw bulkScoreError({
+        stage: "auth",
+        message: "مفتاح الذكاء الاصطناعي غير صالح. الرجاء إبلاغ المسؤول التقني.",
+        detail,
+      });
+    }
+
+    if (response.status >= 500) {
+      throw bulkScoreError({
+        stage: "upstream",
+        message: "خدمة الذكاء الاصطناعي غير متاحة حالياً. حاولي بعد قليل.",
+        detail,
+      });
+    }
+
+    throw bulkScoreError({
+      stage: "http",
+      message: `فشل الاتصال بخدمة الذكاء الاصطناعي (رمز ${response.status}).`,
+      detail,
+    });
+  }
+
+  const data = await response.json();
+  const choice = data?.choices?.[0];
+  const usage = data?.usage;
+  const usageDetail = usage
+    ? `prompt=${usage.prompt_tokens} completion=${usage.completion_tokens} total=${usage.total_tokens} tokens`
+    : "usage unavailable";
+  const content = choice?.message?.content;
+  if (typeof content !== "string" || content.trim() === "") {
+    // finish_reason "length" means reasoning consumed the whole completion
+    // budget — a longer roster or pasted list makes this far more likely,
+    // so it gets its own actionable message.
+    if (choice?.finish_reason === "length") {
+      throw bulkScoreError({
+        stage: "truncated",
+        message:
+          `النص أو قائمة الطالبات طويلة جداً على الذكاء الاصطناعي. ${smallerBatchHint}`,
+        detail: `Groq stopped with finish_reason=length before emitting an answer (${usageDetail}, max_completion_tokens=4096, ${sizeContext}).`,
+      });
+    }
+
+    throw bulkScoreError({
+      stage: "empty",
+      message: "لم يرجع الذكاء الاصطناعي أي نتيجة. حاولي مرة أخرى.",
+      detail: `Groq returned empty content (finish_reason=${choice?.finish_reason}, ${usageDetail}, ${sizeContext}).`,
+    });
+  }
+
+  // The model may wrap the JSON in prose or code fences —
+  // extract the outermost object before parsing.
+  const unreadableResponse = (reason: string) =>
+    bulkScoreError({
+      stage: content.length > 0 && choice?.finish_reason === "length" ? "truncated" : "parse",
+      message:
+        choice?.finish_reason === "length"
+          ? `انقطع رد الذكاء الاصطناعي قبل اكتماله. ${smallerBatchHint}`
+          : "تعذّر فهم رد الذكاء الاصطناعي. حاولي مرة أخرى.",
+      detail: `${reason} (finish_reason=${choice?.finish_reason}, ${usageDetail}, ${sizeContext}) — response starts: ${content.slice(0, 200)}`,
+    });
+
+  const firstBrace = content.indexOf("{");
+  const lastBrace = content.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace <= firstBrace) {
+    throw unreadableResponse("Groq response contained no JSON object");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content.slice(firstBrace, lastBrace + 1));
+  } catch (error) {
+    throw unreadableResponse(
+      `Groq response was not valid JSON: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  const rawMatches = (parsed as { matches?: unknown }).matches;
+  if (!Array.isArray(rawMatches)) {
+    throw bulkScoreError({
+      stage: "shape",
+      message: "جاء رد الذكاء الاصطناعي بصيغة غير متوقعة. حاولي مرة أخرى.",
+      detail: `Parsed JSON is missing the "matches" array (got keys: ${Object.keys((parsed as object) ?? {}).join(", ") || "none"}, ${usageDetail}, ${sizeContext}).`,
+    });
+  }
+
+  return rawMatches;
 }
 
 /**
@@ -273,152 +455,14 @@ Respond with ONLY a JSON object of this exact shape:
       });
     }
 
-    // Deliberately no response_format: Groq's json_object and json_schema
-    // modes both fail intermittently with the gpt-oss reasoning models
-    // (json_validate_failed with an empty failed_generation), and a retry
-    // would double token usage against the free tier's 8000 TPM budget.
-    // Plain text with server-side JSON extraction and validation is reliable.
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-oss-120b",
-        messages: [{ role: "user", content: prompt }],
-        // gpt-oss models emit a reasoning channel; without "hidden" the
-        // final answer may never land in message.content
-        reasoning_format: "hidden",
-        // "low" — at medium the model can burn the whole completion budget
-        // on reasoning and finish with reason "length" and empty content
-        reasoning_effort: "low",
-        max_completion_tokens: maxCompletionTokens,
-        temperature: 0,
-      }),
+    const rawMatches = await requestGroqMatches({
+      apiKey,
+      prompt,
+      maxCompletionTokens,
+      sizeContext,
+      candidateCount: candidates.length,
+      smallerBatchHint: "جربي إدخال الدرجات على دفعات أصغر.",
     });
-
-    if (!response.ok) {
-      const body = await response.text();
-      const upstream = readUpstreamMessage(body);
-      const detail = `Groq HTTP ${response.status}: ${upstream} (${sizeContext})`;
-
-      if (response.status === 429) {
-        // Groq reports the wait either in the Retry-After header or inside the
-        // message ("Please try again in 5.4s")
-        const header = Number(response.headers.get("retry-after"));
-        const fromMessage = upstream.match(/try again in ([\d.]+)s/);
-        const seconds = Number.isFinite(header) && header > 0
-          ? Math.ceil(header)
-          : fromMessage
-            ? Math.ceil(Number(fromMessage[1]))
-            : undefined;
-
-        throw bulkScoreError({
-          stage: "rate_limit",
-          message: seconds
-            ? `تم تجاوز الحد المسموح لاستخدام الذكاء الاصطناعي. حاولي بعد ${seconds} ثانية.`
-            : "تم تجاوز الحد المسموح لاستخدام الذكاء الاصطناعي. حاولي بعد قليل.",
-          detail,
-          ...(seconds !== undefined ? { retryAfterSeconds: seconds } : {}),
-        });
-      }
-
-      // 413: the request exceeded the per-minute token limit on its own,
-      // rather than being throttled against recent usage. Waiting won't help.
-      if (response.status === 413) {
-        throw bulkScoreError({
-          stage: "too_large",
-          message: `الطلب أكبر من الحد المسموح للذكاء الاصطناعي (${candidates.length} طالبة). الرجاء إبلاغ المسؤول التقني.`,
-          detail,
-        });
-      }
-
-      if (response.status === 401 || response.status === 403) {
-        throw bulkScoreError({
-          stage: "auth",
-          message: "مفتاح الذكاء الاصطناعي غير صالح. الرجاء إبلاغ المسؤول التقني.",
-          detail,
-        });
-      }
-
-      if (response.status >= 500) {
-        throw bulkScoreError({
-          stage: "upstream",
-          message: "خدمة الذكاء الاصطناعي غير متاحة حالياً. حاولي بعد قليل.",
-          detail,
-        });
-      }
-
-      throw bulkScoreError({
-        stage: "http",
-        message: `فشل الاتصال بخدمة الذكاء الاصطناعي (رمز ${response.status}).`,
-        detail,
-      });
-    }
-
-    const data = await response.json();
-    const choice = data?.choices?.[0];
-    const usage = data?.usage;
-    const usageDetail = usage
-      ? `prompt=${usage.prompt_tokens} completion=${usage.completion_tokens} total=${usage.total_tokens} tokens`
-      : "usage unavailable";
-    const content = choice?.message?.content;
-    if (typeof content !== "string" || content.trim() === "") {
-      // finish_reason "length" means reasoning consumed the whole completion
-      // budget — a longer roster or pasted list makes this far more likely,
-      // so it gets its own actionable message.
-      if (choice?.finish_reason === "length") {
-        throw bulkScoreError({
-          stage: "truncated",
-          message:
-            "النص أو قائمة الطالبات طويلة جداً على الذكاء الاصطناعي. جربي إدخال الدرجات على دفعات أصغر.",
-          detail: `Groq stopped with finish_reason=length before emitting an answer (${usageDetail}, max_completion_tokens=4096, ${sizeContext}).`,
-        });
-      }
-
-      throw bulkScoreError({
-        stage: "empty",
-        message: "لم يرجع الذكاء الاصطناعي أي نتيجة. حاولي مرة أخرى.",
-        detail: `Groq returned empty content (finish_reason=${choice?.finish_reason}, ${usageDetail}, ${sizeContext}).`,
-      });
-    }
-
-    // The model may wrap the JSON in prose or code fences —
-    // extract the outermost object before parsing.
-    const unreadableResponse = (reason: string) =>
-      bulkScoreError({
-        stage: content.length > 0 && choice?.finish_reason === "length" ? "truncated" : "parse",
-        message:
-          choice?.finish_reason === "length"
-            ? "انقطع رد الذكاء الاصطناعي قبل اكتماله. جربي إدخال الدرجات على دفعات أصغر."
-            : "تعذّر فهم رد الذكاء الاصطناعي. حاولي مرة أخرى.",
-        detail: `${reason} (finish_reason=${choice?.finish_reason}, ${usageDetail}, ${sizeContext}) — response starts: ${content.slice(0, 200)}`,
-      });
-
-    const firstBrace = content.indexOf("{");
-    const lastBrace = content.lastIndexOf("}");
-    if (firstBrace === -1 || lastBrace <= firstBrace) {
-      throw unreadableResponse("Groq response contained no JSON object");
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(content.slice(firstBrace, lastBrace + 1));
-    } catch (error) {
-      throw unreadableResponse(
-        `Groq response was not valid JSON: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-
-    const rawMatches = (parsed as { matches?: unknown }).matches;
-    if (!Array.isArray(rawMatches)) {
-      throw bulkScoreError({
-        stage: "shape",
-        message: "جاء رد الذكاء الاصطناعي بصيغة غير متوقعة. حاولي مرة أخرى.",
-        detail: `Parsed JSON is missing the "matches" array (got keys: ${Object.keys((parsed as object) ?? {}).join(", ") || "none"}, ${usageDetail}, ${sizeContext}).`,
-      });
-    }
 
     const seenIds = new Set<string>();
 
@@ -461,6 +505,111 @@ Respond with ONLY a JSON object of this exact shape:
     });
 
     return { matches, otherStudentsSearched };
+  },
+});
+
+interface ManualListNameMatch {
+  /** The pasted line's key, echoed back from the request */
+  key: string;
+  /** The matched student's id, or null when no student fits */
+  id: string | null;
+  confidence: "high" | "medium" | "low";
+}
+
+/**
+ * Matches names from a hand-written halaqa list (القائمة اليدوية) to the
+ * channel's students. The client parses the list and matches what it can by
+ * itself; only the leftover names come here, which keeps the prompt within
+ * the free tier's token budget. Nothing is saved — the supervisor reviews
+ * every match before applying the list.
+ */
+export const matchManualListNames = action({
+  args: {
+    names: v.array(v.object({ key: v.string(), name: v.string() })),
+    students: v.array(v.object({ id: v.string(), name: v.string() })),
+  },
+  handler: async (_ctx, args): Promise<{ matches: ManualListNameMatch[] }> => {
+    if (args.names.length === 0) return { matches: [] };
+
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      throw bulkScoreError({
+        stage: "config",
+        message: "لم يتم إعداد مفتاح الذكاء الاصطناعي على الخادم.",
+        detail: "GROQ_API_KEY is not set in the Convex deployment environment.",
+      });
+    }
+
+    const sizeContext = `names=${args.names.length}, students=${args.students.length}`;
+
+    // Integer indices on both sides, mapped back below — see matchBulkScores
+    // for why ids never go to the model
+    const prompt = `You are helping a Quran study group (حلقة) supervisor import a hand-written attendance list. Match each written name to one student of the group.
+
+Students of the group (id | name), where id is the line number:
+${args.students.map((s, i) => `${i} | ${s.name}`).join("\n")}
+
+Written names (line | name):
+${args.names.map((n, i) => `${i} | ${n.name}`).join("\n")}
+
+Rules:
+1. Written names are usually the full three-part name (first, father, grandfather); a student's stored name may be shorter, longer, or a nickname. Arabic spelling varies (أ/ا/إ, ة/ه, ى/ي, عبد الله/عبدالله).
+2. Match a written name to a student only when the parts that both have agree. Never guess between two equally plausible students — return null id instead.
+3. confidence: "high" = clear unambiguous match, "medium" = probable match, "low" = uncertain.
+
+Respond with ONLY a JSON object of this exact shape, one entry per written name:
+{"matches": [{"line": <written name line>, "id": <student id or null>, "confidence": "high" | "medium" | "low"}]}`;
+
+    const estimateTokens = (text: string) => Math.ceil(text.length / 1.6);
+    // About 40 tokens per answered name, with room for the hidden reasoning
+    // channel even when only one or two names are left to match
+    const maxCompletionTokens = Math.min(
+      4096,
+      Math.max(1024, 512 + args.names.length * 40),
+      TPM_BUDGET - estimateTokens(prompt)
+    );
+    if (maxCompletionTokens < MIN_COMPLETION_TOKENS) {
+      throw bulkScoreError({
+        stage: "too_large",
+        message: `عدد الطالبات كبير جداً (${args.students.length} طالبة) على الحد المجاني للذكاء الاصطناعي. الرجاء إبلاغ المسؤول التقني.`,
+        detail: `Prompt is ~${estimateTokens(prompt)} tokens against a ${TPM_BUDGET}-token budget (${sizeContext}).`,
+      });
+    }
+
+    const rawMatches = await requestGroqMatches({
+      apiKey,
+      prompt,
+      maxCompletionTokens,
+      sizeContext,
+      candidateCount: args.students.length,
+      smallerBatchHint: "جربي لصق القائمة على دفعتين.",
+    });
+
+    const toIndex = (value: unknown, length: number): number | null => {
+      const n = typeof value === "string" ? (value.trim() === "" ? NaN : Number(value)) : value;
+      return typeof n === "number" && Number.isInteger(n) && n >= 0 && n < length ? n : null;
+    };
+
+    const byLine = new Map<number, ManualListNameMatch>();
+    for (const m of rawMatches as any[]) {
+      if (typeof m !== "object" || m === null) continue;
+      const line = toIndex(m.line, args.names.length);
+      if (line === null || byLine.has(line)) continue;
+      const student = toIndex(m.id, args.students.length);
+      byLine.set(line, {
+        key: args.names[line].key,
+        id: student === null ? null : args.students[student].id,
+        confidence:
+          m.confidence === "high" || m.confidence === "medium" ? m.confidence : "low",
+      });
+    }
+
+    // Every name gets an answer, even one the model skipped
+    return {
+      matches: args.names.map(
+        (n, i) => byLine.get(i) ?? { key: n.key, id: null, confidence: "low" as const }
+      ),
+    };
   },
 });
 
