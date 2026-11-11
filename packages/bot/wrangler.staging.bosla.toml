@@ -1,4 +1,4 @@
-# Team staging only. Production uses wrangler.toml and different queues/secrets.
+# Team staging only. Production uses wrangler.production.bosla.toml and separate queues/secrets.
 name = "halaqabot-staging"
 account_id = "fe626a504678476d9e8c2d942794d30f"
 main = "src/worker.ts"

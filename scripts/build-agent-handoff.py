@@ -46,6 +46,10 @@ SOURCES = [
     "packages/web/src/components/ManualListModal.tsx", "packages/web/src/lib/manual-list.ts",
     "packages/web/src/lib/manual-list.test.ts", "packages/web/src/routes/PostDetail.tsx",
     "packages/testing/test/web-api.test.ts",
+    ".env.production.example", "packages/bot/wrangler.production.bosla.toml",
+    "scripts/production-config.ts", "scripts/prepare-production.ts",
+    "scripts/prepare-production-secrets.ts", "packages/testing/test/production-config.test.ts",
+    "docs/production-cutover.md", "docs/production-maintainer-prompt.md",
 ]
 
 
@@ -57,9 +61,10 @@ def assert_no_known_secrets(payload):
     secret_names = {
         "BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET", "CONVEX_AUTH_PRIVATE_KEY",
         "TEST_CONVEX_AUTH_PRIVATE_KEY", "GROQ_API_KEY", "CONVEX_DEPLOY_KEY",
+        "CONVEX_DEPLOY_KEY_PROD_READ", "CONVEX_DEPLOY_KEY_PROD_WRITE_CAUTION",
     }
     # Compare privately against values available on the build machine; never emit them.
-    for filename in (".env.staging.local", ".env.sim.local", ".env.staging.bosla.local"):
+    for filename in (".env.staging.local", ".env.sim.local", ".env.staging.bosla.local", ".env.production.local"):
         config = ROOT / filename
         if not config.exists():
             continue

@@ -136,6 +136,13 @@ against your message volume.
 
 ### First deploy (cutover from the Docker bot)
 
+**For the Bosla production release, use the [prepared cutover runbook](docs/production-cutover.md)
+and [maintainer-agent prompt](docs/production-maintainer-prompt.md).** They use
+`wrangler.production.bosla.toml`, same-origin assets, a cron-disabled bootstrap,
+explicit production targets and an update-preserving rollback. Start with the
+local-only `bun scripts/prepare-production.ts`; it does not deploy. The generic
+commands below describe the architecture; use the pinned runbook for the live switch.
+
 The order matters:
 - The new Convex functions only answer the new Worker, which signs its calls.
   They shut out the Docker bot and the old web app.
@@ -143,7 +150,9 @@ The order matters:
 
 So: stop the Docker bot, deploy Convex, then the Worker and the web app, one
 after another. Telegram holds updates while no bot is reading them (up to 24
-hours), and delivers them once the webhook is set, so nothing is lost.
+hours), and delivers them once the webhook is set. Already acknowledged tasks
+must be drained or accounted for separately; inspect handler errors as well as
+queue backlog.
 
 1. **Create the queues:**
    ```bash
@@ -199,13 +208,12 @@ then holds updates). Deploy Convex, then the Worker, then run
 Re-run `bun run webhook:set` whenever `ALLOWED_UPDATES` in `src/bot.ts`
 changes; Telegram only sends the update types registered with the webhook.
 
-To roll back:
-
-1. Take the Worker out: `bunx wrangler delete` (removes its routes, queue
-   consumers and cron), or at least remove its cron trigger.
-2. Redeploy the previous commit's Convex functions and web app.
-3. Start the previous Docker bot. It deletes the webhook on start, but with
-   `drop_pending_updates`, so updates Telegram was holding are lost.
+To roll back, follow the [production rollback sequence](docs/production-cutover.md#5-rollback).
+Pause incoming delivery without dropping pending updates, drain or preserve queues
+before changing the backend, and restore the prepared old release. Its polling
+startup must use `drop_pending_updates: false`; the unmodified old release drops
+pending updates. Do not delete queues/Workers with queued work or restore a data
+snapshot over newer writes.
 
 Logs: `bunx wrangler tail`, or the Workers dashboard (observability is enabled).
 

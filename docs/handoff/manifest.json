@@ -4,7 +4,7 @@
   "source_branch": "claude/telegram-cloudflare-workers-migration-c09q4a",
   "source_repository": "https://github.com/MoAndBee/HalaqaBot.git",
   "snapshot_date": "2026-11-11",
-  "patch_sha256": "60e440bf0c7642a5b6965d28b9aa8bcfbecbf3e031bac205624e8d386836e167",
+  "patch_sha256": "f5c3d116b63e5113168c726f0dd8381e8672ca77a751f08a5c6fef1e78ae75ab",
   "source_paths": [
     ".gitignore",
     "README.md",
@@ -57,8 +57,16 @@
     "packages/web/src/lib/manual-list.ts",
     "packages/web/src/lib/manual-list.test.ts",
     "packages/web/src/routes/PostDetail.tsx",
-    "packages/testing/test/web-api.test.ts"
+    "packages/testing/test/web-api.test.ts",
+    ".env.production.example",
+    "packages/bot/wrangler.production.bosla.toml",
+    "scripts/production-config.ts",
+    "scripts/prepare-production.ts",
+    "scripts/prepare-production-secrets.ts",
+    "packages/testing/test/production-config.test.ts",
+    "docs/production-cutover.md",
+    "docs/production-maintainer-prompt.md"
   ],
   "contains_secrets": false,
-  "archive_sha256": "884c55f23fd665c0ab01261f13acefa6463393533e79f8b9c6a6a797a37b9863"
+  "archive_sha256": "d465c6d9613d8fbb7c180c8a3465dbb719bf3f64a11d54fd5841481854713575"
 }

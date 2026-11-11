@@ -1,6 +1,11 @@
 # Moving to bosla.to
 
 The selected Mini App address is **https://halaqabot.bosla.to/**.
+The account-pinned production configuration and local build/secret checks are
+prepared. Use the [complete coordinated cutover runbook](production-cutover.md)
+and [copyable maintainer-agent prompt](production-maintainer-prompt.md). Preparation
+was verified with builds, guard tests and a Wrangler dry run; no live production
+resource or DNS change was made.
 `bosla.to` is owned and its DNS is already on Cloudflare. Application defaults
 now use this production hostname; production DNS/deployment has not been changed.
 Staging is already live at **https://halaqabot-staging.bosla.to** in Bosla
@@ -49,7 +54,7 @@ Convex staging project was retired; follow the [agent handoff](agent-environment
 
 ## Configuration that must move together
 
-1. Prepare a production Wrangler config pinned to Bosla account
+1. Use the prepared `packages/bot/wrangler.production.bosla.toml`, pinned to Bosla account
    `fe626a504678476d9e8c2d942794d30f`, with production queue names,
    bundled web assets and SPA fallback, following the active staging config.
    Bind only the production hostname:

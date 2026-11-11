@@ -12,6 +12,11 @@ with its scheduler disabled. Reuse the existing resources and obtain the
 staging-scoped credentials privately. The [completed hosting cutover](../bosla-staging-cutover.md)
 records the account, domain and verification; do not rerun it as initial setup.
 
+The bundle also contains [production preparation](../production-cutover.md) and a
+[copyable maintainer prompt](../production-maintainer-prompt.md). Its build/dry-run
+helper makes no live changes. Only the production operator should execute the
+coordinated release, with real production credentials and the required confirmation.
+
 For an agent starting from the pinned PR #165 commit, download this directory's
 `halaqabot-agent-handoff.tar.gz` and `SHA256SUMS`, then:
 

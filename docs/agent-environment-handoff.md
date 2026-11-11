@@ -6,6 +6,12 @@ Staging is live in Bosla Cloudflare. This runbook describes the active service
 and ongoing personal-dev setup; [cutover evidence](bosla-staging-cutover.md)
 records the completed hosting move and human Android/Wi-Fi acceptance.
 
+Production preparation is now included separately: [cutover runbook](production-cutover.md),
+[maintainer-agent prompt](production-maintainer-prompt.md), account-pinned config,
+local-only build/dry run and secret-target checks. No production changes have
+been made. The maintainer's agent executes that release; routine dev/staging
+work continues to use this runbook.
+
 ## Decision: reuse team staging; isolate personal work
 
 Reuse the existing shared staging bot, channel, discussion group and named
