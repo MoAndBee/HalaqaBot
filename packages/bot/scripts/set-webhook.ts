@@ -16,7 +16,7 @@ import { configureTelegram } from "../src/setup";
 const botToken = process.env.BOT_TOKEN;
 const workerUrl = process.env.WORKER_URL;
 const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-const webAppUrl = process.env.WEB_APP_URL || "https://halakabot.app.thawabcoding.work";
+const webAppUrl = process.env.WEB_APP_URL || "https://halaqabot.bosla.to";
 const apiRoot = process.env.TELEGRAM_API_ROOT;
 
 if (!botToken || !workerUrl || !secret) {

@@ -94,7 +94,7 @@ jobs:
         working-directory: packages/testing
         env:
           PREVIEW_CONTROL_TOKEN: ${{ secrets.PREVIEW_CONTROL_TOKEN }}
-        run: bun scripts/preview.ts check "${{ steps.urls.outputs.bot }}" "${{ steps.urls.outputs.sim }}"
+        run: bun run preview check "${{ steps.urls.outputs.bot }}" "${{ steps.urls.outputs.sim }}"
 
       - name: Comment on the PR
         if: steps.urls.outputs.sim && always()

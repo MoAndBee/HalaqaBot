@@ -44,7 +44,17 @@ describe("Telegram flood limits", () => {
     const record = await stack.waitFor(async () => {
       const r = await stack.query(api.queries.getPostImport, { importId: response.body.importId });
       return r && ["completed", "failed"].includes(r.status) ? r : null;
-    }, { message: "import to finish", timeoutMs: 90_000 });
+    }, { message: "import to finish", timeoutMs: 90_000 }).catch((error) => {
+      // Preserve the failing environment's evidence; a fresh isolated run can pass.
+      const diagnostics = {
+        forwards: sim.apiCalls.filter((call) => call.method === "forwardMessage").length,
+        rateLimits: sim.apiCalls.filter((call) => call.description?.startsWith("Too Many Requests")).length,
+        pendingUpdates: sim.pendingUpdateCount,
+        lastCalls: sim.apiCalls.slice(-8).map(({ method, ok, description }) => ({ method, ok, description })),
+        failedJobs: stack.workerLog.filter((line) => /job failed|Uncaught/.test(line)).length,
+      };
+      throw new Error(`Import timeout diagnostics: ${JSON.stringify(diagnostics)}`, { cause: error });
+    });
 
     expect(record).toMatchObject({ status: "completed", postId: groupMessage!.message_id });
     // It really was throttled along the way.

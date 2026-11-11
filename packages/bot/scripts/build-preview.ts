@@ -4,9 +4,9 @@
  *
  *   bun packages/bot/scripts/build-preview.ts
  *
- * 1. Pushes the branch's Convex functions: to a Convex preview deployment named
- *    after the branch with a preview deploy key, or to the dev deployment with
- *    a dev key. The web app is built against it.
+ * 1. Pushes the branch's Convex functions to its own Convex preview deployment
+ *    with a preview deploy key. Shared dev backends are rejected. The web app
+ *    is built against that deployment.
  * 2. Uploads the Preview with `wrangler preview`: the bot in preview mode (it
  *    handles updates without a queue and talks to the simulator's Preview of
  *    the same branch; see src/preview.ts), serving the web app too.
@@ -16,6 +16,7 @@
  * SIM_WEBHOOK_SECRET) and CONVEX_AUTH_PRIVATE_KEY.
  */
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const ROOT = path.resolve(import.meta.dir, "../../..");
@@ -27,6 +28,25 @@ const OUT_DIR = path.join(BOT_DIR, ".preview");
 /** The simulated world's channel and scratch group (packages/testing/src/world.ts). */
 export const SIMULATED_CHANNEL_ID = -1001000000001;
 export const SIMULATED_SCRATCH_CHAT_ID = -1001000000003;
+
+/** Stable branch identity, including branches that normalize to the same text. */
+export function convexPreviewName(branch: string): string {
+  const prefix = branch.replace(/[^a-zA-Z0-9-]/g, "-").toLowerCase()
+    .slice(0, 40).replace(/^-+|-+$/g, "") || "branch";
+  return `${prefix}-${createHash("sha256").update(branch).digest("hex").slice(0, 12)}`;
+}
+
+/** Only an explicitly local preview may use the developer's own dev key. */
+export function previewDeploymentForKey(deployKey: string, allowLocalDev = false):
+  { kind: "preview" } | { kind: "dev"; name: string } {
+  if (deployKey.startsWith("preview:")) return { kind: "preview" };
+  const deployment = deployKey.match(/^dev:([a-z0-9-]+)\|/)?.[1];
+  if (deployment && allowLocalDev) return { kind: "dev", name: deployment };
+  throw new Error(
+    "Cloud previews require an isolated Convex preview deployment and a preview deploy key. " +
+    "Shared dev and production keys are not supported. For personal testing, use the local preview command with your own dev key.",
+  );
+}
 
 async function run(cmd: string[], cwd: string, env: Record<string, string | undefined> = {}): Promise<string> {
   const proc = Bun.spawn(cmd, { cwd, env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe" });
@@ -40,13 +60,20 @@ async function run(cmd: string[], cwd: string, env: Record<string, string | unde
  * Pushes the Convex functions for `previewName` and builds the web app against
  * that deployment, same-origin with the bot. Returns the deployment's URL.
  */
-export async function deployConvexAndBuildWebApp(previewName: string, deployKey: string): Promise<string> {
+export async function deployConvexAndBuildWebApp(
+  previewName: string,
+  deployKey: string,
+  options: { local?: boolean } = {},
+): Promise<string> {
+  // Validate before creating files or running Convex: a rejected key must not
+  // publish a branch's code over another preview or developer's backend.
+  const deployment = previewDeploymentForKey(deployKey, options.local);
   mkdirSync(OUT_DIR, { recursive: true });
   const urlFile = path.join(OUT_DIR, "convex-url");
   const webBuild = `cd ${WEB_DIR} && bunx vite build && printenv VITE_CONVEX_URL > ${urlFile}`;
   const env = { CONVEX_DEPLOY_KEY: deployKey, VITE_BOT_API_URL: "" };
 
-  if (deployKey.startsWith("preview:")) {
+  if (deployment.kind === "preview") {
     // Its own deployment, created on first push. CONVEX_AUTH_JWKS comes from
     // the Convex project's default environment variables for previews.
     await run(
@@ -57,10 +84,8 @@ export async function deployConvexAndBuildWebApp(previewName: string, deployKey:
     );
     return readFileSync(urlFile, "utf8").trim();
   }
-  // A dev key: the shared dev deployment (Convex's free plan has no previews).
-  const deployment = deployKey.match(/^dev:([a-z0-9-]+)\|/)?.[1];
-  if (!deployment) throw new Error("CONVEX_DEPLOY_KEY must be a preview or dev deploy key");
-  const convexUrl = `https://${deployment}.convex.cloud`;
+  // Only the explicit local command opts into a personal dev deployment.
+  const convexUrl = `https://${deployment.name}.convex.cloud`;
   await run(["bunx", "convex", "dev", "--once", "--typecheck", "disable"], DB_DIR, env);
   await run(["sh", "-c", webBuild], ROOT, { VITE_CONVEX_URL: convexUrl, VITE_BOT_API_URL: "" });
   return convexUrl;
@@ -101,7 +126,7 @@ if (import.meta.main) {
   if (!branch || !deployKey) throw new Error("Needs WORKERS_CI_BRANCH (set by Workers Builds) and CONVEX_DEPLOY_KEY");
 
   console.log(`Convex and the web app for ${branch}…`);
-  const convexUrl = await deployConvexAndBuildWebApp(branch.replace(/[^a-zA-Z0-9-]/g, "-").toLowerCase(), deployKey);
+  const convexUrl = await deployConvexAndBuildWebApp(convexPreviewName(branch), deployKey);
   console.log(`Convex: ${convexUrl}`);
 
   const configFile = path.join(OUT_DIR, "wrangler.json");

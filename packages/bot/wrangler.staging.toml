@@ -1,0 +1,47 @@
+# Team staging only. Production uses wrangler.toml and different queues/secrets.
+name = "halaqabot-staging"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+workers_dev = true
+
+# The Mini App and API share the staging Worker's origin; no DNS zone is needed.
+[assets]
+directory = ".staging/web"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/telegram"]
+
+[[queues.producers]]
+binding = "UPDATES"
+queue = "halaqabot-staging-updates"
+
+[[queues.producers]]
+binding = "IMPORTS"
+queue = "halaqabot-staging-imports"
+
+[[queues.consumers]]
+queue = "halaqabot-staging-updates"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 2
+retry_delay = 10
+dead_letter_queue = "halaqabot-staging-dead-letters"
+
+[[queues.consumers]]
+queue = "halaqabot-staging-imports"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 2
+retry_delay = 10
+dead_letter_queue = "halaqabot-staging-dead-letters"
+
+[triggers]
+crons = ["17 * * * *"]
+
+[[rules]]
+type = "Data"
+globs = ["**/*.jpeg"]
+fallthrough = true
+
+[observability]
+enabled = true

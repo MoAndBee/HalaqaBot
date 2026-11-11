@@ -22,7 +22,7 @@ export async function ensureConvexCodegen(): Promise<void> {
   if (existsSync(path.join(CONVEX_DIR, "_generated/api.js"))) return;
   const proc = Bun.spawn(["bunx", "convex", "codegen", "--typecheck", "disable"], {
     cwd: path.dirname(CONVEX_DIR),
-    env: { ...process.env, CONVEX_DEPLOYMENT: "anonymous:local" },
+    env: { ...process.env, CONVEX_DEPLOY_KEY: "", CONVEX_DEPLOYMENT: "anonymous:local" },
     stdout: "ignore",
     stderr: "inherit",
   });

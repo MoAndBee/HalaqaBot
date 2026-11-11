@@ -31,6 +31,11 @@ wires them to the real bot Worker running under `wrangler dev`.
 
 ## Commands
 
+The simulator also hosts Telegram SDK confirmation/alert popups. Actions such as
+deleting a turn display a dialog above the Mini App; Cancel leaves the turn
+unchanged and OK lets the Mini App run its existing mutation. This emulates the
+Telegram host and does not change the Mini App's confirmation or deletion code.
+
 ```bash
 bun run test        # scenario + simulator tests (in-memory Convex)
 bun run sim         # the stack plus dashboard at http://127.0.0.1:8790
