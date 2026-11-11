@@ -116,7 +116,9 @@ The Cloudflare account/domain handoff below reuses this existing deployment.
 2. **Completed:** Bosla hosting and `https://halaqabot-staging.bosla.to` are
    live, with the existing bot/chats and Convex named staging deployment.
    The old scheduler is disabled; only Bosla runs admin reconciliation.
-3. **Final human check:** on Android over Wi-Fi, close the staging panel,
+3. **Passed on 2026-11-11 by Mohanad:** the final Android/Wi-Fi check below.
+   Retain these steps for future hosting changes; do not repeat them for this cutover.
+   Close the staging panel,
    send a fresh `/admin` to `@halaqabot_bosla_staging_bot`, open
    **🎛️ فتح لوحة التحكم**, and confirm the existing halaqa loads. Send its
    participant list once and confirm it appears under the correct Telegram
@@ -125,7 +127,12 @@ The Cloudflare account/domain handoff below reuses this existing deployment.
    bot menu. Automated desktop/mobile-viewport checks already passed.
 4. Real Groq classification and physical iPhone testing remain unverified;
    classification currently uses the authenticated fake service.
-5. Review the resulting #165 release state before the production cutover to
+5. `main` then added PR #170 (manual-list halaqas). Its conflicts with #165
+   were resolved and tested on personal dev; see [integration evidence](pr-165-review.md#main-branch-integration-on-2026-11-11).
+   Shared staging still runs the previously accepted source. Promote and smoke-test
+   the final candidate before a production cutover; no broad repeat of human tests
+   is required merely for the completed hostname move.
+6. Review the resulting #165 release state before the production cutover to
    `https://halaqabot.bosla.to/`. Staging-domain completion is not a production
    deployment. The production Convex deployment and existing dev deployments
    were unchanged.

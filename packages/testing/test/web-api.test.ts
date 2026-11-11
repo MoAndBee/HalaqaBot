@@ -122,6 +122,29 @@ describe("sending the participant list", () => {
     expect(listMessages(postId)).toHaveLength(1);
   });
 
+  test("an external manual halaqa is never posted, and default sending still uses Telegram", async () => {
+    const postId = await halaqaWithStudents();
+    const external = await stack.mutation(api.mutations.applyManualList, {
+      chatId: stack.world.groupId, channelId: stack.world.channelId, postId,
+      mode: "create", appliedBy: stack.world.admin.id, rawText: "manual integration test",
+      newSession: { teacherName: "Zoom teacher", platform: "Zoom" },
+      entries: [{ userId: stack.world.students[0]!.id, done: true, skipped: false, sessionType: "تسميع" }],
+    });
+    const denied = await stack.callApi("/api/participant-list", {
+      chatId: stack.world.groupId, postId, sessionNumber: external.sessionNumber,
+    }, asAdmin());
+    expect(denied.status).toBe(409);
+    expect(denied.body.error).toContain("خارج تيليجرام");
+    expect(listMessages(postId)).toHaveLength(0);
+    const sent = await stack.callApi("/api/participant-list", {
+      chatId: stack.world.groupId, postId,
+    }, asAdmin());
+    expect(sent.status).toBe(200);
+    expect(listMessages(postId)).toHaveLength(1);
+    expect(listMessages(postId)[0]?.text).toContain("منى علي");
+    expect(listMessages(postId)[0]?.text).not.toContain("Zoom teacher");
+  });
+
   test("a locked halaqa's list can't be sent", async () => {
     const postId = await halaqaWithStudents();
     await stack.mutation(api.mutations.lockSession, { chatId: stack.world.groupId, postId, sessionNumber: 1 });

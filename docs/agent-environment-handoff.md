@@ -4,7 +4,7 @@ Originally prepared 2026-11-06; updated 2026-11-11 after the completed Bosla
 cutover for PR [#165](https://github.com/MoAndBee/HalaqaBot/pull/165).
 Staging is live in Bosla Cloudflare. This runbook describes the active service
 and ongoing personal-dev setup; [cutover evidence](bosla-staging-cutover.md)
-records what was performed and what still needs a human phone check.
+records the completed hosting move and human Android/Wi-Fi acceptance.
 
 ## Decision: reuse team staging; isolate personal work
 
@@ -450,7 +450,8 @@ list replacement, registration close/reopen, background/resume and second-accoun
 promotion/demotion/reaction checks. Do not request these again as unverified work.
 Automated desktop/mobile-viewport checks also passed on the new live domain.
 
-**Final physical Android check, on Wi-Fi:**
+**Passed by Mohanad on 2026-11-11: physical Android check, on Wi-Fi.**
+The steps below are retained for future hosting changes.
 
 1. Close any old staging panel. Open `@halaqabot_bosla_staging_bot` and send a
    fresh `/admin` privately. Old inline buttons retain their old URL.
@@ -529,7 +530,7 @@ this simple hosting rollback may not be sufficient—review compatibility first.
   checkout run generated missing bindings and passed 82 tests with 4 browser
   skips. GitHub CI still needs maintainer approval for fork workflows.
 - #168 and #169 were merged into #165 on 2026-11-11. Bosla staging is live.
-  Follow [the final phone check and remaining release checks](staging-acceptance.md)
+  Android/Wi-Fi acceptance passed. Follow [the remaining release checks](staging-acceptance.md)
   before the production domain/bot cutover. #165 remains open against `main`.
 
 When finished, report the exact destination Cloudflare account, hostname, Worker

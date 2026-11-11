@@ -6,7 +6,7 @@ import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
 import { callBot } from '~/lib/bot-api'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags, DoorClosed, DoorOpen } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags, DoorClosed, DoorOpen, ClipboardList, ClipboardPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext, useSelectedChannel } from '~/contexts/TelegramAuthContext'
 import {
@@ -36,6 +36,7 @@ import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import { UnlockSessionModal } from '~/components/UnlockSessionModal'
 import { BulkSessionTypeModal } from '~/components/BulkSessionTypeModal'
+import { ManualListModal, type ManualListMode } from '~/components/ManualListModal'
 import { PostMessagesView } from '~/components/PostMessagesView'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import type { SessionType } from '~/components/SplitButton'
@@ -96,6 +97,13 @@ const FLOWER_STORAGE_KEY = 'halaqa-selected-flower'
 // Single toast id so queueing/progress/result replace each other in place
 const SEND_LIST_TOAST_ID = 'send-participant-list'
 
+// Where an external (manual list) halaqa was held, for the session picker
+const PLATFORM_LABELS: Record<string, string> = {
+  zoom: 'زوم',
+  meet: 'جوجل ميت',
+  other: 'خارج تيليجرام',
+}
+
 export default function PostDetail() {
   const params = useParams<{ chatId: string; postId: string }>()
   const chatId = Number(params.chatId)
@@ -113,6 +121,8 @@ export default function PostDetail() {
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
   const [isBulkSessionTypeModalOpen, setIsBulkSessionTypeModalOpen] = React.useState(false)
+  // Which manual list flow is open: replacing this session's list, or adding an external halaqa
+  const [manualListMode, setManualListMode] = React.useState<ManualListMode | null>(null)
   const [activeTab, setActiveTab] = React.useState<'turns' | 'messages'>('turns')
   const [notesModalState, setNotesModalState] = React.useState<{
     entryId: string
@@ -966,10 +976,11 @@ export default function PostDetail() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null; supervisorName?: string | null }) => (
+                    {availableSessions.map((session: { sessionNumber: number; teacherName?: string | null; supervisorName?: string | null; origin?: string | null; platform?: string | null }) => (
                       <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
                         الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
                         {session.teacherName && ` (${session.teacherName})`}
+                        {session.origin === 'external' && ` · ${PLATFORM_LABELS[session.platform ?? ''] ?? 'خارج تيليجرام'}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -986,6 +997,20 @@ export default function PostDetail() {
                 <DropdownMenuItem onClick={handleStartNewSession}>
                   <Plus className="h-4 w-4 ml-2" />
                   بدء حلقة جديدة
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setManualListMode('create')}
+                  disabled={!postDetails || !telegramUser}
+                >
+                  <ClipboardPlus className="h-4 w-4 ml-2" />
+                  إضافة حلقة بقائمة يدوية
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setManualListMode('replace')}
+                  disabled={sessionInfo?.isLocked || !postDetails || !telegramUser}
+                >
+                  <ClipboardList className="h-4 w-4 ml-2" />
+                  تعديل الحلقة بقائمة يدوية
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleEditTeacherName}
@@ -1059,7 +1084,7 @@ export default function PostDetail() {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleSendParticipantList}
-                  disabled={sessionInfo?.isLocked}
+                  disabled={sessionInfo?.isLocked || sessionInfo?.origin === 'external'}
                 >
                   <Send className="h-4 w-4 ml-2" />
                   إرسال قائمة الأسماء
@@ -1239,6 +1264,22 @@ export default function PostDetail() {
         onClose={() => setIsStartNewSessionModalOpen(false)}
         onStart={handleStartNewSessionSubmit}
       />
+
+      {manualListMode && postDetails && telegramUser && (
+        <ManualListModal
+          isOpen
+          onClose={() => setManualListMode(null)}
+          mode={manualListMode}
+          chatId={chatId}
+          postId={postId}
+          channelId={CHANNEL_ID}
+          sessionNumber={selectedSession ?? data.currentSession}
+          existingCount={data.activeUsers.length + data.completedUsers.length}
+          halaqaTimestamp={postDetails.createdAt}
+          appliedBy={telegramUser.id}
+          onApplied={(sessionNumber) => setSelectedSession(sessionNumber)}
+        />
+      )}
 
       <UnlockSessionModal
         isOpen={isUnlockModalOpen}

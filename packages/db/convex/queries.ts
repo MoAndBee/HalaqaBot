@@ -1,4 +1,5 @@
 import { query, internalQuery } from "./_generated/server";
+import { compareSessionsNewestFirst, pickCurrentSession } from "../src/sessionOrigin";
 import { v } from "convex/values";
 import { paginationOptsValidator, type GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
@@ -84,19 +85,12 @@ export const getUserList = query({
         )
         .collect();
 
-      if (allSessions.length === 0) {
-        // No sessions exist, default to session 1
-        sessionNumber = 1;
-      } else {
-        // Sort by createdAt (newest first), with sessionNumber as tiebreaker
-        allSessions.sort((a, b) => {
-          if (b.createdAt !== a.createdAt) {
-            return b.createdAt - a.createdAt;
-          }
-          return b.sessionNumber - a.sessionNumber;
-        });
-        sessionNumber = allSessions[0].sessionNumber;
-      }
+      // The current Telegram session; a post holding only external (Zoom)
+      // sessions shows its newest one rather than an empty session 1
+      const shown =
+        pickCurrentSession(allSessions) ??
+        [...allSessions].sort(compareSessionsNewestFirst)[0];
+      sessionNumber = shown?.sessionNumber ?? 1;
     }
 
     // Query active users from turnQueue
@@ -218,6 +212,8 @@ export const getAvailableSessions = query({
       supervisorName: session.supervisorName,
       createdAt: session.createdAt,
       registrationClosed: session.registrationClosed,
+      origin: session.origin ?? null,
+      platform: session.platform ?? null,
     }));
   },
 });
@@ -248,6 +244,9 @@ export const getSessionInfo = query({
       lockedAt: sessionMeta.lockedAt,
       lockedBy: sessionMeta.lockedBy,
       registrationClosed: sessionMeta.registrationClosed,
+      origin: sessionMeta.origin ?? null,
+      platform: sessionMeta.platform ?? null,
+      manualListAppliedAt: sessionMeta.manualListAppliedAt ?? null,
     };
   },
 });

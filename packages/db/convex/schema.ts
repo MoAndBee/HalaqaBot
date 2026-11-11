@@ -58,6 +58,7 @@ export default defineSchema({
     isCompensation: v.optional(v.boolean()), // true if this turn is for compensation
     compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
     wasSkipped: v.optional(v.boolean()), // true if this participant has been skipped
+    source: v.optional(v.string()), // "manual_list" when created from a pasted manual list
   })
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
     .index("by_chat_post_position", ["chatId", "postId", "position"])
@@ -82,6 +83,7 @@ export default defineSchema({
     carriedOver: v.optional(v.boolean()), // true if user was carried over from previous session
     isCompensation: v.optional(v.boolean()), // true if this participation is for compensation
     compensatingForDates: v.optional(v.array(v.number())), // array of timestamps for dates being compensated
+    source: v.optional(v.string()), // "manual_list" when created from a pasted manual list
   })
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
     .index("by_chat_post", ["chatId", "postId"])
@@ -144,6 +146,15 @@ export default defineSchema({
     lockedAt: v.optional(v.number()), // Timestamp when session was locked
     lockedBy: v.optional(v.string()), // Identifier of admin who locked the session
     registrationClosed: v.optional(v.boolean()), // Whether new turn registrations are closed
+    // "external" for a halaqa held outside Telegram (Zoom, Meet, …) and added
+    // from a pasted manual list; unset for Telegram halaqas. See src/sessionOrigin.ts
+    origin: v.optional(v.string()),
+    platform: v.optional(v.string()), // "zoom" | "meet" | "other", for external sessions
+    // Last time this session's list was replaced by a pasted manual list, by
+    // whom, and the text as pasted — kept so a bad import can be traced
+    manualListAppliedAt: v.optional(v.number()),
+    manualListAppliedBy: v.optional(v.number()),
+    manualListText: v.optional(v.string()),
     createdAt: v.number(), // timestamp in ms
   })
     .index("by_chat_post", ["chatId", "postId"])

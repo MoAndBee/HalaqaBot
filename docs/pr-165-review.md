@@ -227,3 +227,27 @@ Review sources: README, CLAUDE.md, migration decision record and the pinned diff
 `docs/agents/issue-tracker.md` is absent; the PR's own decision record served as
 the spec. The code-review skill suggests `/setup-matt-pocock-skills` for adding
 that issue-tracker integration if wanted; it was unnecessary for this review.
+
+
+## Main-branch integration on 2026-11-11
+
+After the Bosla staging phone acceptance passed, `main` advanced to
+`b3b68ad2b934140126160116052db5b956f08cab` (PR #170, manual-list halaqas).
+Its integration with #165 was tested separately on Mohanad's personal dev
+`doting-viper-550`; the shared staging Worker/backend were not redeployed.
+
+The conflict resolution preserves direct Worker API calls and the Convex
+lockdown, carries external-session filtering into list sending, and adds admin,
+channel/chat, student-membership and applying-user checks to the newly added
+manual-list endpoints. Regression tests reject unrelated students before any
+queue/history/session writes, reject forged supervisors and mismatched channels,
+permit local manual students, keep new Telegram registrations in their Telegram
+session, and prevent the Worker from publishing an external session's list.
+
+Validation: database/bot/web builds passed; personal cloud Convex push passed;
+local testing package **104 passed, 4 cloud-browser-only skips, 0 failures**;
+manual-list parser suite **24 passed, 0 failures** (run with the channel-isolation
+tests: 42 passed total); personal cloud browser checks **4 passed, 0 failures**.
+Physical Android/Wi-Fi acceptance applies to the deployed Bosla hosting cutover,
+not to this subsequent source integration. Real Groq and physical iPhone tests
+remain unverified. Production has not been changed.

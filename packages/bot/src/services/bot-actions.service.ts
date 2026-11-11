@@ -1,5 +1,5 @@
 import type { Bot, InputFile } from "grammy";
-import { api, type ConvexHttpClient, type Id } from "@halakabot/db";
+import { api, isExternalSession, type ConvexHttpClient, type Id } from "@halakabot/db";
 import type { Config } from "../config/environment";
 import { SERVICE_ACCOUNT_IDS, type MessageService } from "./message.service";
 import type { ClassificationService } from "./classification.service";
@@ -158,15 +158,17 @@ export class BotActionsService {
         postId,
       });
 
-      sessionNumber = allSessions[0]?.sessionNumber ?? 1;
+      sessionNumber = allSessions.find((s) => !isExternalSession(s))?.sessionNumber ?? 1;
     }
 
-    // A closed (locked) halaqa is final — don't publish its list again.
     const sessionInfo = await this.convex.query(api.queries.getSessionInfo, {
       chatId,
       postId,
       sessionNumber,
     });
+    if (sessionInfo && isExternalSession(sessionInfo)) {
+      throw new UserFacingError("لا يمكن إرسال القائمة: هذه الحلقة أُقيمت خارج تيليجرام.");
+    }
     if (sessionInfo?.isLocked) {
       throw new UserFacingError("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");
     }

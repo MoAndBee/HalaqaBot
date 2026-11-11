@@ -3,13 +3,17 @@ import { v, ConvexError } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
 import {
+  getCaller,
   requireAnyAdmin,
   requireBot,
   requireChannelAccess,
+  requireChannelChatAccess,
+  requireSelf,
   requireChatAccess,
   requireEntryAccess,
   requireStudentAccess,
 } from "./auth";
+import { EXTERNAL_SESSION_ORIGIN, pickCurrentSession } from "../src/sessionOrigin";
 
 /**
  * Parsing for Telegram message links (t.me/...).
@@ -300,19 +304,9 @@ export const addUserToList = mutation({
         )
         .collect();
 
-      if (allSessions.length === 0) {
-        // No sessions exist, default to session 1
-        sessionNumber = 1;
-      } else {
-        // Sort by createdAt (newest first), with sessionNumber as tiebreaker
-        allSessions.sort((a, b) => {
-          if (b.createdAt !== a.createdAt) {
-            return b.createdAt - a.createdAt;
-          }
-          return b.sessionNumber - a.sessionNumber;
-        });
-        sessionNumber = allSessions[0].sessionNumber;
-      }
+      // The current Telegram session — never an external (Zoom) one, even
+      // if it was added more recently. No session yet means session 1.
+      sessionNumber = pickCurrentSession(allSessions)?.sessionNumber ?? 1;
     }
 
     // Check if session is locked
@@ -409,19 +403,9 @@ export const addUserAtPosition = mutation({
         )
         .collect();
 
-      if (allSessions.length === 0) {
-        // No sessions exist, default to session 1
-        sessionNumber = 1;
-      } else {
-        // Sort by createdAt (newest first), with sessionNumber as tiebreaker
-        allSessions.sort((a, b) => {
-          if (b.createdAt !== a.createdAt) {
-            return b.createdAt - a.createdAt;
-          }
-          return b.sessionNumber - a.sessionNumber;
-        });
-        sessionNumber = allSessions[0].sessionNumber;
-      }
+      // The current Telegram session — never an external (Zoom) one, even
+      // if it was added more recently. No session yet means session 1.
+      sessionNumber = pickCurrentSession(allSessions)?.sessionNumber ?? 1;
     }
 
     // Check if session is locked
@@ -1546,18 +1530,22 @@ export const startNewSession = mutation({
       )
       .collect();
 
-    // Find the max session number from sessions table
-    const currentMaxSession = allSessions.length > 0
-      ? Math.max(...allSessions.map(s => s.sessionNumber))
-      : 0;
+    // The Telegram session this one follows. External (Zoom) sessions are
+    // never locked or carried over from here: they may run alongside it.
+    const previousSession = pickCurrentSession(allSessions);
+    const currentMaxSession = previousSession?.sessionNumber ?? 0;
 
-    const newSessionNumber = currentMaxSession + 1;
+    // With no Telegram session yet this is session 1, where the post's turns
+    // already live (external sessions are never numbered 1). Otherwise the
+    // next number past every session, external ones included.
+    const newSessionNumber = previousSession
+      ? Math.max(...allSessions.map(s => s.sessionNumber)) + 1
+      : 1;
 
     // Auto-lock the previous session when starting a new one.
     // Skip locking if it still has an اختبار without a score, so the score
     // can be added later and the session locked manually.
     if (currentMaxSession > 0) {
-      const previousSession = allSessions.find(s => s.sessionNumber === currentMaxSession);
       if (previousSession && !previousSession.isLocked) {
         const previousHistory = await ctx.db
           .query("participationHistory")
@@ -2509,5 +2497,229 @@ export const registerDiscoveredPost = mutation({
     await upsertPost(ctx, args.chatId, args.postId, createdAt);
 
     return { postId: args.postId, createdAt };
+  },
+});
+
+const manualListEntry = v.object({
+  userId: v.number(),
+  // Required for a finished turn; optional for one still waiting
+  sessionType: v.optional(v.string()),
+  done: v.boolean(),
+  skipped: v.boolean(),
+  notes: v.optional(v.string()),
+  compensatingForDates: v.optional(v.array(v.number())),
+});
+
+/**
+ * Replace a halaqa's list with a pasted manual list (تعديل الحلقة بقائمة
+ * يدوية), or add a halaqa held outside Telegram from one (إضافة حلقة بقائمة
+ * يدوية). The supervisor has already reviewed and matched every line in the
+ * web app; this writes the result.
+ *
+ * - "replace": every turn of the session is deleted and the list's entries
+ *   take their place — the manual list is the halaqa's final record.
+ * - "create": a new external session is added to the post. It is numbered
+ *   past every session the post has, and never 1, so it can't collide with
+ *   the turns a post holds before its first session is started.
+ *
+ * Finished entries are filed under the post's date, as completeUserTurn does,
+ * so they land on the halaqa's day in attendance, whenever the list is pasted.
+ */
+export const applyManualList = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    channelId: v.optional(v.number()),
+    mode: v.union(v.literal("replace"), v.literal("create")),
+    // "replace": the session to overwrite
+    sessionNumber: v.optional(v.number()),
+    // "create": the new halaqa's details
+    newSession: v.optional(
+      v.object({
+        teacherName: v.string(),
+        platform: v.string(),
+      })
+    ),
+    appliedBy: v.number(), // Telegram user ID of the admin applying the list
+    rawText: v.string(),
+    entries: v.array(manualListEntry),
+  },
+  returns: v.object({ sessionNumber: v.number(), completed: v.number(), queued: v.number(), removed: v.number() }),
+  handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
+    if (args.channelId !== undefined) await requireChannelChatAccess(ctx, args.channelId, args.chatId);
+    requireSelf(await getCaller(ctx), args.appliedBy);
+    const { chatId, postId } = args;
+
+    if (args.entries.length === 0) {
+      throw new ConvexError("القائمة فارغة");
+    }
+
+    // Validate every entry before writing anything
+    for (const entry of args.entries) {
+      await requireStudentAccess(ctx, entry.userId, chatId);
+      if (entry.done && !entry.sessionType) {
+        throw new ConvexError("يجب تحديد نوع المشاركة لكل دور مكتمل");
+      }
+      if (entry.sessionType === "تعويض" && !entry.compensatingForDates?.length) {
+        throw new ConvexError("يجب تحديد أيام التعويض لكل مشاركة تعويض");
+      }
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_user_id", (q) => q.eq("userId", entry.userId))
+        .first();
+      if (!user) {
+        throw new ConvexError(`الطالبة ${entry.userId} غير موجودة`);
+      }
+    }
+
+    const now = Date.now();
+    const manualListFields = {
+      manualListAppliedAt: now,
+      manualListAppliedBy: args.appliedBy,
+      manualListText: args.rawText,
+    };
+
+    const [queueRows, historyRows, sessionRows] = await Promise.all([
+      ctx.db
+        .query("turnQueue")
+        .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
+        .collect(),
+      ctx.db
+        .query("participationHistory")
+        .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
+        .collect(),
+      ctx.db
+        .query("sessions")
+        .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
+        .collect(),
+    ]);
+
+    let sessionNumber: number;
+    let removed = 0;
+
+    if (args.mode === "replace") {
+      if (args.sessionNumber === undefined) {
+        throw new ConvexError("لم يتم تحديد الحلقة");
+      }
+      sessionNumber = args.sessionNumber;
+      await checkSessionLock(ctx, chatId, postId, sessionNumber);
+
+      for (const row of queueRows.filter((r) => r.sessionNumber === sessionNumber)) {
+        await ctx.db.delete(row._id);
+        removed++;
+      }
+      for (const row of historyRows.filter((r) => r.sessionNumber === sessionNumber)) {
+        await ctx.db.delete(row._id);
+        removed++;
+      }
+
+      const session = sessionRows.find((s) => s.sessionNumber === sessionNumber);
+      if (session) {
+        await ctx.db.patch(session._id, manualListFields);
+      } else {
+        // A post's turns can sit in session 1 before any session is started;
+        // give it a row so the manual list is recorded against it
+        await ctx.db.insert("sessions", {
+          chatId,
+          postId,
+          sessionNumber,
+          teacherName: "",
+          supervisorUserId: args.appliedBy,
+          supervisorUserIds: [args.appliedBy],
+          createdAt: now,
+          ...manualListFields,
+        });
+      }
+    } else {
+      if (!args.newSession || args.newSession.teacherName.trim() === "") {
+        throw new ConvexError("يجب إدخال اسم المعلمة");
+      }
+      const usedNumbers = [
+        1,
+        ...sessionRows.map((s) => s.sessionNumber),
+        ...queueRows.map((r) => r.sessionNumber),
+        ...historyRows.map((r) => r.sessionNumber),
+      ];
+      sessionNumber = Math.max(...usedNumbers) + 1;
+
+      await ctx.db.insert("sessions", {
+        chatId,
+        postId,
+        sessionNumber,
+        teacherName: args.newSession.teacherName.trim(),
+        supervisorUserId: args.appliedBy,
+        supervisorUserIds: [args.appliedBy],
+        origin: EXTERNAL_SESSION_ORIGIN,
+        platform: args.newSession.platform,
+        createdAt: now,
+        ...manualListFields,
+      });
+    }
+
+    // Same date rule as completeUserTurn: the post's first message, else the
+    // post's own record
+    const firstMessage = await ctx.db
+      .query("messageAuthors")
+      .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
+      .first();
+    const post = firstMessage
+      ? null
+      : await ctx.db
+          .query("posts")
+          .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
+          .first();
+    const completedAt = firstMessage?.createdAt ?? post?.createdAt ?? now;
+
+    let completed = 0;
+    let queued = 0;
+
+    // Inserted in list order: completed turns are listed by creation time,
+    // waiting turns by position
+    for (const [index, entry] of args.entries.entries()) {
+      const isCompensation = entry.sessionType === "تعويض";
+      const compensatingForDates = isCompensation ? entry.compensatingForDates : undefined;
+      const notes = entry.notes?.trim() || undefined;
+
+      if (entry.done) {
+        await ctx.db.insert("participationHistory", {
+          chatId,
+          postId,
+          sessionNumber,
+          userId: entry.userId,
+          sessionType: entry.sessionType!,
+          notes,
+          channelId: args.channelId,
+          createdAt: now,
+          completedAt,
+          originalPosition: index + 1,
+          carriedOver: false,
+          isCompensation,
+          compensatingForDates,
+          source: "manual_list",
+        });
+        completed++;
+      } else {
+        queued++;
+        await ctx.db.insert("turnQueue", {
+          chatId,
+          postId,
+          sessionNumber,
+          userId: entry.userId,
+          position: queued,
+          channelId: args.channelId,
+          createdAt: now,
+          carriedOver: false,
+          sessionType: entry.sessionType,
+          notes,
+          isCompensation: isCompensation || undefined,
+          compensatingForDates,
+          wasSkipped: entry.skipped || undefined,
+          source: "manual_list",
+        });
+      }
+    }
+
+    return { sessionNumber, completed, queued, removed };
   },
 });

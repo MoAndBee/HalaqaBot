@@ -4,7 +4,7 @@
   "source_branch": "claude/telegram-cloudflare-workers-migration-c09q4a",
   "source_repository": "https://github.com/MoAndBee/HalaqaBot.git",
   "snapshot_date": "2026-11-11",
-  "patch_sha256": "5d0f99206dac9de76ec8d51f603a34967d2fea8adb975dd88e6d9bc7385e9c08",
+  "patch_sha256": "a2659d0f9fdb10eb231e72fa718384ba56c1cffed45f5b29532ca92353cf6fb1",
   "source_paths": [
     ".gitignore",
     "README.md",
@@ -48,8 +48,17 @@
     "packages/db/convex/mutations.ts",
     "packages/db/convex/schema.ts",
     "packages/testing/test/channel-name-isolation.test.ts",
-    "packages/testing/test/convex-auth.test.ts"
+    "packages/testing/test/convex-auth.test.ts",
+    "packages/bot/src/services/bot-actions.service.ts",
+    "packages/db/convex/actions.ts",
+    "packages/db/src/index.ts",
+    "packages/db/src/sessionOrigin.ts",
+    "packages/web/src/components/ManualListModal.tsx",
+    "packages/web/src/lib/manual-list.ts",
+    "packages/web/src/lib/manual-list.test.ts",
+    "packages/web/src/routes/PostDetail.tsx",
+    "packages/testing/test/web-api.test.ts"
   ],
   "contains_secrets": false,
-  "archive_sha256": "0cfa7200c749465be8b245dca7a2973fa9c087d7b698e2d52ea72e3eb350c306"
+  "archive_sha256": "8eb1ef9ed51bb34e533fdc62d4169950af9e681b8f85955a0f5bf7771b6aca22"
 }

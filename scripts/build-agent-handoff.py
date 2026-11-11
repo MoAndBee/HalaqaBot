@@ -41,6 +41,11 @@ SOURCES = [
     "packages/db/convex/mutations.ts", "packages/db/convex/schema.ts",
     "packages/testing/test/channel-name-isolation.test.ts",
     "packages/testing/test/convex-auth.test.ts",
+    "packages/bot/src/services/bot-actions.service.ts", "packages/db/convex/actions.ts",
+    "packages/db/src/index.ts", "packages/db/src/sessionOrigin.ts",
+    "packages/web/src/components/ManualListModal.tsx", "packages/web/src/lib/manual-list.ts",
+    "packages/web/src/lib/manual-list.test.ts", "packages/web/src/routes/PostDetail.tsx",
+    "packages/testing/test/web-api.test.ts",
 ]
 
 

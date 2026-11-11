@@ -215,3 +215,68 @@ describe("channel-scoped admin and supervisor names", () => {
     await expect(t.query(api.queries.getSessionSupervisors, sessionArgs)).rejects.toThrow("يجب تسجيل الدخول");
   });
 });
+
+
+describe("manual lists preserve channel isolation", () => {
+  const args = {
+    chatId: CHAT_A, channelId: CHANNEL_A, postId: POST,
+    mode: "create" as const, appliedBy: ADMIN_A, rawText: "manual test list",
+    newSession: { teacherName: "Manual teacher", platform: "Zoom" },
+    entries: [{ userId: STUDENT, done: true, skipped: false, sessionType: "تسميع" }],
+  };
+
+  test("rejects anonymous and unrelated-channel imports before any writes", async () => {
+    const { t, admin } = await fixture();
+    await expect(t.mutation(api.mutations.applyManualList, args)).rejects.toThrow();
+    await expect(admin.mutation(api.mutations.applyManualList, {
+      ...args, chatId: CHAT_B, channelId: CHANNEL_B,
+    })).rejects.toThrow("غير مصرح");
+    await expect(admin.mutation(api.mutations.applyManualList, args)).rejects.toThrow("غير مصرح");
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query("sessions").collect()).toEqual([]);
+      expect(await ctx.db.query("participationHistory").collect()).toEqual([]);
+      expect(await ctx.db.query("turnQueue").collect()).toEqual([]);
+    });
+    await expect(admin.query(api.queries.getUser, { userId: STUDENT, chatId: CHAT_A })).rejects.toThrow("غير مصرح");
+  });
+
+  test("rejects a mismatched channel and a forged applying supervisor", async () => {
+    const { admin } = await fixture();
+    await expect(admin.mutation(api.mutations.applyManualList, {
+      ...args, channelId: CHANNEL_B,
+    })).rejects.toThrow("غير مصرح");
+    await expect(admin.mutation(api.mutations.applyManualList, {
+      ...args, appliedBy: ADMIN_B,
+    })).rejects.toThrow("غير مصرح");
+  });
+
+  test("local manual students can be imported without diverting Telegram registrations", async () => {
+    const { t, admin, bot } = await fixture();
+    const local = await admin.mutation(api.mutations.registerUser, {
+      chatId: CHAT_A, name: "Local manual student", passcode: "adminunlock311225",
+    });
+    const entries = [{ ...args.entries[0]!, userId: local.userId }];
+    const result = await admin.mutation(api.mutations.applyManualList, { ...args, entries });
+    expect(result).toMatchObject({ sessionNumber: 2, completed: 1, queued: 0 });
+    await bot.mutation(api.mutations.addUserToList, { chatId: CHAT_A, postId: POST, userId: local.userId });
+    await t.run(async (ctx) => {
+      const queue = await ctx.db.query("turnQueue").collect();
+      expect(queue[0]?.sessionNumber).toBe(1);
+      const session = await ctx.db.query("sessions").first();
+      expect(session?.origin).toBe("external");
+      expect(session?.manualListAppliedBy).toBe(ADMIN_A);
+    });
+    await bot.mutation(api.mutations.lockSession, { chatId: CHAT_A, postId: POST, sessionNumber: 2 });
+    await expect(admin.mutation(api.mutations.applyManualList, {
+      ...args, entries, mode: "replace", sessionNumber: 2,
+    })).rejects.toThrow();
+  });
+
+  test("manual name matching requires an admin even for an empty list", async () => {
+    const { t, admin } = await fixture();
+    const input = { names: [], students: [] };
+    await expect(t.action(api.actions.matchManualListNames, input)).rejects.toThrow();
+    await expect(t.withIdentity({ subject: String(STUDENT) }).action(api.actions.matchManualListNames, input)).rejects.toThrow("غير مصرح");
+    expect(await admin.action(api.actions.matchManualListNames, input)).toEqual({ matches: [] });
+  });
+});

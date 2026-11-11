@@ -14,3 +14,6 @@ export { ConvexError } from 'convex/values'
 
 // Convex document and id types, for code that handles rows outside the backend
 export type { Doc, Id } from '../convex/_generated/dataModel'
+
+// Session helpers shared by the backend and the bot
+export { isExternalSession, pickCurrentSession } from './sessionOrigin'

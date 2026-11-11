@@ -64,9 +64,10 @@ verified with its normal `لوحة التحكم` label and new URL.
   error is reported, the nine bot secret names are present, all destination
   queues report zero backlog, and only the Bosla cron is enabled.
 
-The remaining physical-phone check is a fresh `/admin` response and one list
-send on Android/Wi-Fi. That establishes a real user event through the new
-Telegram webhook/queue; no fake webhook event or synthetic simulator world was
+Mohanad confirmed the final physical Android/Wi-Fi check passed on 2026-11-11:
+a fresh `/admin` response opened the existing halaqa on the Bosla staging domain
+and list sending worked. This verifies a real user event through the new
+Telegram webhook/queue. No fake webhook event or synthetic simulator world was
 injected into shared staging. Real Groq and physical iPhone checks remain open.
 
 ## Rollback and maintenance
