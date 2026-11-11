@@ -1,5 +1,7 @@
-# Team staging only. Production uses wrangler.toml and different queues/secrets.
+# Personal-account staging retained for rollback; its scheduler is disabled.
+# Active staging uses wrangler.staging.bosla.toml.
 name = "halaqabot-staging"
+account_id = "633bbfa7b98a8f8d38054789a1af0e7a"
 main = "src/worker.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
@@ -36,7 +38,7 @@ retry_delay = 10
 dead_letter_queue = "halaqabot-staging-dead-letters"
 
 [triggers]
-crons = ["17 * * * *"]
+crons = []
 
 [[rules]]
 type = "Data"

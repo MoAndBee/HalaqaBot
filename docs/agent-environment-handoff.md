@@ -1,16 +1,17 @@
 # Agent handoff: personal development and Bosla team staging
 
-Originally prepared 2026-11-06; stacked handoff snapshot updated 2026-11-08 for
-PR [#165](https://github.com/MoAndBee/HalaqaBot/pull/165)
-in `MoAndBee/HalaqaBot`. This is a setup and migration runbook, not evidence
-that a migration to Bosla Cloudflare has already happened.
+Originally prepared 2026-11-06; updated 2026-11-11 after the completed Bosla
+cutover for PR [#165](https://github.com/MoAndBee/HalaqaBot/pull/165).
+Staging is live in Bosla Cloudflare. This runbook describes the active service
+and ongoing personal-dev setup; [cutover evidence](bosla-staging-cutover.md)
+records what was performed and what still needs a human phone check.
 
 ## Decision: reuse team staging; isolate personal work
 
-Keep one shared staging bot, channel, discussion group and Convex project.
-Recreate the hosting resources in **Bosla's Cloudflare account**, validate them
-alongside the existing hosting, then move the existing staging bot's webhook.
-Use the existing staging database without copying production or clearing rows.
+Reuse the existing shared staging bot, channel, discussion group and named
+Convex `staging` deployment in `halaqabotdb`. Hosting already runs in
+**Bosla's Cloudflare account**. Preserve the active webhook and scheduler; do not
+recreate resources, copy production data or clear staging rows.
 
 Every developer gets their own checkout, Convex **personal dev deployment**, and
 local simulator. Routine development and automated tests must not redeploy the
@@ -41,18 +42,18 @@ personal Cloudflare hosting stays available during preparation and rollback.
 | Linked discussion group | `HalaqaBot Staging — Discussion` |
 | Discussion ID | `-1004415858273` |
 | Current forwarding/probe chat | Discussion group, `-1004415858273` |
-| Current Mini App + API | `https://halaqabot-staging.mhndahmd031.workers.dev` |
-| Current webhook | `https://halaqabot-staging.mhndahmd031.workers.dev/telegram` |
-| Current Cloudflare owner | Mohanad's personal account, **not Bosla** |
-| Current Cloudflare account ID | `633bbfa7b98a8f8d38054789a1af0e7a` |
-| Current Workers subdomain | `mhndahmd031.workers.dev` |
+| Current Mini App + API | `https://halaqabot-staging.bosla.to` |
+| Current webhook | `https://halaqabot-staging.bosla.to/telegram` |
+| Current Cloudflare owner | **Bosla** |
+| Current Cloudflare account ID | `fe626a504678476d9e8c2d942794d30f` |
+| Current Workers subdomain | `nasseratic.workers.dev` |
 | Bot Worker | `halaqabot-staging` |
 | Fake-classifier Worker | `halaqabot-staging-classifier` |
-| Classifier base URL | `https://halaqabot-staging-classifier.mhndahmd031.workers.dev/openai/v1` |
+| Classifier base URL | `https://halaqabot-staging-classifier.nasseratic.workers.dev/openai/v1` |
 | Update queue | `halaqabot-staging-updates` |
 | Import queue | `halaqabot-staging-imports` |
 | Dead-letter queue | `halaqabot-staging-dead-letters` |
-| Scheduled admin reconciliation | `17 * * * *` |
+| Scheduled admin reconciliation | `17 * * * *`, Bosla Worker only; old scheduler disabled |
 | Shared Convex team/project | `bosla / halaqabotdb` |
 | Shared Convex named reference | `staging` (`bosla:halaqabotdb:staging`), non-default |
 | Shared Convex deployment | `perfect-clam-401` |
@@ -83,18 +84,21 @@ without a scoped key, that command can target the project's default production.
 Run `scripts/verify-staging-target.ts` with the private staging file before a
 backend deployment; never use an empty staging deploy key or `--prod`.
 
-### URLs to use after moving hosting
+### Current URLs and rollback
 
-- Recommended shared staging hostname: **`https://halaqabot-staging.bosla.to`**.
-  This is a proposed destination, not an existing verified DNS record. Inspect
-  the zone and confirm it is unused before attaching it.
+- Active shared staging hostname: **`https://halaqabot-staging.bosla.to`**.
+  Attached and verified on 2026-11-11; the webhook/menu cutover is complete.
+  Do not recreate its DNS record or move it to another Worker.
+- Personal rollback host: `https://halaqabot-staging.mhndahmd031.workers.dev`,
+  account `633bbfa7b98a8f8d38054789a1af0e7a`; its scheduler is disabled.
+  See [cutover evidence and rollback](bosla-staging-cutover.md).
 - Confirmed intended final production Mini App hostname:
   **`https://halaqabot.bosla.to`**. Do not use it for staging or alter it as part
   of this handoff.
 - Serve the staging Mini App and `/api/*` from the same Worker/domain. This is
-  already supported by `wrangler.staging.toml`; no separate frontend host is needed.
-- The classifier may stay at the **destination account's** Workers subdomain.
-  Replace its current personal-account URL in `GROQ_BASE_URL`.
+  already configured in `wrangler.staging.bosla.toml`; no separate frontend host is needed.
+- The classifier is `https://halaqabot-staging-classifier.nasseratic.workers.dev/openai/v1`.
+  Keep this Bosla URL in `GROQ_BASE_URL` until switching to an authorized real provider.
 
 ## 2. Obtain access; identifiers do not grant it
 
@@ -121,70 +125,28 @@ ask for tokens in ordinary chat, PR comments, terminal output or source files.
 
 ## 3. Obtain the actual source snapshot
 
-The additions were initially uncommitted on Mohanad's local branch. They are
-being published in the stacked branch `codex/pr-165-staging-handoff`, targeting
-PR #165's branch. Checking out PR #165 alone does not include them.
-The security fix is a separate [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169), at
-`0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a`. It is already deployed to shared staging.
-The environment branch/archive excludes those backend changes: include this
-commit as shown below before deploying, so the setup does not revert the fix.
-If your base already contains this commit, skip cherry-picking it again.
-
-Preferred: in a checkout of the repository, fetch the stacked environment branch
-from the contributor fork. It already includes
-the setup helpers, staging configs and these instructions. Do not apply the
-archive's patch over that branch:
+PRs #168 and #169 were merged into PR #165's migration branch. Use that branch
+as the authoritative source; it includes the setup, security and Bosla configs:
 
 ```bash
-git fetch https://github.com/mohanad-80/HalaqaBot.git codex/pr-165-staging-handoff
-git switch -c setup/bosla-staging FETCH_HEAD
-git fetch https://github.com/mohanad-80/HalaqaBot.git codex/fix-cross-channel-names
-git cherry-pick 0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a
+git fetch origin claude/telegram-cloudflare-workers-migration-c09q4a
+git switch -c setup/bosla-staging origin/claude/telegram-cloudflare-workers-migration-c09q4a
 bun install --frozen-lockfile
 bun run test
 ```
 
-Portable alternative: `docs/handoff/halaqabot-agent-handoff.tar.gz` contains the
-documents and `pr-165-environment.patch`, applied against the pinned #165 head.
-Download and extract it **outside the checkout** before switching branches, so
-switching to the older base does not remove your only copy of the archive.
-Verify `docs/handoff/SHA256SUMS` before extracting a downloaded archive.
+The portable `docs/handoff/halaqabot-agent-handoff.tar.gz` contains all of these
+changes, including the security fix, as a patch against the pinned original
+#165 head `5b00b67d2378d8f7f29073ab4fc58d1d833742f8`. Verify its checksum and
+extract outside the checkout. Apply only to that base, never over the current
+migration branch. See `docs/handoff/README.md` for exact steps. The old
+`codex/pr-165-staging-handoff` fork branch is historical and predates the live
+Bosla cutover; do not use it to redeploy the current service.
 
-In a new checkout, after extracting the archive through an approved file channel:
-
-```bash
-git clone https://github.com/MoAndBee/HalaqaBot.git
-cd HalaqaBot
-git fetch origin pull/165/head
-git switch -c setup/bosla-staging 5b00b67d2378d8f7f29073ab4fc58d1d833742f8
-git apply --check /path/to/handoff/pr-165-environment.patch
-git apply --index /path/to/handoff/pr-165-environment.patch
-git commit -m "Apply staging environment handoff"
-git fetch https://github.com/mohanad-80/HalaqaBot.git codex/fix-cross-channel-names
-git cherry-pick 0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a
-git status --short
-bun install --frozen-lockfile
-bun run test
-```
-
-Use Bun's existing cache/dependencies when available. This snapshot was tested
-with Bun 1.3.14. Do not silently upgrade dependencies. If the PR has advanced,
-compare the new head and port the changes deliberately instead of force-applying
-the patch. If using Mohanad's existing checkout, inspect its diff and do not
-apply the same patch twice or overwrite his work.
-
-Required additions already present on the stacked branch include `packages/bot/wrangler.staging.toml`,
-`packages/testing/wrangler.staging-classifier.toml`,
-`packages/testing/src/staging-classifier.ts`,
-`packages/testing/scripts/prepare-local.ts`, the simulator confirmation fix and
-the related tests/docs. Review the complete patch before using the archive. No
-credentials, ignored environment files, dependency folders or generated web
-assets belong in the archive.
-
-Do **not** use root `bun run build` as a harmless check: it runs a Convex deploy.
-After local test/codegen preparation, use `build:db`, `build:bot` and `build:web`
-individually. Existing stage/config additions are not a claim that all PR review
-findings are fixed; read `docs/pr-165-review.md`.
+Reuse local dependency caches where possible. No secrets, private env files,
+dependencies or generated assets belong in the portable bundle. Avoid root
+`bun run build` as a verification command because it includes a backend deploy;
+run the three package build commands separately.
 
 ## 4. Set up each developer's independent environment
 
@@ -300,74 +262,36 @@ This may download a browser. An older cached Chromium override caused misleading
 phone-test failures here; the matching v1243 shell passed. Do not default to an
 arbitrary installed browser or claim that desktop emulation proves real iOS.
 
-## 5. Prepare migration into Bosla Cloudflare without switching traffic
+## 5. Verify the existing Bosla service
 
-This phase can happen while everyone keeps using the current team bot.
+The hosting/domain migration completed on 2026-11-11. Do not recreate its
+Workers, queues, custom domain or Convex deployment. See the
+[completed cutover record](bosla-staging-cutover.md).
 
-1. Inspect the current webhook/menu, source revision, Worker versions, queue
-   consumers and cron. Record the current source URL above for rollback. Do not
-   call `deleteWebhook`, `setWebhook`, `getUpdates`, or start `bot.start()` for
-   the shared bot during preparation. Telegram supports one webhook per bot;
-   long polling cannot coexist with an active webhook.
-2. Authenticate Wrangler as the teammate and run, from `packages/bot`:
-
-   ```bash
-   ./node_modules/.bin/wrangler login
-   ./node_modules/.bin/wrangler whoami
-   ```
-
-   The teammate's email alone is insufficient: verify that the **Bosla account**
-   is listed. If localhost OAuth callbacks fail, use Wrangler's supported device
-   flow (`login --device`) rather than posting tokens in chat.
-3. Discover Bosla's actual Cloudflare account ID and Workers subdomain. They are
-   **not** the personal account ID/subdomain listed in section 1. Inspect the
-   `bosla.to` zone, existing records, routes and `halaqabot-staging.bosla.to`
-   hostname. An existing record/service must be investigated, not overwritten.
-4. Keep the bot and classifier config files separate from the personal source
-   deployment. For example, copy them to
-   `packages/bot/wrangler.staging.bosla.toml` and
-   `packages/testing/wrangler.staging-classifier.bosla.toml`. Put the verified
-   Bosla `account_id = "..."` at the top of **both**. Keep resource names from
-   section 1; they are isolated by account. If names already exist in Bosla,
-   inspect ownership/configuration before reusing them.
-5. In the **candidate bot config**, set `crons = []` under `[triggers]`. Keep the
-   old personal Worker's cron active for now. This prevents two schedulers while
-   preparing. Keep queue consumers, asset settings and compatibility flags; do
-   not set `PREVIEW_WORKER_NAME`, `TELEGRAM_API_ROOT` or `SIM_*` variables. Those
-   are simulator/preview settings and must not be used for real staging.
-6. Add this top-level setting to the Bosla bot config, **above TOML sections**,
-   after verifying the proposed hostname is available:
-
-   ```toml
-   routes = [{ pattern = "halaqabot-staging.bosla.to", custom_domain = true }]
-   ```
-
-   This uses a Workers Custom Domain, not a manual CNAME to the personal Worker.
-   Cloudflare creates the domain's DNS record and certificate during deployment.
-   Both Mini App and API will use this origin. Do not put an interactive Access
-   login in front of `/telegram`; Telegram cannot complete a browser login.
-7. Check the account's Workers/Queues plan and quotas. Existing creation worked
-   in the personal account, but do not assume Bosla has identical limits or
-   silently purchase/upgrade a plan. Inspect actual deployment/runtime errors.
-
-From `packages/bot`, using the **destination** config for every command:
+From `packages/bot`:
 
 ```bash
-./node_modules/.bin/wrangler queues list --config wrangler.staging.bosla.toml
-./node_modules/.bin/wrangler queues create halaqabot-staging-dead-letters --config wrangler.staging.bosla.toml
-./node_modules/.bin/wrangler queues create halaqabot-staging-updates --config wrangler.staging.bosla.toml
-./node_modules/.bin/wrangler queues create halaqabot-staging-imports --config wrangler.staging.bosla.toml
+./node_modules/.bin/wrangler whoami
+./node_modules/.bin/wrangler secret list --config wrangler.staging.bosla.toml
 ```
 
-Create only missing queues. Never attach a new consumer to a personal/developer
-queue or another existing team's queue. Queue bindings/consumers must resolve to
-the destination account. Preserve single-message batches/concurrency from the
-checked-in staging config.
+Verify account **Bosla**, ID `fe626a504678476d9e8c2d942794d30f`, zone
+`bosla.to` (`29f0ad378223b137bb9d0cd01cc2db99`) and the active custom domain
+`halaqabot-staging.bosla.to`. The active bot/classifier configs pin this account.
+`wrangler.staging.toml` pins the personal rollback account and has no cron;
+normal staging work must use the `.bosla.toml` configs.
+
+The three existing Bosla queues are `halaqabot-staging-updates`,
+`halaqabot-staging-imports`, and `halaqabot-staging-dead-letters`. Preserve
+single-message batches, concurrency 1 and retry/dead-letter settings. The bot
+owns both consumers/producers. Only its Bosla instance runs `17 * * * *`.
+Do not put an interactive Cloudflare Access login in front of `/telegram`.
 
 ## 6. Secrets: where they are and how to transfer them
 
 The current authoritative local copy is **ignored**
-`/mnt/linux_data/code/HalaqaBot/.env.staging.local`, mode 600, on Mohanad's laptop.
+`/mnt/linux_data/code/HalaqaBot/.env.staging.bosla.local`, mode 600, on Mohanad's laptop.
+The older `.env.staging.local` is the personal-host rollback configuration.
 It is intentionally excluded from the handoff archive and Git. Securely share
 the needed credentials through the team's password manager or the agent's
 private secret-input flow. Cloudflare can list secret **names**, but its CLI
@@ -391,10 +315,10 @@ VITE_BOT_API_URL=
 CONVEX_AUTH_PRIVATE_KEY='<existing-staging-private-JWK-JSON>'
 STAGING_CONVEX_AUTH_JWKS=<matching-public-JWKS-data-URI>
 GROQ_API_KEY=<existing-fake-classifier-bearer-token-NOT-a-Groq-key>
-GROQ_BASE_URL=https://halaqabot-staging-classifier.<BOSLA-WORKERS-SUBDOMAIN>.workers.dev/openai/v1
+GROQ_BASE_URL=https://halaqabot-staging-classifier.nasseratic.workers.dev/openai/v1
 WEB_APP_URL=https://halaqabot-staging.bosla.to
 WORKER_URL=https://halaqabot-staging.bosla.to
-CLOUDFLARE_ACCOUNT_ID=<BOSLA-ACCOUNT-ID>
+CLOUDFLARE_ACCOUNT_ID=fe626a504678476d9e8c2d942794d30f
 ```
 
 `GROQ_API_KEY` currently authenticates the **fake** classifier. Upload that
@@ -418,7 +342,7 @@ unrelated fresh key while the old Worker or clients are still in use. The
 generator supports two-key JWKS output, and tokens currently last one hour.
 
 The shared-stage deploy key must be non-empty and scoped exactly to
-`perfect-clam-401`. The authoritative local `.env.staging.local` already contains
+`perfect-clam-401`. The authoritative local `.env.staging.bosla.local` already contains
 it; transfer it privately to the destination file. Do not copy the old empty-key
 workaround from earlier staging instructions. Keep personal-dev `.env.local`
 files unchanged and use the explicit staging file on every shared-stage command.
@@ -441,141 +365,103 @@ without `--default` or `--select`, then privately issue a key for that new
 staging deployment and update/verify the inventory. That is not part of this
 existing-environment handoff.
 
-## 7. Build and deploy the candidate
+## 7. Routine deployments to the existing staging service
 
-Do not redeploy Convex merely because Cloudflare is moving accounts. Reuse
-`perfect-clam-401` with compatible code. If schema/functions actually changed,
-review and coordinate a shared-stage backend deployment separately; changing
-it affects current users even before the webhook cutover. Never reset/import
-production data into it.
-If an agreed backend change does need deploying, the explicit command from
-`packages/db` is `CONVEX_DEPLOY_KEY='' ./node_modules/.bin/convex deploy --env-file ../../.env.staging.bosla.local --yes`.
-Verify it targets `https://perfect-clam-401.convex.cloud` before proceeding;
-the destination file must contain both the staging selector and its non-empty,
-deployment-scoped key as described above. Never use the default production key.
+A hosting redeploy does not require a Convex redeploy. Reuse the named
+`staging` deployment (`perfect-clam-401`), current data and signing keys.
 
-From `packages/web` build isolated staging assets:
+From the repository root, verify the private target first:
+
+```bash
+bun --env-file=.env.staging.bosla.local scripts/verify-staging-target.ts
+```
+
+Build the Mini App from `packages/web`:
 
 ```bash
 bun --env-file=../../.env.staging.bosla.local ./node_modules/.bin/vite build --outDir ../bot/.staging/web --emptyOutDir
 ```
 
-`VITE_BOT_API_URL` is deliberately empty: the frontend uses its own origin for
-`/api`. These are build-time variables; changing Cloudflare secrets does not
-rewrite an already-built Vite bundle. `WEB_APP_URL` is runtime configuration for
-menu links and the API's one allowed browser origin; set it explicitly.
-
-Deploy the fake classifier from `packages/testing`, then upload its secret:
-
-```bash
-./node_modules/.bin/wrangler deploy --config wrangler.staging-classifier.bosla.toml
-./node_modules/.bin/wrangler secret put STAGING_CLASSIFIER_TOKEN --config wrangler.staging-classifier.bosla.toml
-```
-
-Enter the fake-classifier bearer token through the interactive/private input;
-do not place it literally in the shell command. Check the returned destination
-URL and update `GROQ_BASE_URL` accordingly. Public GET `/` should identify it as
-`simulated-classification`; an unsigned POST must be rejected.
-
-From `packages/bot`:
+`VITE_BOT_API_URL` stays empty for same-origin `/api`. From `packages/bot`:
 
 ```bash
 ./node_modules/.bin/wrangler deploy --config wrangler.staging.bosla.toml --dry-run
 ./node_modules/.bin/wrangler deploy --config wrangler.staging.bosla.toml
 ```
 
-Upload only this allowlist to the bot Worker: `BOT_TOKEN`,
+Existing Worker secrets persist across normal deploys. If a credential needs
+updating, upload only this allowlist privately: `BOT_TOKEN`,
 `TELEGRAM_WEBHOOK_SECRET`, `CHANNEL_ID`, `FORWARD_CHAT_ID`, `CONVEX_URL`,
 `CONVEX_AUTH_PRIVATE_KEY`, `WEB_APP_URL`, `GROQ_API_KEY`, `GROQ_BASE_URL`.
-Use `wrangler secret put <NAME> --config ...` privately for each, or feed an
-allowlisted JSON object to `secret bulk` through stdin. Do not upload the full
-local environment file, OAuth tokens, `TEST_*` credentials, or deployment keys.
+Never upload the whole env file, the Convex deployment key, OAuth credentials
+or `TEST_*` values. Keep the secret classifier token equal to the fake
+`GROQ_API_KEY`; the classifier's config is
+`packages/testing/wrangler.staging-classifier.bosla.toml`.
 
-Before switching Telegram, verify on the custom domain:
+After a redeploy, verify `/` and `/halaqas` return 200 over HTTPS; unsigned
+`POST /api/auth/token` and `/telegram` return 401; the frontend uses
+`perfect-clam-401`; the webhook/menu still use the Bosla hostname; and only the
+Bosla scheduler is active. A regular browser has no Telegram login data.
 
-- Certificate and `/` load; `/halaqas` also returns the SPA rather than 404.
-- Unsigned `POST /api/auth/token` and unsigned `POST /telegram` return 401.
-- The built frontend uses `perfect-clam-401` and same-origin `/api`.
-- All nine bot secret names exist; classifier secret is configured; origin is exact.
-- Destination queue consumers/bindings exist; destination cron is still disabled.
-- Source webhook/menu still point to the personal source Worker. Do not run a
-  fake Telegram world, fake webhook update, or synthetic-user test suite against
-  the shared database just to smoke-test the candidate.
+Only if backend changes are explicitly needed, from `packages/db`, first run
+the target verifier with the private staging file, then use the scoped key:
 
-A regular browser tab has no Telegram-signed login data; seeing a login error
-there is expected. Full user acceptance follows the webhook/menu cutover.
+```bash
+bun --env-file=../../.env.staging.bosla.local ../../scripts/verify-staging-target.ts
+CONVEX_DEPLOY_KEY='' ./node_modules/.bin/convex deploy --env-file ../../.env.staging.bosla.local --yes
+```
 
-## 8. Short coordinated cutover; personal development continues
+Verify the CLI targets `https://perfect-clam-401.convex.cloud`. Never run bare
+`convex deploy`, use `--prod`, reset shared staging or import over newer data.
 
-Coordinate only a short pause in **shared staging** testing; nobody needs to stop
-their independent dev environment. If a tester is actively using staging, finish
-candidate preparation first and agree on the small switching window. The bot
-has one webhook; concurrent old/new imports or API writes can otherwise interleave.
+## 8. Completed cutover and future rollback
 
-1. Have Mohanad, or an operator with old-account access, disable the **old staging
-   cron**. Keep the old Worker, queues, assets and secrets for rollback.
-2. Pause the staging bot's webhook using Telegram `deleteWebhook` with
-   **`drop_pending_updates=false`**. Do not delete/reset the bot or chats. This
-   pause is now intentional; Telegram temporarily holds new updates.
-3. Let old update/import queues finish, verify in-flight imports have settled,
-   and inspect dead letters. An empty Telegram pending count does **not** prove
-   the Cloudflare queues are drained. Do not delete either set of queues or replay
-   dead letters blindly: handlers are not generally idempotent.
-4. Register the destination webhook/menu with the existing script, from
-   `packages/bot`, using the destination's private file:
+The active webhook is `https://halaqabot-staging.bosla.to/telegram` and the bot
+menu uses `https://halaqabot-staging.bosla.to/` (Telegram may normalize the slash).
+The old personal queues were verified drained before switching. Its cron is
+disabled; Bosla's `17 * * * *` cron is enabled. The old service and its credentials
+are retained for rollback; do not delete them before final phone acceptance.
 
-   ```bash
-   bun --env-file=../../.env.staging.bosla.local scripts/set-webhook.ts
-   ```
+If a future hostname/webhook-secret change is authorized, the existing setup
+script is run from `packages/bot` with the explicit destination file:
 
-   It must report `https://halaqabot-staging.bosla.to/telegram` and the five
-   intended update types: message, channel_post, my_chat_member, chat_member,
-   message_reaction. It sets `max_connections=1`. Do not pass a simulator API root.
-5. Restore `crons = ["17 * * * *"]` in the **destination** config and deploy
-   it explicitly. Only the destination should now own scheduled reconciliation.
-6. Have the maintainer get a fresh `/admin` response and open the panel from the
-   new menu/button. Old inline messages still contain old links. Update a
-   separately configured BotFather Main Mini App URL/per-chat menu override if
-   one exists; this run configured the default bot menu through the script.
-7. Follow section 9 while watching the **destination** logs and database. Confirm
-   the old queues do not receive new updates. Then release the shared testing pause.
-8. Retain old hosting for an agreed rollback period. After acceptance, Mohanad
-   can retire only the personal **staging** resources. Do not delete unrelated
-   Workers, `halaqabotdb`, personal dev deployments, or actual production resources.
+```bash
+bun --env-file=../../.env.staging.bosla.local scripts/set-webhook.ts
+```
 
-Use Telegram API calls through private-token tooling, not URLs containing tokens
-in an ordinary browser. Never run `getUpdates` while the webhook is active or
-start a competing polling process. Telegram retains undelivered updates for a
-limited time (up to 24 hours); this is not a substitute for verifying queue drain.
+Read back both `getWebhookInfo` and `getChatMenuButton`; a successful setter
+response alone is insufficient. Menu readback was briefly stale during this
+cutover, and the process automatically rolled back until the new URL was
+verified. Do not claim a per-chat/BotFather override was changed unless checked.
+This bot reports no separately configured Main Mini App.
+
+For a genuine rollback, coordinate a short staging pause, disable Bosla's cron,
+pause the webhook with `drop_pending_updates=false`, verify destination queues
+are drained, restore the old webhook/menu using `.env.staging.local`, and enable
+only the personal scheduler. This needs the personal account operator's access.
+Keep the same Convex named staging deployment and current data; never restore
+an old snapshot over newer shared work. Verify a fresh real Telegram command
+before releasing the testing pause.
 
 ## 9. Human acceptance: exact checks
 
-**Desktop, then Android/iPhone:**
+The user already passed registration, deletion cancel/confirm, reapproval,
+list replacement, registration close/reopen, background/resume and second-account
+promotion/demotion/reaction checks. Do not request these again as unverified work.
+Automated desktop/mobile-viewport checks also passed on the new live domain.
 
-1. Open `@halaqabot_bosla_staging_bot`, press Start and send `/admin` privately.
-2. Press **🎛️ فتح لوحة التحكم** or the **لوحة التحكم** menu button. Check that
-   it opens the chosen staging hostname inside Telegram.
-3. In `HalaqaBot Staging — Channel`, post two lines:
+**Final physical Android check, on Wi-Fi:**
 
-   ```text
-   حللتم أهلا ونزلتم سهلا 🌸
-   سجلي اسمك للحلقة
-   ```
+1. Close any old staging panel. Open `@halaqabot_bosla_staging_bot` and send a
+   fresh `/admin` privately. Old inline buttons retain their old URL.
+2. Press **🎛️ فتح لوحة التحكم**. Expect the existing halaqas at
+   **https://halaqabot-staging.bosla.to**.
+3. Open an existing test halaqa and use the **top ⋮ beside the الحلقة selector →
+   إرسال قائمة الأسماء** once. Confirm the list appears under the correct
+   Telegram post. This checks real Telegram delivery through the Bosla queue.
 
-4. Open that post's comments, reply **as your personal account** with
-   `انا فاطمة احمد تسميع`, then react 👌 as a **channel admin**.
-5. In the panel, open **الحلقات**, then that halaqa. Expect one
-   `فاطمة احمد` entry tagged **تسميع**.
-6. Turn menu **⋮ → حذف → Cancel** must preserve the entry. Confirming deletion
-   must remove it. Remove/re-add 👌 on the personal reply to restore it once.
-7. Background Telegram and reopen it. Confirm scrolling, menus and data still work.
-8. With a second person: ordinary channel/group member → panel says **غير مصرح**;
-   promote to channel admin → close/reopen panel → access; demote → close/reopen
-   → access denied again. Do not demote the sole owner to simulate another user.
-
-Desktop and Android core checks passed on the personal-account staging. iOS and
-the real second-person promotion/demotion test are still pending. There is no
-simulator bubble in real Telegram. Re-test after moving domains/accounts.
+There is no simulator bubble in real Telegram. Physical iPhone and real Groq
+classification remain unverified; Chromium phone emulation does not prove iOS.
 
 The existing discussion group is temporarily the scratch forwarding target.
 For quieter team testing, optionally create a private group
@@ -642,11 +528,9 @@ this simple hosting rollback may not be sufficient—review compatibility first.
   skipped 2 emulator-only checks, failed 0 on 2026-11-08. The separate #168 clean-
   checkout run generated missing bindings and passed 82 tests with 4 browser
   skips. GitHub CI still needs maintainer approval for fork workflows.
-- Before merging #165, follow [the integration/domain order and remaining checks](staging-acceptance.md).
-  Merge #168 into the migration branch first, update and merge #169 there, then
-  validate the combined #165 head. Prepare the Bosla staging hostname before the
-  final production domain/bot cutover; do not treat merging a companion PR as
-  permission to deploy to production.
+- #168 and #169 were merged into #165 on 2026-11-11. Bosla staging is live.
+  Follow [the final phone check and remaining release checks](staging-acceptance.md)
+  before the production domain/bot cutover. #165 remains open against `main`.
 
 When finished, report the exact destination Cloudflare account, hostname, Worker
 names, queue names, Convex project/deployment, deployed source SHA plus local diff
@@ -663,12 +547,13 @@ verifies patch application, and excludes environment files and built assets.
 
 > Read this entire handoff and the repository instructions. Set up your personal
 > dev environment independently, then prepare the existing HalaqaBot team staging
-> in Bosla Cloudflare using the existing Telegram bot/chats and
+> already running in Bosla Cloudflare using the existing Telegram bot/chats and
 > `bosla/halaqabotdb:staging` (`perfect-clam-401`). Do not recreate the retired
 > separate staging project or change the original project's production default.
-> Verify the destination account and unused staging hostname. Obtain secrets
-> privately. Keep current staging running during preparation; coordinate only
-> the final webhook/queue/cron cutover. Do not use production resources, rotate
+> Verify the current Bosla account and active staging hostname. Do not rerun the
+> completed cutover or recreate its resources. Obtain secrets
+> privately. Keep current staging running; coordinate any future hosting
+> change and preserve one webhook and one active scheduler. Do not use production resources, rotate
 > shared keys unnecessarily, run tests against shared data, or take over the
 > staging bot for personal development. Validate and report rollback readiness
 > before switching; complete the human checks and update the inventory afterward.

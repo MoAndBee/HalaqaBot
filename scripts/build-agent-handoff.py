@@ -34,7 +34,13 @@ SOURCES = [
     "packages/testing/scripts/preview.ts", "packages/testing/test/preview.test.ts",
     "packages/testing/test/preview-check.test.ts",
     "scripts/verify-staging-target.ts",
-    "docs/staging-convex-migration.md",
+    "docs/staging-convex-migration.md", "docs/bosla-staging-cutover.md",
+    "packages/bot/wrangler.staging.bosla.toml",
+    "packages/testing/wrangler.staging-classifier.bosla.toml",
+    "packages/db/convex/auth.ts", "packages/db/convex/queries.ts",
+    "packages/db/convex/mutations.ts", "packages/db/convex/schema.ts",
+    "packages/testing/test/channel-name-isolation.test.ts",
+    "packages/testing/test/convex-auth.test.ts",
 ]
 
 
@@ -111,15 +117,15 @@ def main():
     metadata = {
         "repository": "https://github.com/MoAndBee/HalaqaBot.git",
         "base_commit": BASE,
-        "source_branch": "codex/pr-165-staging-handoff",
-        "source_repository": "https://github.com/mohanad-80/HalaqaBot.git",
+        "source_branch": "claude/telegram-cloudflare-workers-migration-c09q4a",
+        "source_repository": "https://github.com/MoAndBee/HalaqaBot.git",
         "snapshot_date": snapshot_date,
         "patch_sha256": hashlib.sha256(patch).hexdigest(),
         "source_paths": SOURCES,
         "contains_secrets": False,
     }
     files = {
-        "README.md": b"Read docs/agent-environment-handoff.md first. Apply the patch only to its pinned base, not on top of the stacked environment branch. Obtain credentials privately.\n",
+        "README.md": b"Read docs/agent-environment-handoff.md first. Apply the patch only to its pinned base, not on top of the current migration branch. Obtain credentials privately.\n",
         "manifest.json": (json.dumps(metadata, indent=2) + "\n").encode(),
         "pr-165-environment.patch": patch,
     }

@@ -1,10 +1,10 @@
 {
   "repository": "https://github.com/MoAndBee/HalaqaBot.git",
   "base_commit": "5b00b67d2378d8f7f29073ab4fc58d1d833742f8",
-  "source_branch": "codex/pr-165-staging-handoff",
-  "source_repository": "https://github.com/mohanad-80/HalaqaBot.git",
-  "snapshot_date": "2026-11-08",
-  "patch_sha256": "0be0c2ff0f3c3f213836c1702de4ddaf0b25e272d3524d79fb38dc0e18ab3c11",
+  "source_branch": "claude/telegram-cloudflare-workers-migration-c09q4a",
+  "source_repository": "https://github.com/MoAndBee/HalaqaBot.git",
+  "snapshot_date": "2026-11-11",
+  "patch_sha256": "5d0f99206dac9de76ec8d51f603a34967d2fea8adb975dd88e6d9bc7385e9c08",
   "source_paths": [
     ".gitignore",
     "README.md",
@@ -39,8 +39,17 @@
     "packages/testing/test/preview.test.ts",
     "packages/testing/test/preview-check.test.ts",
     "scripts/verify-staging-target.ts",
-    "docs/staging-convex-migration.md"
+    "docs/staging-convex-migration.md",
+    "docs/bosla-staging-cutover.md",
+    "packages/bot/wrangler.staging.bosla.toml",
+    "packages/testing/wrangler.staging-classifier.bosla.toml",
+    "packages/db/convex/auth.ts",
+    "packages/db/convex/queries.ts",
+    "packages/db/convex/mutations.ts",
+    "packages/db/convex/schema.ts",
+    "packages/testing/test/channel-name-isolation.test.ts",
+    "packages/testing/test/convex-auth.test.ts"
   ],
   "contains_secrets": false,
-  "archive_sha256": "a612299e31f0cf8e24b76573b154d344765028a1aa1fc0b33994ec6db3419009"
+  "archive_sha256": "0cfa7200c749465be8b245dca7a2973fa9c087d7b698e2d52ea72e3eb350c306"
 }

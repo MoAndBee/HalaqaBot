@@ -110,39 +110,32 @@ The Convex consolidation is complete: shared staging is the non-default
 project was deleted after [data and live app verification](staging-convex-migration.md).
 The Cloudflare account/domain handoff below reuses this existing deployment.
 
-1. A repository maintainer approves the latest fork workflow on PR #168. The
-   contributor account has no upstream write permission. Once CI passes, merge
-   #168 into #165's migration branch, which adds first-run generation and the
-   preview fixes. This does not mean merging #165 into `main`.
-2. Update #169 from that updated migration branch so its CI includes the
-   generation fix. Approve/run its fork workflow, then merge #169 into the same
-   migration branch after checks pass. Do not merge with missing/failing checks.
-3. Verify #165's resulting head. The pre-merge combination of #168's runtime
-   changes and #169 was tested locally against personal cloud dev on 2026-11-08:
-   **101 passed, 2 emulator-only skips, 0 failed** (103 tests), including all
-   browser checks. This is independent of GitHub Actions, which still needs
-   maintainer approval. No shared staging or production data was used.
-4. Use the Bosla-account handoff to prepare the team staging hostname
-   `halaqabot-staging.bosla.to` (proposed; confirm it is unused). Keep the existing
-   staging bot, private chats and `halaqabotdb:staging` (`perfect-clam-401`); coordinate the webhook and
-   single active cron during the hosting cutover. This requires Bosla Cloudflare
-   zone/account access; the current hosting belongs to the personal account.
-5. After the staging URL changes, use a fresh `/admin` button in Telegram on
-   Android: confirm it opens the new URL, loads the existing halaqa and can send
-   its list. Check that a new staging signup reaches the same database/thread.
-   Do not repeat the full already-passed checklist. Test real Groq classification
-   once its key is available, and record iOS as unverified until a real test.
-6. Keep #165 open until the combined checks and release preparation are agreed.
-   The production hostname is `https://halaqabot.bosla.to/`; attach it and change
-   production links/webhook in the coordinated production cutover described in
-   the domain and migration docs. The staging hostname is separate.
+1. **Completed on 2026-11-11:** #168 and #169 were merged into #165's
+   migration branch; #165 remains open against `main`. The user explicitly
+   chose not to use CI as a gate. Local/cloud validation remains documented.
+2. **Completed:** Bosla hosting and `https://halaqabot-staging.bosla.to` are
+   live, with the existing bot/chats and Convex named staging deployment.
+   The old scheduler is disabled; only Bosla runs admin reconciliation.
+3. **Final human check:** on Android over Wi-Fi, close the staging panel,
+   send a fresh `/admin` to `@halaqabot_bosla_staging_bot`, open
+   **🎛️ فتح لوحة التحكم**, and confirm the existing halaqa loads. Send its
+   participant list once and confirm it appears under the correct Telegram
+   post. This verifies a real Telegram update through the destination queue.
+   Old inline buttons retain their old URL; use the fresh response or updated
+   bot menu. Automated desktop/mobile-viewport checks already passed.
+4. Real Groq classification and physical iPhone testing remain unverified;
+   classification currently uses the authenticated fake service.
+5. Review the resulting #165 release state before the production cutover to
+   `https://halaqabot.bosla.to/`. Staging-domain completion is not a production
+   deployment. The production Convex deployment and existing dev deployments
+   were unchanged.
 
 ## Merge decision
 
 Record the tested commit and deployed Worker version with results. Check that
 staging is running the code under review before using manual passes as evidence.
-Include the P1 fix from [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169) before merging
-the migration. Backend commit `0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a` is deployed
+The P1 fix from [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169) is now
+merged into #165. Backend commit `0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a` is deployed
 to personal dev and shared staging. Its cloud-backed suite passed 93 tests,
 skipped 2 emulator-only checks, and failed 0. A read-only staging smoke verified
 owner access to an existing halaqa and supervisor details, plus denial of a

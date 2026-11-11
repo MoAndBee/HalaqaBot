@@ -2,15 +2,18 @@
 
 The selected Mini App address is **https://halaqabot.bosla.to/**.
 `bosla.to` is owned and its DNS is already on Cloudflare. Application defaults
-now use this hostname; no live DNS or production deployment has been changed.
+now use this production hostname; production DNS/deployment has not been changed.
+Staging is already live at **https://halaqabot-staging.bosla.to** in Bosla
+Cloudflare, with a verified webhook/menu and a single active scheduler. See the
+[completed staging cutover](bosla-staging-cutover.md).
 
 The bot API can keep its deployed `https://halaqabot.<account>.workers.dev`
 address, supplied as `VITE_BOT_API_URL`. A separate API custom domain is optional.
 Telegram's `t.me/<bot_username>` address and the Convex URL do not change.
 
 The existing shared staging backend is `Bosla / halaqabotdb / staging`
-(`perfect-clam-401`), a non-default deployment. Moving staging hosting to Bosla
-keeps that backend, the Telegram bot and the private chats. The old separate
+(`perfect-clam-401`), a non-default deployment. The completed staging hosting move retained that backend, the Telegram bot and
+the private chats. The old separate
 Convex staging project was retired; follow the [agent handoff](agent-environment-handoff.md).
 
 ## Configuration that must move together

@@ -8,26 +8,29 @@ The [remaining pre-merge acceptance checks](staging-acceptance.md) cover list
 sending, registration controls, old-post imports, team access and missing platform/provider checks.
 
 This environment runs the PR #165 bot on real Cloudflare Workers/Queues, with
-real Telegram and a separate Convex database. No existing production deployment
-or `bosla.to` DNS was changed. On 2026-11-08, Convex backend commit
+real Telegram and an isolated Convex staging database. The production
+deployment/hostname were unchanged; only the staging subdomain was attached. On 2026-11-08, Convex backend commit
 `0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a` from [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169)
 was deployed to shared staging and personal dev to fix cross-channel name
 disclosure. The Cloudflare Worker/frontend were not redeployed for this fix.
-Include that security commit when deploying from the handoff branch/archive.
+That security fix is merged into #165 and included in the current handoff archive.
 
 | Resource | Staging value |
 | --- | --- |
 | Telegram bot | `@halaqabot_bosla_staging_bot` |
 | Channel | `HalaqaBot Staging — Channel` |
 | Discussion | `HalaqaBot Staging — Discussion` |
-| Mini App / API | https://halaqabot-staging.mhndahmd031.workers.dev |
+| Mini App / API | https://halaqabot-staging.bosla.to |
 | Convex project | `Bosla / halaqabotdb` |
 | Named deployment | `staging`, type `prod`, non-default |
 | Physical deployment / URL | `perfect-clam-401` / https://perfect-clam-401.convex.cloud |
 | Database dashboard | https://dashboard.convex.dev/d/perfect-clam-401 |
 | Classifier | `halaqabot-staging-classifier` Worker, simulated rules |
 
-Cloudflare hosting belongs to Mohanad's personal account. Team members can use
+Cloudflare hosting now belongs to the **Bosla** account
+(`fe626a504678476d9e8c2d942794d30f`, Workers subdomain `nasseratic`). The
+2026-11-11 cutover is complete; [operation details](bosla-staging-cutover.md)
+include verification and rollback. Team members can use
 the shared Telegram chats and bot without a Cloudflare login. To use the admin
 Mini App, a tester must also be an administrator of the **channel**; group admin
 alone does not grant access.
@@ -102,6 +105,15 @@ should not receive admin access. After promoting them to **channel admin**, they
 should gain access; after demotion they should lose it. They must press Start
 in the staging bot's private chat before using it.
 
+## Current operating target
+
+Use the Bosla configs and `.env.staging.bosla.local` for deployments. The
+Telegram webhook is `https://halaqabot-staging.bosla.to/telegram`; its menu uses
+the same origin. Only Bosla runs `17 * * * *`. The personal-account Worker at
+`https://halaqabot-staging.mhndahmd031.workers.dev` remains available for rollback
+with its scheduler disabled. Do not deploy it or reenable its scheduler during
+normal staging work.
+
 ## Operations
 
 ### Panel stuck loading on one network
@@ -129,31 +141,33 @@ change: do not turn `curl --resolve` into a fixed hosts entry or assume every
 blank Telegram panel has this cause. If it also fails on mobile data, investigate
 the application/API again.
 
-Private settings live in ignored `.env.staging.local` with permissions 600.
+Active private settings live in ignored `.env.staging.bosla.local` with permissions 600.
 Never commit it. Staging uses a distinct signing key and three queues prefixed
-`halaqabot-staging-`. Bot deployment config: `packages/bot/wrangler.staging.toml`.
+`halaqabot-staging-`. Active bot config: `packages/bot/wrangler.staging.bosla.toml`. The personal
+`wrangler.staging.toml` is account-pinned, scheduler disabled, and retained only
+for rollback.
 
 Build the web assets (from `packages/web`):
 
 ```bash
-bun --env-file=../../.env.staging.local ./node_modules/.bin/vite build --outDir ../bot/.staging/web --emptyOutDir
+bun --env-file=../../.env.staging.bosla.local ./node_modules/.bin/vite build --outDir ../bot/.staging/web --emptyOutDir
 ```
 
 Deploy/log the staging Worker (from `packages/bot`):
 
 ```bash
-./node_modules/.bin/wrangler deploy --config wrangler.staging.toml
-./node_modules/.bin/wrangler tail --config wrangler.staging.toml
+./node_modules/.bin/wrangler deploy --config wrangler.staging.bosla.toml
+./node_modules/.bin/wrangler tail --config wrangler.staging.bosla.toml
 ```
 
 Re-register staging webhook/menu if their settings change (same directory):
 
 ```bash
-bun --env-file=../../.env.staging.local scripts/set-webhook.ts
+bun --env-file=../../.env.staging.bosla.local scripts/set-webhook.ts
 ```
 
 The fake classifier is deployed from `packages/testing` with
-`wrangler.staging-classifier.toml`. Its bearer token is a generated staging-only
+`wrangler.staging-classifier.bosla.toml`. Its bearer token is a generated staging-only
 secret, not a real Groq credential. When a team Groq key is available, replace
 the Worker's `GROQ_API_KEY` and remove its `GROQ_BASE_URL` override to enable the
 real provider. Classifier/UI/backend deployments remain explicit and manual.

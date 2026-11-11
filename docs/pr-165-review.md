@@ -11,7 +11,7 @@ the existing application production environment has not been deployed or changed
 
 ## Standards
 
-**[P1] Cross-channel name disclosure — fixed in [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169), pending integration into #165.**
+**[P1] Cross-channel name disclosure — fixed in [PR #169](https://github.com/MoAndBee/HalaqaBot/pull/169), merged into #165 on 2026-11-11.**
 
 Backend commit `0e4e8c9909d56bd7007f678d58afa8cd91cd1f6a` is deployed to
 `doting-viper-550` and `perfect-clam-401`. The security PR contains 14 direct
@@ -20,8 +20,7 @@ passed 93 tests, skipped 2 emulator-only cases, and failed 0. It scopes admin
 names to the channel, verifies channel/discussion pairs, constrains the student
 fallback, and prevents queue/position/bulk-score additions from manufacturing
 membership. Existing same-chat access remains covered. The report below records
-the original reproduction; the environment archive does not itself contain the
-backend fix, so follow the handoff instructions to include #169 before deploying.
+the original reproduction; the current complete handoff archive includes the merged backend fix.
 
 `packages/db/convex/queries.ts`, `getAdminDisplayName` (line 1422), checks only
 the supplied channel. `findAdminRecord` (lines 1365–1375) then searches every
@@ -73,7 +72,7 @@ that the smoke check verifies “a sign-up reaches the list.” Create and verif
 a fresh scenario on every run without resetting reviewers' data.
 
 Standards: 1 finding (cross-channel disclosure). Spec: 2 findings (preview
-isolation and incomplete repeat checks). The security fix in #169 must be included before release.
+isolation and incomplete repeat checks). The security fix from #169 is included in #165.
 
 ## Setup blockers found and fixed locally
 
@@ -103,6 +102,13 @@ isolation and incomplete repeat checks). The security fix in #169 must be includ
   build problem. No tracked backend source files were removed.
 
 ## Verification and limits
+
+- On 2026-11-11, #168 and #169 merged into #165 and shared staging moved to
+  `https://halaqabot-staging.bosla.to` in Bosla Cloudflare. The live Mini App,
+  Worker auth, reversible reactive write and denial checks passed before and
+  after the webhook cutover. Old queues drained, old cron disabled and only
+  Bosla cron enabled. See [cutover details](bosla-staging-cutover.md). The user
+  explicitly chose not to use CI as a release gate; no green CI claim is made.
 
 - Shared staging consolidation on 2026-11-08: transferred `perfect-clam-401`
   into `Bosla / halaqabotdb` as the non-default `staging` deployment. All 13

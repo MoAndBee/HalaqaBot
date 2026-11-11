@@ -1,7 +1,8 @@
 # Shared staging in the original Convex project
 
 Completed on 2026-11-08 at Mohanad's request. This is a completed operation;
-the colleague taking over Cloudflare/domain setup should reuse its result.
+reuse its result. The subsequent [Bosla Cloudflare/domain cutover](bosla-staging-cutover.md)
+was completed on 2026-11-11.
 
 | Resource | Verified state |
 | --- | --- |
@@ -71,7 +72,8 @@ remain recorded separately. Classification still uses the fake staging service.
 
 ## Credentials and operations for the colleague
 
-The root `.env.staging.local` on Mohanad's laptop is ignored and mode 600. It now
+The active root `.env.staging.bosla.local` on Mohanad's laptop is ignored and
+mode 600. `.env.staging.local` is retained only for personal-host rollback. It now
 contains a non-empty deploy key scoped to `perfect-clam-401`. Transfer that key
 through the team's secret manager/private secret-input flow, together with the
 existing staging bot/signing/classifier credentials. Never print it or commit it,
@@ -80,7 +82,7 @@ and never upload the deployment key to Cloudflare Worker secrets or web assets.
 Before any backend deployment, from the repository root:
 
 ```bash
-bun --env-file=.env.staging.local scripts/verify-staging-target.ts
+bun --env-file=.env.staging.bosla.local scripts/verify-staging-target.ts
 ```
 
 For the destination Cloudflare handoff file, substitute
@@ -101,7 +103,8 @@ permissions. They are not in Git or the portable bundle. They contain staging
 data and must be shared only through an approved private channel when needed.
 Do not restore a snapshot over newer teammate data as part of a hosting move.
 
-The remaining handoff is Cloudflare hosting/domain setup in Bosla's account,
-using this existing named staging deployment. Do not recreate the old project,
+Cloudflare hosting/domain setup in Bosla's account is now complete, using this
+existing named staging deployment. Future operators should maintain the active
+service using the Bosla configs and current private env file. Do not recreate the old project,
 change the default production deployment, or use a personal dev backend for the
 shared bot.
