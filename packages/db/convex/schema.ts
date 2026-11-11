@@ -145,7 +145,7 @@ export default defineSchema({
     // "external" for a halaqa held outside Telegram (Zoom, Meet, …) and added
     // from a pasted manual list; unset for Telegram halaqas. See src/sessionOrigin.ts
     origin: v.optional(v.string()),
-    platform: v.optional(v.string()), // "zoom" | "meet" | "other", for external sessions
+    platform: v.optional(v.string()), // "zoom" | "telegram" (older rows: "meet" | "other"), for external sessions
     // Last time this session's list was replaced by a pasted manual list, by
     // whom, and the text as pasted — kept so a bad import can be traced
     manualListAppliedAt: v.optional(v.number()),

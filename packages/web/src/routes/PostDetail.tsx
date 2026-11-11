@@ -99,8 +99,10 @@ const SEND_LIST_TOAST_ID = 'send-participant-list'
 // Where an external (manual list) halaqa was held, for the session picker
 const PLATFORM_LABELS: Record<string, string> = {
   zoom: 'زوم',
+  telegram: 'تيليجرام',
+  // No longer offered; kept so halaqas saved with them still show a label
   meet: 'جوجل ميت',
-  other: 'خارج تيليجرام',
+  other: 'أخرى',
 }
 
 export default function PostDetail() {
@@ -1006,7 +1008,7 @@ export default function PostDetail() {
                       <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
                         الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
                         {session.teacherName && ` (${session.teacherName})`}
-                        {session.origin === 'external' && ` · ${PLATFORM_LABELS[session.platform ?? ''] ?? 'خارج تيليجرام'}`}
+                        {session.origin === 'external' && ` · ${PLATFORM_LABELS[session.platform ?? ''] ?? 'قائمة يدوية'}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
