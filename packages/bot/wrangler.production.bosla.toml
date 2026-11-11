@@ -1,0 +1,50 @@
+# Production release configuration. Read docs/production-cutover.md before deploying.
+# Bootstrap with the generated cron-disabled config; enable this schedule last.
+name = "halaqabot"
+account_id = "fe626a504678476d9e8c2d942794d30f"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+workers_dev = false
+routes = [{ pattern = "halaqabot.bosla.to", custom_domain = true }]
+
+# Mini App and API share the production origin. The existing bosla.to zone is used.
+[assets]
+directory = ".production/web"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/telegram"]
+
+[[queues.producers]]
+binding = "UPDATES"
+queue = "halaqabot-updates"
+
+[[queues.producers]]
+binding = "IMPORTS"
+queue = "halaqabot-imports"
+
+[[queues.consumers]]
+queue = "halaqabot-updates"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 2
+retry_delay = 10
+dead_letter_queue = "halaqabot-dead-letters"
+
+[[queues.consumers]]
+queue = "halaqabot-imports"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 2
+retry_delay = 10
+dead_letter_queue = "halaqabot-dead-letters"
+
+[triggers]
+crons = ["17 * * * *"]
+
+[[rules]]
+type = "Data"
+globs = ["**/*.jpeg"]
+fallthrough = true
+
+[observability]
+enabled = true

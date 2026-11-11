@@ -163,7 +163,7 @@ export async function detectRealNameFromMessage(
       classification = {
         containsName: result.containsName,
         detectedNames: result.detectedNames || [],
-        activityType: result.activityType,
+        activityType: result.activityType ?? undefined,
       };
     }
   }

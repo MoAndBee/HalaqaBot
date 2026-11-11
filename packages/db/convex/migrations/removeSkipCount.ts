@@ -13,9 +13,8 @@ export const removeSkipCount = internalMutation({
       // Check if skipCount field exists (it would be in the object even if we removed it from schema)
       if ('skipCount' in entry) {
         // Remove the skipCount field by setting it to undefined
-        await ctx.db.patch(entry._id, {
-          skipCount: undefined as any,
-        });
+        // The field is no longer in the schema, hence the cast.
+        await ctx.db.patch(entry._id, { skipCount: undefined } as any);
         updated++;
       }
     }

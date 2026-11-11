@@ -152,7 +152,7 @@ This document outlines the phased implementation of the Telegram Web App (TWA) f
    - Message [@BotFather](https://t.me/botfather) on Telegram
    - `/mybots` → Select your bot
    - `Bot Settings` → `Menu Button` → `Configure Menu Button`
-   - Send web app URL: `https://halakabot.app.thawabcoding.work`
+   - Send web app URL: `https://halaqabot.bosla.to`
 
 2. **Environment Variables**:
 
@@ -164,7 +164,7 @@ This document outlines the phased implementation of the Telegram Web App (TWA) f
    GROQ_API_KEY=your_groq_api_key
 
    # TWA Configuration
-   WEB_APP_URL=https://halakabot.app.thawabcoding.work
+   WEB_APP_URL=https://halaqabot.bosla.to
    CHANNEL_ID=-1002081068866
    ```
 
@@ -219,7 +219,7 @@ cd packages/web
 npm run build
 ```
 
-Deploy the `dist` folder to `https://halakabot.app.thawabcoding.work`
+Deploy the `dist` folder to `https://halaqabot.bosla.to`
 
 #### 4. Test the Integration
 
@@ -243,7 +243,7 @@ Deploy the `dist` folder to `https://halakabot.app.thawabcoding.work`
 
 **Direct URL Test**:
 
-1. Open `https://halakabot.app.thawabcoding.work` in a regular browser
+1. Open `https://halaqabot.bosla.to` in a regular browser
 2. Should see error: "يجب فتح التطبيق من خلال تيليجرام" ❌
 3. App only works when launched from Telegram ✅
 
@@ -298,7 +298,7 @@ Deploy the `dist` folder to `https://halakabot.app.thawabcoding.work`
 
 ### Web App URL
 
-**Current value**: `https://halakabot.app.thawabcoding.work`
+**Current value**: `https://halaqabot.bosla.to`
 
 **Where it's configured**:
 1. `packages/bot/src/config/environment.ts` (line 19)

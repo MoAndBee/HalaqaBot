@@ -2,7 +2,7 @@
  * Script to check if sourceMessageText in users table matches the actual message text in messageAuthors table
  */
 
-import { ConvexHttpClient } from "@halakabot/db";
+import { botConvexClient } from "./convex-client";
 import { api } from "@halakabot/db";
 import "dotenv/config";
 
@@ -11,7 +11,7 @@ if (!CONVEX_URL) {
   throw new Error("CONVEX_URL environment variable is required");
 }
 
-const convex = new ConvexHttpClient(CONVEX_URL);
+const convex = await botConvexClient(CONVEX_URL);
 
 async function checkSourceMessageConsistency() {
   console.log("🔍 Checking sourceMessageText consistency...\n");

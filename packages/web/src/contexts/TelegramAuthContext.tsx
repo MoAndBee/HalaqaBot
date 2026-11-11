@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import { useQuery } from 'convex/react'
+import { useConvexAuth, useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
 import { useTelegramAuth, type TelegramUser } from '../hooks/useTelegramAuth'
 
@@ -37,12 +37,20 @@ interface TelegramAuthProviderProps {
 }
 
 export function TelegramAuthProvider({ children }: TelegramAuthProviderProps) {
-  const { user, isLoading, error, webApp } = useTelegramAuth()
+  const { user, isLoading: isLoadingUser, error: userError, webApp } = useTelegramAuth()
+  // Signing in to Convex with a token from the bot (see lib/convex.tsx).
+  const convexAuth = useConvexAuth()
+  const isLoading = isLoadingUser || (user !== null && convexAuth.isLoading)
+  const error =
+    userError ??
+    (user && !convexAuth.isLoading && !convexAuth.isAuthenticated
+      ? 'تعذر تسجيل الدخول. أغلقي التطبيق وافتحيه من جديد.'
+      : null)
 
   // Fetch the channels this user is an admin of.
   const channels = useQuery(
     api.queries.getMyChannels,
-    user ? { userId: user.id } : 'skip'
+    user && convexAuth.isAuthenticated ? { userId: user.id } : 'skip'
   ) as Channel[] | undefined
 
   const [manualSelection, setManualSelection] = useState<Channel | null>(null)
@@ -94,7 +102,7 @@ export function TelegramAuthProvider({ children }: TelegramAuthProviderProps) {
         isLoading,
         error,
         channels,
-        isLoadingChannels: user !== null && channels === undefined,
+        isLoadingChannels: user !== null && !error && channels === undefined,
         selectedChannel,
         selectChannel,
         clearSelectedChannel,

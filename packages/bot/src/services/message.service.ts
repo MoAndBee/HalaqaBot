@@ -2,6 +2,13 @@ import type { Api } from "grammy";
 import type { ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
 
+/**
+ * Telegram's own accounts that appear as a message's sender: an anonymous admin
+ * posting as the group (GroupAnonymousBot), someone commenting as a channel
+ * (Channel_Bot), and automatic forwards (Telegram). Never students.
+ */
+export const SERVICE_ACCOUNT_IDS = new Set([1087968824, 136817688, 777000]);
+
 // Message author type from Telegram (different from User type in types.ts)
 export interface MessageAuthor {
   id: number;
