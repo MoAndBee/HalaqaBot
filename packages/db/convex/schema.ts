@@ -18,7 +18,8 @@ export default defineSchema({
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_post", ["postId"])
     .index("by_channel_post", ["channelId", "postId"])
-    .index("by_chat_message", ["chatId", "messageId"]),
+    .index("by_chat_message", ["chatId", "messageId"])
+    .index("by_user_chat", ["userId", "chatId"]),
 
   // DEPRECATED: Use turnQueue and participationHistory instead
   // Kept for backward compatibility during migration
@@ -62,7 +63,8 @@ export default defineSchema({
     .index("by_chat_post_position", ["chatId", "postId", "position"])
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_channel_post", ["channelId", "postId"])
-    .index("by_user", ["userId"]),
+    .index("by_user", ["userId"])
+    .index("by_user_chat", ["userId", "chatId"]),
 
   // Historical record of all completed participations
   participationHistory: defineTable({
@@ -84,6 +86,7 @@ export default defineSchema({
     .index("by_chat_post_session", ["chatId", "postId", "sessionNumber"])
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_user", ["userId"])
+    .index("by_user_chat", ["userId", "chatId"])
     .index("by_channel_post", ["channelId", "postId"]),
 
   lastListMessages: defineTable({

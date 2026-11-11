@@ -287,6 +287,7 @@ export const addUserToList = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireStudentAccess(ctx, args.userId, args.chatId);
     // Determine the session number to use
     let sessionNumber = args.sessionNumber;
 
@@ -396,6 +397,7 @@ export const addUserAtPosition = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireStudentAccess(ctx, args.userId, args.chatId);
     // Determine the session number
     let sessionNumber = args.sessionNumber;
     if (sessionNumber === undefined) {
@@ -1363,6 +1365,7 @@ export const bulkUpdateParticipationScores = mutation({
       let consumedFromQueue = false;
 
       for (const entry of addition.entries) {
+        await requireStudentAccess(ctx, entry.userId, chatId);
         if (alreadyExamined.has(entry.userId)) {
           skipped++;
           continue;

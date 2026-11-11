@@ -140,6 +140,71 @@ describe("a channel admin", () => {
 
 describe("an admin of another channel", () => {
   // Anyone can be one: adding the bot to a channel of your own registers it.
+  test("can't probe another channel's preferred name through a local supervisor assignment", async () => {
+    const { world } = stack;
+    const outsider = await stack.convexAs(other.ownerId);
+    const admin = await stack.convexAs(world.admin.id);
+    const probePostId = 999_991;
+    await outsider.mutation(api.mutations.updateAdminPreferredName, {
+      channelId: other.channelId, chatId: other.groupId, postId: probePostId,
+      sessionNumber: 1, userId: other.ownerId, preferredName: "Private supervisor test name",
+    });
+    expect(await outsider.query(api.queries.getAdminDisplayName, {
+      channelId: other.channelId, userId: other.ownerId,
+    })).toBe("Private supervisor test name");
+    expect(await admin.query(api.queries.getAdminDisplayName, {
+      channelId: world.channelId, userId: other.ownerId,
+    })).toBeNull();
+    await admin.mutation(api.mutations.takeOverSession, {
+      chatId: world.groupId, postId: probePostId, sessionNumber: 1,
+      newSupervisorUserId: other.ownerId,
+    });
+    const args = {
+      channelId: world.channelId, chatId: world.groupId, postId: probePostId, sessionNumber: 1,
+    };
+    expect(await admin.query(api.queries.getSessionSupervisorName, args)).toBeNull();
+    expect(await admin.query(api.queries.getSessionSupervisors, args)).toEqual([
+      { userId: other.ownerId, name: `#${other.ownerId}` },
+    ]);
+  });
+
+  test("can't probe a student through a local assignment or manufacture membership", async () => {
+    const { world } = stack;
+    const outsider = await stack.convexAs(other.ownerId);
+    const userId = world.students[0]!.id;
+    const args = {
+      channelId: other.channelId, chatId: other.groupId, postId: 999_992, sessionNumber: 1,
+    };
+    await outsider.mutation(api.mutations.takeOverSession, {
+      chatId: args.chatId, postId: args.postId, sessionNumber: 1, newSupervisorUserId: userId,
+    });
+    expect(await outsider.query(api.queries.getSessionSupervisorName, args)).toBeNull();
+    expect(await outsider.query(api.queries.getSessionSupervisors, args)).toEqual([
+      { userId, name: `#${userId}` },
+    ]);
+    const entryArgs = { chatId: args.chatId, postId: args.postId, sessionNumber: 1, userId };
+    expect(await failure(outsider.mutation(api.mutations.addUserToList, entryArgs))).toBe(DENIED);
+    expect(await failure(outsider.mutation(api.mutations.addUserAtPosition, {
+      ...entryArgs, turnsToWait: 0,
+    }))).toBe(DENIED);
+    expect(await failure(outsider.mutation(api.mutations.bulkUpdateParticipationScores, {
+      updates: [], additions: {
+        chatId: args.chatId, postId: args.postId, sessionNumber: 1, completedAt: Date.now(),
+        entries: [{ userId, score: 10 }],
+      },
+    }))).toBe(DENIED);
+    expect(await outsider.query(api.queries.searchUsers, { query: "فاطمة", chatId: other.groupId })).toEqual([]);
+  });
+
+  test("can't combine their own chat with another channel ID in supervisor queries", async () => {
+    const outsider = await stack.convexAs(other.ownerId);
+    const args = {
+      chatId: other.groupId, channelId: stack.world.channelId, postId: 999_991, sessionNumber: 1,
+    };
+    expect(await failure(outsider.query(api.queries.getSessionSupervisorName, args))).toBe(DENIED);
+    expect(await failure(outsider.query(api.queries.getSessionSupervisors, args))).toBe(DENIED);
+  });
+
   test("can't read or rename students who never came to their channel", async () => {
     const { world } = stack;
     const fatima = world.students[0]!.id;

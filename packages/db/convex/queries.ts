@@ -4,8 +4,10 @@ import { paginationOptsValidator, type GenericDatabaseReader } from "convex/serv
 import type { DataModel, Doc } from "./_generated/dataModel";
 import {
   getCaller,
+  hasStudentActivityInChat,
   requireBot,
   requireChannelAccess,
+  requireChannelChatAccess,
   requireChatAccess,
   requireSelf,
   requireStudentAccess,
@@ -1342,48 +1344,31 @@ export const isUserAuthorized = query({
 });
 
 /**
- * Find the channelAdmins record for a user, preferring the given channel but
- * falling back to any channel the user administers. The fallback matters when
- * the channels registry contains more than one row pointing at the same
- * discussion group (e.g. the group itself was mistakenly registered as a
- * channel): the admin's record — including their preferredName — lives under
- * the real channelId, and scoping strictly to the selected one would lose it.
+ * Admin names, including preferred names, belong to the selected channel.
+ * A missing record must not fall back to another channel's private profile.
  */
 async function findAdminRecord(
   ctx: { db: GenericDatabaseReader<DataModel> },
   channelId: number,
   userId: number
 ) {
-  const admin = await ctx.db
+  return await ctx.db
     .query("channelAdmins")
     .withIndex("by_channel_user", (q) =>
       q.eq("channelId", channelId).eq("userId", userId)
     )
     .first();
-  if (admin) return admin;
-
-  const anyChannel = await ctx.db
-    .query("channelAdmins")
-    .filter((q) => q.eq(q.field("userId"), userId))
-    .collect();
-  // Prefer a record with a preferredName set, then most recently updated.
-  anyChannel.sort(
-    (a, b) =>
-      Number(Boolean(b.preferredName)) - Number(Boolean(a.preferredName)) ||
-      b.updatedAt - a.updatedAt
-  );
-  return anyChannel[0] ?? null;
 }
 
 /**
- * Resolve a user's display name for supervisor/admin UI. Tries channelAdmins
- * (channel-scoped, then any channel), then falls back to the users table so a
- * former admin's name doesn't degrade to a raw Telegram ID after their
- * channelAdmins record is removed by the periodic sync.
+ * Preserve a former supervisor's student name only if the student belongs to
+ * this discussion. A client-controlled session assignment alone is not proof
+ * of membership and must not unlock the global users table.
  */
 async function resolveSupervisorName(
   ctx: { db: GenericDatabaseReader<DataModel> },
   channelId: number,
+  chatId: number,
   userId: number
 ): Promise<string | null> {
   const admin = await findAdminRecord(ctx, channelId, userId);
@@ -1396,7 +1381,9 @@ async function resolveSupervisorName(
     .query("users")
     .withIndex("by_user_id", (q) => q.eq("userId", userId))
     .first();
-  return user?.realName || user?.telegramName || null;
+  if (!user) return null;
+  if (user.homeChatId !== chatId && !(await hasStudentActivityInChat(ctx, userId, chatId))) return null;
+  return user.realName || user.telegramName || null;
 }
 
 function adminDisplayName(admin: {
@@ -1418,6 +1405,7 @@ export const getAdminDisplayName = query({
     userId: v.number(),
     channelId: v.number(),
   },
+  returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
     await requireChannelAccess(ctx, args.channelId);
     const admin = await findAdminRecord(ctx, args.channelId, args.userId);
@@ -1444,8 +1432,9 @@ export const getSessionSupervisorName = query({
     sessionNumber: v.number(),
     channelId: v.number(),
   },
+  returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
-    await requireChatAccess(ctx, args.chatId);
+    await requireChannelChatAccess(ctx, args.channelId, args.chatId);
     // Find the session
     const session = await ctx.db
       .query("sessions")
@@ -1475,7 +1464,7 @@ export const getSessionSupervisorName = query({
     // Look up each admin and resolve their display name
     const names: string[] = [];
     for (const userId of supervisorIds) {
-      const name = await resolveSupervisorName(ctx, args.channelId, userId);
+      const name = await resolveSupervisorName(ctx, args.channelId, args.chatId, userId);
       if (name) {
         names.push(name);
       } else {
@@ -1498,8 +1487,9 @@ export const getSessionSupervisors = query({
     sessionNumber: v.number(),
     channelId: v.number(),
   },
+  returns: v.array(v.object({ userId: v.number(), name: v.string() })),
   handler: async (ctx, args) => {
-    await requireChatAccess(ctx, args.chatId);
+    await requireChannelChatAccess(ctx, args.channelId, args.chatId);
     const session = await ctx.db
       .query("sessions")
       .withIndex("by_chat_post_session", (q) =>
@@ -1523,7 +1513,7 @@ export const getSessionSupervisors = query({
     const result: { userId: number; name: string }[] = [];
     for (const userId of supervisorIds) {
       const name =
-        (await resolveSupervisorName(ctx, args.channelId, userId)) ||
+        (await resolveSupervisorName(ctx, args.channelId, args.chatId, userId)) ||
         `#${userId}`;
       result.push({ userId, name });
     }
