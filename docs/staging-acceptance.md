@@ -128,10 +128,10 @@ The Cloudflare account/domain handoff below reuses this existing deployment.
 4. Real Groq classification and physical iPhone testing remain unverified;
    classification currently uses the authenticated fake service.
 5. `main` then added PR #170 (manual-list halaqas). Its conflicts with #165
-   were resolved and tested on personal dev; see [integration evidence](pr-165-review.md#main-branch-integration-on-2026-11-11).
-   Shared staging still runs the previously accepted source. Promote and smoke-test
-   the final candidate before a production cutover; no broad repeat of human tests
-   is required merely for the completed hostname move.
+   were resolved and tested on personal dev, then source `3f287da` was promoted
+   to shared staging and its live browser/access checks passed; see
+   [integration evidence](pr-165-review.md#main-branch-integration-on-2026-11-11).
+   No broad repeat of human tests is required merely for the completed hostname move.
 6. Review the resulting #165 release state before the production cutover to
    `https://halaqabot.bosla.to/`. Staging-domain completion is not a production
    deployment. The production Convex deployment and existing dev deployments

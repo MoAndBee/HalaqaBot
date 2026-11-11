@@ -233,8 +233,8 @@ that issue-tracker integration if wanted; it was unnecessary for this review.
 
 After the Bosla staging phone acceptance passed, `main` advanced to
 `b3b68ad2b934140126160116052db5b956f08cab` (PR #170, manual-list halaqas).
-Its integration with #165 was tested separately on Mohanad's personal dev
-`doting-viper-550`; the shared staging Worker/backend were not redeployed.
+Its integration with #165 was first tested separately on Mohanad's personal dev
+`doting-viper-550`, then promoted to shared staging as source `3f287da6e465d9db55eb1a1c5f9b401ddba2f6d2`.
 
 The conflict resolution preserves direct Worker API calls and the Convex
 lockdown, carries external-session filtering into list sending, and adds admin,
@@ -248,6 +248,15 @@ Validation: database/bot/web builds passed; personal cloud Convex push passed;
 local testing package **104 passed, 4 cloud-browser-only skips, 0 failures**;
 manual-list parser suite **24 passed, 0 failures** (run with the channel-isolation
 tests: 42 passed total); personal cloud browser checks **4 passed, 0 failures**.
-Physical Android/Wi-Fi acceptance applies to the deployed Bosla hosting cutover,
-not to this subsequent source integration. Real Groq and physical iPhone tests
-remain unverified. Production has not been changed.
+The 17 Worker API tests also passed against personal cloud dev, including the
+new external manual-session behavior. Shared staging's backend and Worker were
+then updated to the same source; Worker version
+`f31fa01a-cead-4391-a085-7e8ef2d11205`. Live desktop/mobile-viewport login, existing
+halaqas, reactive note write/restore, outsider/cross-channel denial and manual-list
+access guards passed, with no browser errors. Empty manual imports and a forged
+applying supervisor were rejected without creating records. Public routes return
+200 and unsigned API/webhook requests return 401 using Bun fetch.
+
+Physical Android/Wi-Fi acceptance predates this source integration; no additional
+phone acceptance is claimed. Real Groq and physical iPhone tests remain unverified.
+Production has not been changed.

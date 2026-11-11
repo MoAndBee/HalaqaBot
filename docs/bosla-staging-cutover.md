@@ -14,11 +14,13 @@ PRs #168 and #169 were merged into #165's migration branch before deployment;
 | Webhook | `https://halaqabot-staging.bosla.to/telegram` |
 | Menu URL | `https://halaqabot-staging.bosla.to/` |
 | Bot Worker/config | `halaqabot-staging`, `packages/bot/wrangler.staging.bosla.toml` |
-| Bot version after secret configuration | `0cb32721-ca7b-48e6-95ea-f39af0123605` |
+| Initial bot version after secret configuration | `0cb32721-ca7b-48e6-95ea-f39af0123605` |
 | Classifier Worker/config | `halaqabot-staging-classifier`, `packages/testing/wrangler.staging-classifier.bosla.toml` |
 | Classifier version | `b1f49cf3-e853-42b1-8f02-9f63e542fcf9` |
 | Classifier URL | `https://halaqabot-staging-classifier.nasseratic.workers.dev/openai/v1` |
 | Queues | `halaqabot-staging-updates`, `halaqabot-staging-imports`, `halaqabot-staging-dead-letters` |
+| Current bot Worker version | `f31fa01a-cead-4391-a085-7e8ef2d11205` |
+| Current deployed source | `3f287da6e465d9db55eb1a1c5f9b401ddba2f6d2` |
 | Scheduler | `17 * * * *`, Bosla Worker only |
 | Convex | `bosla / halaqabotdb / staging`, `perfect-clam-401`, non-default |
 | Active private configuration | Root `.env.staging.bosla.local`, ignored, mode 600 |
@@ -91,3 +93,20 @@ staging data; do not restore an older database snapshot. See the
 Private deployment logs and cutover metadata are in the ignored, restricted
 `.staging/cloudflare-bosla-migration/` directory. No credentials or private
 diagnostics are included in Git or the portable handoff archive.
+
+
+## Final candidate after main integration
+
+On 2026-11-11, `main`'s PR #170 manual-list feature was integrated into #165,
+with its new endpoints protected by the existing channel-isolation rules.
+Source `3f287da6e465d9db55eb1a1c5f9b401ddba2f6d2` was deployed to the same named
+staging backend and Bosla staging Worker, version
+`f31fa01a-cead-4391-a085-7e8ef2d11205`. Existing keys, bot/menu/webhook, domain,
+queues and scheduling were retained. This supersedes the initial Worker version
+above; it does not change the recorded human phone test's scope.
+
+The candidate passed 104 local tests (4 cloud-browser skips), 24 parser tests,
+4 personal-cloud browser checks and 17 personal-cloud Worker API tests.
+Its live shared-staging desktop/mobile-viewport checks, reactive write/restore,
+manual-list access guards and denial checks passed. Production is unchanged.
+See [integration evidence](pr-165-review.md#main-branch-integration-on-2026-11-11).

@@ -471,6 +471,12 @@ own probe messages, discover its actual ID from a fresh authorized update, and
 change `FORWARD_CHAT_ID` in staging only. Never invent a chat ID or substitute a
 production group. Keep the old value for rollback.
 
+The subsequent final candidate includes `main`'s PR #170 manual-list feature,
+with channel-isolation checks on its new endpoints. Source `3f287da` is deployed
+to shared staging; Worker version `f31fa01a-cead-4391-a085-7e8ef2d11205`.
+Its automated live desktop/mobile-viewport and access checks passed after deploy;
+this does not claim another physical-phone pass. See [integration evidence](pr-165-review.md#main-branch-integration-on-2026-11-11).
+
 ## 10. Logs, common failures, and rollback
 
 Live destination logs, from `packages/bot`:

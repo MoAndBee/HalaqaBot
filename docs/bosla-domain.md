@@ -7,9 +7,40 @@ Staging is already live at **https://halaqabot-staging.bosla.to** in Bosla
 Cloudflare, with a verified webhook/menu and a single active scheduler. See the
 [completed staging cutover](bosla-staging-cutover.md).
 
-The bot API can keep its deployed `https://halaqabot.<account>.workers.dev`
-address, supplied as `VITE_BOT_API_URL`. A separate API custom domain is optional.
-Telegram's `t.me/<bot_username>` address and the Convex URL do not change.
+Use the topology already verified on staging: one production Worker serves the
+Mini App assets and `/api/*` at `https://halaqabot.bosla.to`, plus the Telegram
+webhook at `/telegram`. Build with an empty `VITE_BOT_API_URL` for same-origin
+requests. The Telegram bot username and production Convex URL stay unchanged.
+
+## Production inventory and required access (2026-11-11)
+
+Read-only checks found:
+
+- The old Mini App `https://halakabot.app.thawabcoding.work` responds over HTTPS;
+  DNS resolves to `213.199.41.153`, and the response reports nginx. This locates
+  the web server, not necessarily the live bot process or its hosting dashboard.
+- Its public JavaScript embeds the known production Convex URL
+  `https://incredible-lyrebird-981.convex.cloud` and a sample URL; confirm the
+  actual runtime target with the operator before production deployment.
+- Bosla Cloudflare has the staging Workers but no `halaqabot` production Worker
+  or Workers Custom Domain at `halaqabot.bosla.to`.
+- GitHub has no deployment records/environments or repository Actions secret
+  names identifying the host. External auto-deployment remains unknown.
+- Mohanad does not know who hosts the current bot. No production bot token,
+  real Groq key or server access is available in this checkout.
+
+Ask the current operator:
+
+> Where does the production HalaqaBot process run, and who can stop and restart
+> it? The old web app is halakabot.app.thawabcoding.work (213.199.41.153).
+> Please provide hosting-dashboard/SSH access or be available for the cutover,
+> confirm the production bot username and deployment method, and confirm whether
+> merging main automatically deploys anything. Transfer the production bot and
+> Groq credentials through the agreed private secret channel.
+
+Keep #165 open until its merge/deployment behavior is understood. Prepare the
+production config, scoped credentials, backup and rollback first; coordinate the
+live switch with the operator. Bosla DNS access alone cannot stop the old bot.
 
 The existing shared staging backend is `Bosla / halaqabotdb / staging`
 (`perfect-clam-401`), a non-default deployment. The completed staging hosting move retained that backend, the Telegram bot and
@@ -18,26 +49,32 @@ Convex staging project was retired; follow the [agent handoff](agent-environment
 
 ## Configuration that must move together
 
-1. Attach the `halaqabot.bosla.to` hostname to the web host, with HTTPS and SPA
-   fallback to `index.html` for routes such as `/halaqas`.
-2. Optionally attach an API hostname such as `bot.bosla.to` to the production Worker. Cloudflare's custom-domain
-   configuration is a top-level Wrangler setting, for example:
+1. Prepare a production Wrangler config pinned to Bosla account
+   `fe626a504678476d9e8c2d942794d30f`, with production queue names,
+   bundled web assets and SPA fallback, following the active staging config.
+   Bind only the production hostname:
 
    ```toml
-   routes = [{ pattern = "bot.bosla.to", custom_domain = true }]
+   routes = [{ pattern = "halaqabot.bosla.to", custom_domain = true }]
    ```
 
-   Add this above the first TOML section in `packages/bot/wrangler.toml` only
-   when ready for production cutover. Deploying this binds the domain; merely
-   editing application URLs does not. Cloudflare manages the domain's DNS and
-   certificate for a Workers Custom Domain.
-3. Set Worker `WEB_APP_URL=https://halaqabot.bosla.to`. This configures
-   newly sent panel links and the API's allowed browser origin.
-4. Build the web app with `VITE_BOT_API_URL` set to the deployed Worker origin and the existing
-   production `VITE_CONVEX_URL`. Vite embeds these at build time.
-5. Run the webhook setup script with explicit `WORKER_URL` set to that Worker origin,
-   `WEB_APP_URL=https://halaqabot.bosla.to`, and production bot token/webhook secret supplied
-   privately. It sets `/telegram` and the default Telegram menu button.
+   Check the custom-domain changeset before attaching it; do not overwrite an
+   unrelated existing DNS record or origin. Cloudflare manages the certificate.
+2. Use the existing production deployment `incredible-lyrebird-981`, after
+   confirming its identity with the operator. Generate a production signing pair
+   separate from staging; deploy its public JWKS with the authenticated Convex
+   functions and retain the private key only in production Worker secrets.
+3. Set production `WEB_APP_URL=https://halaqabot.bosla.to`, the real production
+   bot token and real Groq key. Do not copy staging's fake classifier credentials
+   or `GROQ_BASE_URL` into production. Preserve the real production channel and
+   forwarding-group IDs supplied by the operator.
+4. Build the Mini App with the confirmed production `VITE_CONVEX_URL` and empty
+   `VITE_BOT_API_URL`; the production Worker serves both Mini App and API.
+5. After the operator has stopped the old bot and the new authenticated backend
+   and Worker are ready, run the webhook setup with explicit
+   `WORKER_URL=https://halaqabot.bosla.to`, matching `WEB_APP_URL`, and the
+   production token/webhook secret supplied privately. It sets `/telegram` and
+   the default Telegram menu button. Keep a single active bot and scheduler.
 6. Update any separately configured BotFather Main Mini App URL or per-chat
    menu overrides. Already-sent inline buttons still contain the old hostname;
    request a fresh `/admin` message when testing.
