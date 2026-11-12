@@ -206,6 +206,33 @@ describe('edge cases', () => {
     expect(list.lines[0].makeupDates).toEqual([day(2026, 1, 4)])
   })
 
+  test('numbering with an underscore, alone or before a dot', () => {
+    const list = parseManualList(
+      [
+        '📖 مقــــرأة الــدعم 📖',
+        '📍المعــلمة / منى صلاح',
+        '📍المشــرفة / راندة محمد ',
+        '📍التـــاريخ / 10 نوفمبر ٢٠٢٦',
+        '⛔️فضــــلاً كتــابة الاســم ثلاثــي',
+        '---------',
+        'ــــــــ',
+        '1_ بسمه سامى محمد ✅',
+        '2_ نادية عبدالله حجاج  ✅',
+        '3_. تهاني السيد أحمد ناجي ✅',
+        '4_  هدير مجدي الهيتي  ✅',
+      ].join('\n'),
+      { year: 2026, month: 11, day: 10 }
+    )
+    expect(list.header).toMatchObject({ teacherName: 'منى صلاح', supervisorName: 'راندة محمد' })
+    expect(list.lines.map((l) => l.name)).toEqual([
+      'بسمه سامى محمد',
+      'نادية عبدالله حجاج',
+      'تهاني السيد أحمد ناجي',
+      'هدير مجدي الهيتي',
+    ])
+    expect(list.lines.every((l) => l.done)).toBe(true)
+  })
+
   test('two lists in one paste are detected', () => {
     expect(parseManualList(`${REGULAR}\n\n\n${EXAM_MAKEUP}`, halaqa).multipleLists).toBe(true)
   })
