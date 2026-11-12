@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { parseManualList, defaultSessionTypeFor, foldArabic, matchNameLocally } from './manual-list'
+import {
+  parseManualList,
+  defaultSessionTypeFor,
+  foldArabic,
+  matchNameLocally,
+  matchNameWithTypo,
+} from './manual-list'
 
 const day = (year: number, month: number, d: number) => Date.UTC(year, month - 1, d)
 
@@ -356,5 +362,60 @@ describe('matchNameLocally', () => {
     expect(matchNameLocally('منى محمد', [students[6], students[7]])).toBeNull()
     expect(matchNameLocally('سارة أحمد علي', students)).toBeNull()
     expect(matchNameLocally('هدى محمود', students)).toBeNull()
+  })
+
+  // The ways names in real lists went unmatched, with made-up names
+  const roster = [
+    { id: 'salma', name: 'سلمى خالد الشريف' },
+    { id: 'rana', name: 'رنا يوسف الحسيني' },
+    { id: 'layla', name: 'ليلى سعيد حسن' },
+    { id: 'suha', name: 'سهى كمال زكي' },
+    { id: 'amal', name: 'أمل السيد فتحي الجمال' },
+    { id: 'momina', name: 'مؤمنة رامي العلي' },
+    { id: 'marwa', name: 'مروة رامي العلي' },
+  ]
+
+  test('ال added or dropped on a later name', () => {
+    expect(matchNameLocally('سلمى خالد شريف', roster)).toBe('salma')
+    expect(matchNameLocally('رنا يوسف حسيني', roster)).toBe('rana')
+    expect(matchNameLocally('امل سيد فتحي', roster)).toBe('amal')
+  })
+
+  test('a missing space between two names', () => {
+    expect(matchNameLocally('ليلىسعيد حسن', roster)).toBe('layla')
+  })
+
+  test('a one-letter typo is only a fallback', () => {
+    expect(matchNameLocally('سهى كمال ذكي', roster)).toBeNull()
+    expect(matchNameWithTypo('سهى كمال ذكي', roster)).toBe('suha')
+    // Shortened written names compare with the start of the stored one
+    expect(matchNameWithTypo('امل السيد فتحى الجمل', roster)).toBe('amal')
+  })
+
+  test('a typo close to two students, or a one-word name, is not guessed', () => {
+    // مروة and مؤمنة share the rest of the name, yet only one is a letter away
+    expect(matchNameWithTypo('مرمنة رامي العلي', roster)).toBe('momina')
+    // One letter from both حسن and حسين
+    const twins = [
+      { id: 'x', name: 'منى علي حسن' },
+      { id: 'y', name: 'منى علي حسين' },
+    ]
+    expect(matchNameWithTypo('منى علي حسان', twins)).toBeNull()
+    expect(matchNameWithTypo('ايمن', [{ id: 'x', name: 'ايمان' }])).toBeNull()
+  })
+})
+
+describe('session type typed onto the name', () => {
+  test('is split off the last word', () => {
+    const list = parseManualList('١.ريم فاروق حامدتسميع✅\n٢.هند عادل نصر تسميع✅', { year: 2026, month: 11, day: 11 })
+    expect(list.lines[0].name).toBe('ريم فاروق حامد')
+    expect(list.lines[0].sessionType).toBe('تسميع')
+    expect(list.lines[0].note).toBeNull()
+    expect(list.lines[1].name).toBe('هند عادل نصر')
+  })
+
+  test('a first name is never split', () => {
+    const list = parseManualList('١.رحمةدعم', { year: 2026, month: 11, day: 11 })
+    expect(list.lines[0].name).toBe('رحمةدعم')
   })
 })
