@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { AdminPasscodeNotice, adminActionErrorMessage } from '~/components/AdminPasscodeNotice'
 
 interface RegisterUserModalProps {
   isOpen: boolean
@@ -48,7 +49,7 @@ export function RegisterUserModal({ isOpen, onClose, onRegister }: RegisterUserM
 
   const handlePasswordSubmit = () => {
     if (!passcode.trim()) {
-      setError('الرجاء إدخال كلمة المرور')
+      setError('الرجاء إدخال رمز الحماية')
       return
     }
     setError('')
@@ -68,7 +69,7 @@ export function RegisterUserModal({ isOpen, onClose, onRegister }: RegisterUserM
       await onRegister(name.trim(), passcode)
       onClose()
     } catch (err: any) {
-      setError(err?.message || 'حدث خطأ أثناء التسجيل')
+      setError(adminActionErrorMessage(err, 'حدث خطأ أثناء التسجيل'))
     } finally {
       setIsRegistering(false)
     }
@@ -102,7 +103,7 @@ export function RegisterUserModal({ isOpen, onClose, onRegister }: RegisterUserM
             {step === 'password' ? (
               <>
                 <Lock className="h-5 w-5" />
-                كلمة المرور
+                رمز الحماية
               </>
             ) : (
               <>
@@ -113,13 +114,15 @@ export function RegisterUserModal({ isOpen, onClose, onRegister }: RegisterUserM
           </DialogTitle>
           <DialogDescription>
             {step === 'password'
-              ? 'الرجاء إدخال كلمة المرور للمتابعة'
+              ? 'الرجاء إدخال رمز الحماية للمتابعة'
               : 'أدخل اسم المستخدم الجديد'
             }
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          {step === 'password' && <AdminPasscodeNotice />}
+
           {step === 'password' ? (
             <div className="space-y-2">
               <Input
@@ -131,7 +134,7 @@ export function RegisterUserModal({ isOpen, onClose, onRegister }: RegisterUserM
                   setError('')
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="أدخل كلمة المرور"
+                placeholder="أدخل رمز الحماية"
                 disabled={isRegistering}
                 className={error ? 'border-red-500' : ''}
               />

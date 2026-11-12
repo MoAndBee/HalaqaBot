@@ -4,6 +4,10 @@ import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
 import { EXTERNAL_SESSION_ORIGIN, pickCurrentSession } from "../src/sessionOrigin";
 
+// Passcode for admin-only actions (unlocking a halaqa, registering a user,
+// deleting a halaqa). Checked server-side so the web app can't bypass it.
+const ADMIN_PASSCODE = "adminunlock311225";
+
 /**
  * Parsing for Telegram message links (t.me/...).
  *
@@ -1709,11 +1713,8 @@ export const unlockSession = mutation({
     passcode: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate passcode (hardcoded)
-    const UNLOCK_PASSCODE = "adminunlock311225";
-
-    if (args.passcode !== UNLOCK_PASSCODE) {
-      throw new Error("Invalid passcode");
+    if (args.passcode !== ADMIN_PASSCODE) {
+      throw new ConvexError("رمز الحماية غير صحيح");
     }
 
     // Find the session
@@ -1738,6 +1739,89 @@ export const unlockSession = mutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Permanently delete one halaqa (session) of a post: its session row, its
+ * turn queue, its participation history and the bot bookkeeping tied to it.
+ * Admin-only, guarded by the passcode. The post itself always stays in the
+ * halaqas list, even when this was its only halaqa.
+ *
+ * Messages already sent to Telegram (e.g. the participant list) are left
+ * untouched; only the app's own records go.
+ */
+export const deleteSession = mutation({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    passcode: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (args.passcode !== ADMIN_PASSCODE) {
+      throw new ConvexError("رمز الحماية غير صحيح");
+    }
+
+    const { chatId, postId, sessionNumber } = args;
+    const bySession = (q: any) =>
+      q.eq("chatId", chatId).eq("postId", postId).eq("sessionNumber", sessionNumber);
+
+    const sessionRows = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", bySession)
+      .collect();
+    const queueRows = await ctx.db
+      .query("turnQueue")
+      .withIndex("by_chat_post_session", bySession)
+      .collect();
+    const historyRows = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_chat_post_session", bySession)
+      .collect();
+    const legacyRows = await ctx.db
+      .query("userLists")
+      .withIndex("by_chat_post_session", bySession)
+      .collect();
+
+    if (sessionRows.length === 0 && queueRows.length === 0 && historyRows.length === 0) {
+      throw new ConvexError("الحلقة غير موجودة");
+    }
+
+    for (const row of [...sessionRows, ...queueRows, ...historyRows, ...legacyRows]) {
+      await ctx.db.delete(row._id);
+    }
+
+    // The bot's record of the list message it last posted for this halaqa
+    const listMessages = await ctx.db
+      .query("lastListMessages")
+      .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
+      .collect();
+    for (const row of listMessages) {
+      if ((row.sessionNumber ?? 1) === sessionNumber) await ctx.db.delete(row._id);
+    }
+
+    // Bot tasks still waiting to run for this halaqa
+    const tasks = await ctx.db
+      .query("botTasks")
+      .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
+      .collect();
+    for (const task of tasks) {
+      if (task.sessionNumber === sessionNumber && task.status === "pending") {
+        await ctx.db.delete(task._id);
+      }
+    }
+
+    console.log(
+      `Deleted halaqa ${sessionNumber} of post ${chatId}/${postId}: ` +
+        `${queueRows.length} queued, ${historyRows.length} completed`
+    );
+
+    return {
+      success: true,
+      deletedQueue: queueRows.length,
+      deletedHistory: historyRows.length,
+    };
   },
 });
 
@@ -2242,11 +2326,8 @@ export const registerUser = mutation({
     chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Validate passcode (same as unlockSession)
-    const REGISTER_PASSCODE = "adminunlock311225";
-
-    if (args.passcode !== REGISTER_PASSCODE) {
-      throw new Error("Invalid passcode");
+    if (args.passcode !== ADMIN_PASSCODE) {
+      throw new ConvexError("رمز الحماية غير صحيح");
     }
 
     const trimmedName = args.name.trim();
