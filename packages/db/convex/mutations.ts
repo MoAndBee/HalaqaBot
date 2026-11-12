@@ -1745,8 +1745,8 @@ export const unlockSession = mutation({
 /**
  * Permanently delete one halaqa (session) of a post: its session row, its
  * turn queue, its participation history and the bot bookkeeping tied to it.
- * Admin-only, guarded by the passcode. When it was the post's last halaqa the
- * post itself is removed from the halaqas list too.
+ * Admin-only, guarded by the passcode. The post itself always stays in the
+ * halaqas list, even when this was its only halaqa.
  *
  * Messages already sent to Telegram (e.g. the participant list) are left
  * untouched; only the app's own records go.
@@ -1812,42 +1812,15 @@ export const deleteSession = mutation({
       }
     }
 
-    // Was that the post's last halaqa? Then drop the post from the list too.
-    const remainingSession = await ctx.db
-      .query("sessions")
-      .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
-      .first();
-    const remainingTurn =
-      (await ctx.db
-        .query("turnQueue")
-        .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
-        .first()) ??
-      (await ctx.db
-        .query("participationHistory")
-        .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
-        .first());
-
-    let postDeleted = false;
-    if (!remainingSession && !remainingTurn) {
-      const postRows = await ctx.db
-        .query("posts")
-        .withIndex("by_chat_post", (q) => q.eq("chatId", chatId).eq("postId", postId))
-        .collect();
-      for (const row of postRows) await ctx.db.delete(row._id);
-      postDeleted = postRows.length > 0;
-    }
-
     console.log(
       `Deleted halaqa ${sessionNumber} of post ${chatId}/${postId}: ` +
-        `${queueRows.length} queued, ${historyRows.length} completed` +
-        (postDeleted ? " (post removed)" : "")
+        `${queueRows.length} queued, ${historyRows.length} completed`
     );
 
     return {
       success: true,
       deletedQueue: queueRows.length,
       deletedHistory: historyRows.length,
-      postDeleted,
     };
   },
 });

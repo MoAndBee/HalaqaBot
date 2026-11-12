@@ -1,6 +1,6 @@
 import React from 'react'
 import { tgConfirm, formatHijriDate } from '@/lib/utils'
-import { Link, useLocation, useParams } from 'wouter'
+import { Link, useParams } from 'wouter'
 import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
@@ -123,7 +123,6 @@ export default function PostDetail() {
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
   const [isDeleteSessionModalOpen, setIsDeleteSessionModalOpen] = React.useState(false)
-  const [, navigate] = useLocation()
   const [isBulkSessionTypeModalOpen, setIsBulkSessionTypeModalOpen] = React.useState(false)
   // Which manual list flow is open: replacing this session's list, or adding an external halaqa
   const [manualListMode, setManualListMode] = React.useState<ManualListMode | null>(null)
@@ -887,7 +886,7 @@ export default function PostDetail() {
     if (!data) return
 
     const sessionToDelete = selectedSession ?? data.currentSession
-    const result = await deleteSession({
+    await deleteSession({
       chatId,
       postId,
       sessionNumber: sessionToDelete,
@@ -895,12 +894,8 @@ export default function PostDetail() {
     })
 
     toast.success(`تم حذف الحلقة رقم ${sessionToDelete.toLocaleString('ar-EG')}`)
-    if (result.postDeleted) {
-      navigate('/halaqas')
-    } else {
-      // Fall back to whichever halaqa is now current
-      setSelectedSession(undefined)
-    }
+    // Fall back to whichever halaqa is now current
+    setSelectedSession(undefined)
   }
 
   const handleToggleRegistrationClosed = async () => {
