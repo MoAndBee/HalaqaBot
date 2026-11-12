@@ -37,6 +37,7 @@ import { SESSION_TYPES } from '@/lib/session-types'
 import {
   defaultSessionTypeFor,
   matchNameLocally,
+  matchNameWithTypo,
   parseManualList,
   type CalendarDate,
   type ManualListHeader,
@@ -205,11 +206,14 @@ export function ManualListModal({
     const listType = defaultSessionTypeFor(parsed.header.kind)
     const initial: Row[] = parsed.lines.map((line) => {
       const localId = line.name ? matchNameLocally(line.name, studentOptions) : null
+      // A one-letter difference is shown as a match to check, not a sure one
+      const typoId = localId === null && line.name ? matchNameWithTypo(line.name, studentOptions) : null
+      const id = localId ?? typoId
       return {
         key: `l${line.index}`,
         line,
-        userId: localId === null ? null : Number(localId),
-        match: localId === null ? 'none' : 'local',
+        userId: id === null ? null : Number(id),
+        match: localId !== null ? 'local' : typoId !== null ? 'medium' : 'none',
         sessionType: line.sessionType ?? listType,
         done: line.done,
         dates: line.makeupDates,

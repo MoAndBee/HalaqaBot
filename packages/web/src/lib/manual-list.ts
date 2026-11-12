@@ -352,6 +352,11 @@ const DETAIL_WORDS = new Set([
   ...SESSION_TYPES.map((t) => foldArabic(t)),
 ])
 
+const GLUED_SESSION_TYPE = new RegExp(
+  `^(\\p{L}{2,}?)(${SESSION_TYPES.map((t) => variants(foldArabic(t))).join('|')})$`,
+  'u'
+)
+
 function splitNameAndDetail(text: string): { name: string; detail: string } {
   // The bot's own format: "name - notes (type)"
   const dashOrParen = text.search(/\s-\s|\(/)
@@ -359,6 +364,14 @@ function splitNameAndDetail(text: string): { name: string; detail: string } {
   let detail = dashOrParen === -1 ? '' : text.slice(dashOrParen)
 
   const words = namePart.split(/\s+/).filter(Boolean)
+  // A session type typed without a space after the name: "ريم فاروق حامدتسميع"
+  if (words.length >= 2) {
+    const glued = GLUED_SESSION_TYPE.exec(stripDecoration(words[words.length - 1]))
+    if (glued) {
+      words.splice(words.length - 1, 1, glued[1], glued[2])
+      namePart = words.join(' ')
+    }
+  }
   const bareWord = (word: string) => foldArabic(word).replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '')
   const boundary = words.findIndex((word, i) => i >= 2 && DETAIL_WORDS.has(bareWord(word)))
   if (boundary !== -1) {
@@ -554,24 +567,40 @@ export function defaultSessionTypeFor(kind: ManualListKind): string | null {
 
 /**
  * Name words for comparison: folded, with compound names joined so
- * "عبد الله" and "عبدالله" compare equal
+ * "عبد الله" and "عبدالله" compare equal, and ال dropped from every word
+ * after the first so "سلمى خالد شريف" and "سلمى خالد الشريف" compare equal.
  */
 function nameWords(name: string): string[] {
   return foldArabic(name.replace(/^@/, ''))
     .replace(/(^|\s)(عبد|ابو|ام) /g, '$1$2')
     .split(' ')
     .filter(Boolean)
+    .map((word, i) => (i > 0 && /^ال.{2,}$/.test(word) ? word.slice(2) : word))
 }
 
 function isPrefix(shorter: string[], longer: string[]): boolean {
   return shorter.length <= longer.length && shorter.every((word, i) => word === longer[i])
 }
 
+/** The one student in the list, or null for none or several */
+function onlyOne<T extends { id: string }>(candidates: T[]): string | null {
+  return candidates.length === 1 ? candidates[0].id : null
+}
+
+function storedNames<T extends { id: string; name: string }>(students: T[]) {
+  return students
+    .map((student) => ({ student, words: nameWords(student.name) }))
+    .filter((s) => s.words.length > 0)
+}
+
 /**
- * Match a written name to a student when it is unambiguous: the names are the
- * same, or one is the start of the other and is at least two words long
- * ("آية محمد" ↔ "آية محمد محمد"). Returns the student's id, or null when no
- * student or more than one fits — those go to the AI matcher and the reviewer.
+ * Match a written name to a student when it is unambiguous, trying in order:
+ * the names are the same; one is the start of the other and is at least two
+ * words long ("آية محمد" ↔ "آية محمد محمد"); the names are the same once
+ * spaces are ignored ("ليلىسعيد حسن" ↔ "ليلى سعيد حسن"). Each step only runs
+ * when the one before found no student at all, so two students fitting
+ * equally well stop the search. Returns the student's id, or null — those go
+ * to matchNameWithTypo, the AI matcher and the reviewer.
  */
 export function matchNameLocally<T extends { id: string; name: string }>(
   writtenName: string,
@@ -579,23 +608,62 @@ export function matchNameLocally<T extends { id: string; name: string }>(
 ): string | null {
   const written = nameWords(writtenName)
   if (written.length === 0) return null
+  const stored = storedNames(students)
 
-  const exact: T[] = []
-  const partial: T[] = []
-  for (const student of students) {
-    const stored = nameWords(student.name)
-    if (stored.length === 0) continue
-    if (stored.length === written.length && isPrefix(stored, written)) {
-      exact.push(student)
-    } else if (
-      Math.min(stored.length, written.length) >= 2 &&
-      (isPrefix(stored, written) || isPrefix(written, stored))
-    ) {
-      partial.push(student)
+  const exact = stored.filter((s) => s.words.length === written.length && isPrefix(s.words, written))
+  if (exact.length > 0) return onlyOne(exact.map((s) => s.student))
+
+  const partial = stored.filter(
+    (s) =>
+      Math.min(s.words.length, written.length) >= 2 &&
+      (isPrefix(s.words, written) || isPrefix(written, s.words))
+  )
+  if (partial.length > 0) return onlyOne(partial.map((s) => s.student))
+
+  const joined = written.join('')
+  return onlyOne(stored.filter((s) => s.words.join('') === joined).map((s) => s.student))
+}
+
+/** Levenshtein distance, giving up (returning limit + 1) once it exceeds limit */
+function editDistance(a: string, b: string, limit: number): number {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      )
     }
+    if (Math.min(...current) > limit) return limit + 1
+    previous = current
   }
+  return previous[b.length]
+}
 
-  if (exact.length === 1) return exact[0].id
-  if (exact.length === 0 && partial.length === 1) return partial[0].id
-  return null
+/**
+ * A looser match for when matchNameLocally found nothing: the names differ by
+ * a single letter ("سهى كمال ذكي" ↔ "سهى كمال زكي"), comparing the written
+ * name with the same number of words from the start of the stored one. Both
+ * must be at least two words and only one student may be that close. A
+ * single letter can also be a different person (أمل / آمال), so the caller
+ * shows this as a match to check rather than a certain one.
+ */
+export function matchNameWithTypo<T extends { id: string; name: string }>(
+  writtenName: string,
+  students: T[]
+): string | null {
+  const written = nameWords(writtenName)
+  if (written.length < 2) return null
+  return onlyOne(
+    storedNames(students)
+      .filter((s) => s.words.length >= 2)
+      .filter((s) => {
+        const n = Math.min(s.words.length, written.length)
+        return editDistance(written.slice(0, n).join(' '), s.words.slice(0, n).join(' '), 1) <= 1
+      })
+      .map((s) => s.student)
+  )
 }
