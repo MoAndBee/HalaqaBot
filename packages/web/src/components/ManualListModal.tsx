@@ -50,8 +50,7 @@ export type ManualListMode = 'replace' | 'create'
 
 const PLATFORMS = [
   { value: 'zoom', label: 'زوم' },
-  { value: 'meet', label: 'جوجل ميت' },
-  { value: 'other', label: 'أخرى' },
+  { value: 'telegram', label: 'تيليجرام' },
 ]
 
 /** How a row's student was found, for the status icon */
@@ -346,7 +345,7 @@ export function ManualListModal({
             </DialogTitle>
             <DialogDescription>
               {mode === 'create'
-                ? 'لحلقة أُقيمت خارج تيليجرام (زوم وغيره). الصقي القائمة كما كُتبت في جروب القوائم.'
+                ? 'لحلقة أُديرت بقائمة يدوية (على زوم أو تيليجرام) وليس عن طريق البوت. الصقي القائمة كما كُتبت في جروب القوائم.'
                 : 'الصقي القائمة اليدوية الأخيرة التي وصلت إليها الحلقة. ستحل محل قائمة الحلقة الحالية.'}
             </DialogDescription>
           </DialogHeader>

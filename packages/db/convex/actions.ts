@@ -42,7 +42,7 @@ export const sendParticipantList = action({
       // An external halaqa's list was already posted by hand — the bot posting
       // it again would put a second copy in the discussion group
       if (sessionInfo && isExternalSession(sessionInfo)) {
-        throw new Error("لا يمكن إرسال القائمة: هذه الحلقة أُقيمت خارج تيليجرام.");
+        throw new Error("لا يمكن إرسال القائمة: هذه الحلقة أُضيفت بقائمة يدوية وقائمتها منشورة بالفعل.");
       }
     }
 
