@@ -125,8 +125,11 @@ const ALL_MARKS = /[✅✔☑]|🗣|\uFE0F/gu
 /** Emoji and symbols with no meaning in a name (📍, 🦋, ⛔️, *, …) */
 const DECORATIVE = /[\p{Extended_Pictographic}\uFE0F*•]/gu
 
-/** "١- " / "1/" / "٤." / "12)" at the start of a line */
-const NUMBERING = /^[\s\u200e\u200f]*[0-9٠-٩۰-۹]{1,3}\s*[-–.\/)\u066B\u06D4]\s*/
+/**
+ * "١- " / "1/" / "٤." / "12)" / "1_" / "3_. " at the start of a line. Several
+ * separators may follow each other, and _ or tatweel count as a dash.
+ */
+const NUMBERING = /^[\s\u200e\u200f]*[0-9٠-٩۰-۹]{1,3}\s*(?:[-–—_\u0640.\/)\u066B\u06D4]\s*)+/
 
 // ---------------------------------------------------------------------------
 // Dates
