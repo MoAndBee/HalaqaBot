@@ -161,6 +161,75 @@ describe('make-up list', () => {
   })
 })
 
+const ACCUMULATED = `📖 مقــــرأة درجــــات الجنــــة 📖
+📍المُعلمــــة/ رضوى أحمد 
+📍المشرفـــــة/راندا عمرو&شيماء 
+📍التاريخ/١ نوفمبــــــــر 
+⛔️فضــــلاً كتــابة الاســم ثلاثــي 
+📍 مقرأة الورد المتراكم 
+
+-------------------
+
+١-شيماء فؤاد انيس ورد الجمعه✅
+٢-ميسون حسن أحمد ورد ١٤ و١٥  اكتوبر✅
+٣-علا طه علي ..ورد أمس ✅
+٤-إيناس محمد نبيل (ورد الجمعة )✅
+٥-أمنية سمير عبد المحسن استدراك يوم الخميس ٢٩ اكتوبر✅
+٦-حفصه محمد امين ورد امس✅
+٧-سوزان أحمد عبد الغفار ورد الجمعة✅
+٨-نورا سعد عبدالغنى ورد آلأتنين والثلاثاء ✅
+٩-أمنية جمال عبدالناصر.. ورد أمس ✅
+١٠-بسمة موسي منصور تعويض ٢٣ و٢٩ أكتوبر✅
+١١-هناء جلال عواد تسميع ورد  يوم29و 30✅
+
+
+١٢-منة الله أيمن سيد استدراك ورد أمس ويوم 29✅
+١٣-هبة الله السيد هويدي تسميع ورد امبارح ✅
+
+🚨 انتهى التسجيل 🚨`
+
+describe('accumulated wird list (مقرأة الورد المتراكم)', () => {
+  // 1 Nov 2026 is a Sunday
+  const list = parseManualList(ACCUMULATED, { year: 2026, month: 11, day: 1 })
+  const oct = (d: number) => day(2026, 10, d)
+
+  test('is a make-up list, and every line is a تعويض', () => {
+    expect(list.header).toMatchObject({ teacherName: 'رضوى أحمد', date: { year: 2026, month: 11, day: 1 }, kind: 'makeup' })
+    expect(list.lines).toHaveLength(13)
+    expect(list.lines.every((l) => l.sessionType === 'تعويض' && l.done && !l.makeupUnresolved)).toBe(true)
+  })
+
+  test('names stop before the details, dots and all', () => {
+    expect(list.lines[2].name).toBe('علا طه علي')
+    expect(list.lines[8].name).toBe('أمنية جمال عبدالناصر')
+    expect(list.lines[3].name).toBe('إيناس محمد نبيل')
+  })
+
+  test('every line gets its days', () => {
+    expect(list.lines.map((l) => l.makeupDates)).toEqual([
+      [oct(30)], // ورد الجمعه
+      [oct(14), oct(15)], // ١٤ و١٥ اكتوبر
+      [oct(31)], // ..ورد أمس
+      [oct(30)], // (ورد الجمعة )
+      [oct(29)], // يوم الخميس ٢٩ اكتوبر
+      [oct(31)], // امس
+      [oct(30)],
+      [oct(26), oct(27)], // آلأتنين والثلاثاء
+      [oct(31)],
+      [oct(23), oct(29)], // ٢٣ و٢٩ أكتوبر
+      [oct(29), oct(30)], // يوم29و 30
+      [oct(29), oct(31)], // ورد أمس ويوم 29
+      [oct(31)], // امبارح
+    ])
+  })
+
+  test('nothing but a replaced session type is left in the notes', () => {
+    expect(list.lines.map((l) => l.note)).toEqual([
+      null, null, null, null, null, null, null, null, null, null, 'تسميع', null, 'تسميع',
+    ])
+  })
+})
+
 describe('edge cases', () => {
   const halaqa = { year: 2026, month: 1, day: 5 }
 
@@ -187,6 +256,19 @@ describe('edge cases', () => {
       skipped: true,
       done: false,
     })
+  })
+
+  test('a bare day after the halaqa day is last month, and a missing day is not invented', () => {
+    const list = parseManualList('مقرأة استدراك\n1- سارة علي حسن ورد يوم 3 و 31 ✅', { year: 2026, month: 3, day: 2 })
+    // 3 Feb exists, 31 Feb doesn't: the whole phrase is left for the reviewer
+    expect(list.lines[0]).toMatchObject({ makeupDates: [], makeupUnresolved: true })
+    const ok = parseManualList('مقرأة استدراك\n1- سارة علي حسن ورد يوم 3 ✅', { year: 2026, month: 1, day: 2 })
+    expect(ok.lines[0].makeupDates).toEqual([day(2025, 12, 3)])
+  })
+
+  test('a verse number is not a day', () => {
+    const list = parseManualList('مقرأة استدراك\n1- سارة علي حسن ورد أمس آية 12 ✅', halaqa)
+    expect(list.lines[0]).toMatchObject({ makeupDates: [day(2026, 1, 4)], note: 'آية 12' })
   })
 
   test('ورد as a given name is kept', () => {
