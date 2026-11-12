@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { AdminPasscodeNotice, adminActionErrorMessage } from '~/components/AdminPasscodeNotice'
 
 interface UnlockSessionModalProps {
   isOpen: boolean
@@ -36,7 +37,7 @@ export function UnlockSessionModal({ isOpen, onClose, onUnlock, sessionNumber }:
 
   const handleUnlock = async () => {
     if (!passcode.trim()) {
-      setError('الرجاء إدخال كلمة المرور')
+      setError('الرجاء إدخال رمز الحماية')
       return
     }
 
@@ -47,7 +48,7 @@ export function UnlockSessionModal({ isOpen, onClose, onUnlock, sessionNumber }:
       await onUnlock(passcode)
       onClose()
     } catch (err: any) {
-      setError(err?.message || 'كلمة مرور خاطئة')
+      setError(adminActionErrorMessage(err, 'رمز الحماية غير صحيح'))
     } finally {
       setIsUnlocking(false)
     }
@@ -72,11 +73,13 @@ export function UnlockSessionModal({ isOpen, onClose, onUnlock, sessionNumber }:
             فتح الحلقة
           </DialogTitle>
           <DialogDescription>
-            الحلقة رقم {sessionNumber.toLocaleString('ar-EG')} مغلقة. الرجاء إدخال كلمة المرور لفتح الحلقة.
+            الحلقة رقم {sessionNumber.toLocaleString('ar-EG')} مغلقة. الرجاء إدخال رمز الحماية لفتح الحلقة.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          <AdminPasscodeNotice />
+
           <div className="space-y-2">
             <Input
               ref={inputRef}
@@ -87,7 +90,7 @@ export function UnlockSessionModal({ isOpen, onClose, onUnlock, sessionNumber }:
                 setError('')
               }}
               onKeyDown={handleKeyDown}
-              placeholder="أدخل كلمة المرور"
+              placeholder="أدخل رمز الحماية"
               disabled={isUnlocking}
               className={error ? 'border-red-500' : ''}
             />

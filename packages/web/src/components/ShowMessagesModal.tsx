@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { AdminPasscodeNotice } from '~/components/AdminPasscodeNotice'
 
 const MESSAGES_PASSCODE = 'adminunlock311225'
 
@@ -37,7 +38,7 @@ export function ShowMessagesModal({ isOpen, onClose, onUnlock }: ShowMessagesMod
 
   const handleUnlock = async () => {
     if (!passcode.trim()) {
-      setError('الرجاء إدخال كلمة المرور')
+      setError('الرجاء إدخال رمز الحماية')
       return
     }
 
@@ -52,7 +53,7 @@ export function ShowMessagesModal({ isOpen, onClose, onUnlock }: ShowMessagesMod
       onUnlock()
       onClose()
     } else {
-      setError('كلمة مرور خاطئة')
+      setError('رمز الحماية غير صحيح')
       setIsChecking(false)
     }
   }
@@ -76,11 +77,13 @@ export function ShowMessagesModal({ isOpen, onClose, onUnlock }: ShowMessagesMod
             إظهار الرسائل
           </DialogTitle>
           <DialogDescription>
-            الرجاء إدخال كلمة المرور لعرض رسائل هذا المنشور.
+            الرجاء إدخال رمز الحماية لعرض رسائل هذا المنشور.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          <AdminPasscodeNotice />
+
           <div className="space-y-2">
             <Input
               ref={inputRef}
@@ -91,7 +94,7 @@ export function ShowMessagesModal({ isOpen, onClose, onUnlock }: ShowMessagesMod
                 setError('')
               }}
               onKeyDown={handleKeyDown}
-              placeholder="أدخل كلمة المرور"
+              placeholder="أدخل رمز الحماية"
               disabled={isChecking}
               className={error ? 'border-red-500' : ''}
             />
