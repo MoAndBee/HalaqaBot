@@ -25,7 +25,9 @@ after independently confirming they are the live resources.
 Discover the actual old bot process, start/stop/restart controls, deployed image,
 transport, credentials and external auto-deploy hooks yourself using your access.
 The old Mini App is halakabot.app.thawabcoding.work (last DNS: 213.199.41.153);
-that does not prove the bot runs there. Mohanad does not know its hosting details.
+Coolify now shows Halaka Bot → production, with running applications named bot
+and Web app on server localhost. Mohanad has access; inspect their deployed
+commits, environment, transport, restart and auto-deploy settings.
 Verify real bot identity and real Groq before touching the running service.
 Prepare backups and a rollback build that DOES NOT drop pending Telegram updates.
 

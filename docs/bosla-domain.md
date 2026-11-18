@@ -31,7 +31,11 @@ Read-only checks found:
   or Workers Custom Domain at `halaqabot.bosla.to`.
 - GitHub has no deployment records/environments or repository Actions secret
   names identifying the host. External auto-deployment remains unknown.
-- Mohanad does not know who hosts the current bot. No production bot token,
+- On 2026-11-18 Mohanad gained Coolify access. His screenshot shows project
+  **Halaka Bot → production**, with running applications **bot** and **Web app**,
+  both on server `localhost`; Web app uses the old hostname above. The deployed
+  commits, environment, transport and auto-deploy settings still need inspection.
+- No production bot token,
   real Groq key or server access is available in this checkout.
 
 Ask the current operator:

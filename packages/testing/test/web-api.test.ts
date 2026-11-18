@@ -134,7 +134,7 @@ describe("sending the participant list", () => {
       chatId: stack.world.groupId, postId, sessionNumber: external.sessionNumber,
     }, asAdmin());
     expect(denied.status).toBe(409);
-    expect(denied.body.error).toContain("خارج تيليجرام");
+    expect(denied.body.error).toContain("قائمة يدوية");
     expect(listMessages(postId)).toHaveLength(0);
     const sent = await stack.callApi("/api/participant-list", {
       chatId: stack.world.groupId, postId,
@@ -268,6 +268,20 @@ describe("importing an old post", () => {
     );
     expect(response.status).toBe(403);
   });
+});
+
+test("the Mini App can delete its own halaqa but its passcode cannot bypass channel access", async () => {
+  const postId = await halaqaWithStudents();
+  const args = { chatId: stack.world.groupId, postId, sessionNumber: 1, passcode: "adminunlock311225" };
+  const admin = await stack.convexAs(stack.world.admin.id);
+  const outsider = await stack.convexAs(stack.world.students[0]!.id);
+  await expect(outsider.mutation(api.mutations.deleteSession, args)).rejects.toThrow();
+  await expect(admin.mutation(api.mutations.deleteSession, { ...args, chatId: -1009999999999 })).rejects.toThrow();
+  expect((await stack.query(api.queries.getUserList, { chatId: args.chatId, postId })).activeUsers).toHaveLength(2);
+  expect(await admin.mutation(api.mutations.deleteSession, args)).toMatchObject({ success: true, deletedQueue: 2 });
+  expect((await stack.query(api.queries.getUserList, { chatId: args.chatId, postId })).activeUsers).toHaveLength(0);
+  const posts = await admin.query(api.queries.getPaginatedPosts, { chatId: args.chatId, paginationOpts: { numItems: 100, cursor: null } });
+  expect(posts.page.some(post => post.postId === postId)).toBe(true);
 });
 
 test("the Worker logged no failures", async () => {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Loader2, MessageSquare } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -10,18 +10,25 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { AdminPasscodeNotice, adminActionErrorMessage } from '~/components/AdminPasscodeNotice'
 
-const MESSAGES_PASSCODE = 'adminunlock311225'
-
-interface ShowMessagesModalProps {
+interface DeleteSessionModalProps {
   isOpen: boolean
   onClose: () => void
-  onUnlock: () => void
+  onDelete: (passcode: string) => Promise<void>
+  sessionNumber: number
+  participantCount: number
 }
 
-export function ShowMessagesModal({ isOpen, onClose, onUnlock }: ShowMessagesModalProps) {
+export function DeleteSessionModal({
+  isOpen,
+  onClose,
+  onDelete,
+  sessionNumber,
+  participantCount,
+}: DeleteSessionModalProps) {
   const [passcode, setPasscode] = useState('')
-  const [isChecking, setIsChecking] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -35,52 +42,57 @@ export function ShowMessagesModal({ isOpen, onClose, onUnlock }: ShowMessagesMod
     }
   }, [isOpen])
 
-  const handleUnlock = async () => {
+  const handleDelete = async () => {
     if (!passcode.trim()) {
-      setError('الرجاء إدخال كلمة المرور')
+      setError('الرجاء إدخال رمز الحماية')
       return
     }
 
-    setIsChecking(true)
+    setIsDeleting(true)
     setError('')
 
-    // Small delay for UX
-    await new Promise((r) => setTimeout(r, 200))
-
-    if (passcode === MESSAGES_PASSCODE) {
-      setIsChecking(false)
-      onUnlock()
+    try {
+      await onDelete(passcode)
       onClose()
-    } else {
-      setError('كلمة مرور خاطئة')
-      setIsChecking(false)
+    } catch (err) {
+      setError(adminActionErrorMessage(err, 'تعذر حذف الحلقة'))
+    } finally {
+      setIsDeleting(false)
     }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      handleUnlock()
+      handleDelete()
     }
   }
 
+  const sessionLabel = sessionNumber.toLocaleString('ar-EG')
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isDeleting && onClose()}>
       <DialogContent
         className="max-w-md top-[20%] sm:top-[50%] max-h-[80vh] overflow-y-auto"
         dir="rtl"
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            إظهار الرسائل
+          <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-500">
+            <Trash2 className="h-5 w-5" />
+            حذف الحلقة
           </DialogTitle>
           <DialogDescription>
-            الرجاء إدخال كلمة المرور لعرض رسائل هذا المنشور.
+            سيتم حذف الحلقة رقم {sessionLabel} نهائياً
+            {participantCount > 0 && (
+              <> مع جميع أدوارها ({participantCount.toLocaleString('ar-EG')} {participantCount === 1 ? 'مشاركة' : 'مشاركات'})</>
+            )}
+            . لا يمكن التراجع عن هذا الإجراء.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          <AdminPasscodeNotice />
+
           <div className="space-y-2">
             <Input
               ref={inputRef}
@@ -91,39 +103,36 @@ export function ShowMessagesModal({ isOpen, onClose, onUnlock }: ShowMessagesMod
                 setError('')
               }}
               onKeyDown={handleKeyDown}
-              placeholder="أدخل كلمة المرور"
-              disabled={isChecking}
+              placeholder="أدخل رمز الحماية"
+              disabled={isDeleting}
               className={error ? 'border-red-500' : ''}
             />
             {error && (
               <p className="text-sm text-red-500">{error}</p>
             )}
           </div>
-
-          <p className="text-xs text-muted-foreground">
-            اضغط Enter للتأكيد
-          </p>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button
             variant="outline"
             onClick={onClose}
-            disabled={isChecking}
+            disabled={isDeleting}
           >
             إلغاء
           </Button>
           <Button
-            onClick={handleUnlock}
-            disabled={isChecking}
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={isDeleting}
           >
-            {isChecking ? (
+            {isDeleting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                جاري التحقق...
+                جاري الحذف...
               </>
             ) : (
-              'إظهار'
+              'حذف الحلقة'
             )}
           </Button>
         </DialogFooter>

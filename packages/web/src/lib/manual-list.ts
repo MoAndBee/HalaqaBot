@@ -125,8 +125,11 @@ const ALL_MARKS = /[✅✔☑]|🗣|\uFE0F/gu
 /** Emoji and symbols with no meaning in a name (📍, 🦋, ⛔️, *, …) */
 const DECORATIVE = /[\p{Extended_Pictographic}\uFE0F*•]/gu
 
-/** "١- " / "1/" / "٤." / "12)" at the start of a line */
-const NUMBERING = /^[\s\u200e\u200f]*[0-9٠-٩۰-۹]{1,3}\s*[-–.\/)\u066B\u06D4]\s*/
+/**
+ * "١- " / "1/" / "٤." / "12)" / "1_" / "3_. " at the start of a line. Several
+ * separators may follow each other, and _ or tatweel count as a dash.
+ */
+const NUMBERING = /^[\s\u200e\u200f]*[0-9٠-٩۰-۹]{1,3}\s*(?:[-–—_\u0640.\/)\u066B\u06D4]\s*)+/
 
 // ---------------------------------------------------------------------------
 // Dates
@@ -149,13 +152,13 @@ const MONTHS: Record<string, number> = {
 
 /** JS getUTCDay() numbering: 0 = Sunday */
 const WEEKDAYS: Array<[RegExp, number]> = [
-  [/^ال?سبت$/, 6],
-  [/^ال?احد$/, 0],
-  [/^ال?(اثنين|اتنين|اثنان)$/, 1],
-  [/^ال?(ثلاثاء|ثلاثا|تلات|تلاتاء)$/, 2],
-  [/^ال?(اربعاء|اربعا|اربع)$/, 3],
-  [/^ال?خميس$/, 4],
-  [/^ال?جمعه$/, 5],
+  [/^(?:ال)?سبت$/, 6],
+  [/^(?:ال)?احد$/, 0],
+  [/^(?:ال)?(اثنين|اتنين|اثنان)$/, 1],
+  [/^(?:ال)?(ثلاثاء|ثلاثا|تلات|تلاتاء)$/, 2],
+  [/^(?:ال)?(اربعاء|اربعا|اربع)$/, 3],
+  [/^(?:ال)?خميس$/, 4],
+  [/^(?:ال)?جمعه$/, 5],
 ]
 
 function weekdayOf(token: string): number | null {
@@ -171,6 +174,27 @@ function utcMidnight(date: CalendarDate): number {
 
 function isValidDay(day: number, month: number): boolean {
   return month >= 1 && month <= 12 && day >= 1 && day <= 31
+}
+
+/** The day exists in that month of that year (no 31 September) */
+function exists(date: CalendarDate): boolean {
+  const d = new Date(utcMidnight(date))
+  return d.getUTCMonth() === date.month - 1 && d.getUTCDate() === date.day
+}
+
+/**
+ * A bare day of the month ("يوم 29") is the most recent such day not after
+ * the halaqa: this month, or last month when the day hasn't come yet.
+ */
+function resolveBareDay(day: number, halaqa: CalendarDate): number | null {
+  if (day < 1 || day > 31) return null
+  let candidate: CalendarDate = { ...halaqa, day }
+  if (day > halaqa.day) {
+    candidate = halaqa.month === 1
+      ? { year: halaqa.year - 1, month: 12, day }
+      : { year: halaqa.year, month: halaqa.month - 1, day }
+  }
+  return exists(candidate) ? utcMidnight(candidate) : null
 }
 
 /**
@@ -253,16 +277,24 @@ function readMakeupDates(text: string, halaqa: CalendarDate): MakeupReading {
 
   // A weekday followed by an explicit date ("يوم الجمعه 18 /9") names that
   // date — it must not also count as "last Friday".
-  const weekdayWord = `(?:يوم\\s*)?(?:ال)?(?:${[
+  const weekdayWord = `(?:يوم\\s*)?(?:[اأإآ]ل)?(?:${[
     'سبت', 'احد', 'اثنين', 'اتنين', 'ثلاثاء', 'ثلاثا', 'تلات', 'اربعاء', 'اربعا', 'اربع', 'خميس', 'جمعه',
   ].map(variants).join('|')})`
 
-  take(new RegExp(`(?:${weekdayWord}\\s*)?${NAMED_DATE.source}`, 'g'), (m) => {
-    const day = Number(m[1])
-    const month = MONTHS[foldArabic(m[2])]
-    if (!isValidDay(day, month)) return null
-    return utcMidnight(resolveYear(day, month, m[3] ? Number(m[3]) : null, halaqa))
-  })
+  // One month for several days: "١٤ و١٥ اكتوبر", "٢٣ و٢٩ أكتوبر"
+  working = working.replace(
+    new RegExp(`(?:${weekdayWord}\\s*)?(\\d{1,2})((?:\\s*و\\s*\\d{1,2})*)\\s*(${MONTH_NAMES})(?:\\s*(\\d{4}))?`, 'g'),
+    (whole, first: string, more: string, monthName: string, year?: string) => {
+      const month = MONTHS[foldArabic(monthName)]
+      const days = [first, ...(more.match(/\d{1,2}/g) ?? [])].map(Number)
+      if (!days.every((d) => isValidDay(d, month))) return whole
+      for (const d of days) {
+        const date = resolveYear(d, month, year ? Number(year) : null, halaqa)
+        if (exists(date)) dates.add(utcMidnight(date))
+      }
+      return ' '
+    }
+  )
 
   take(new RegExp(`(?:${weekdayWord}\\s*)?${NUMERIC_DATE.source}`, 'g'), (m) => {
     const day = Number(m[1])
@@ -271,8 +303,22 @@ function readMakeupDates(text: string, halaqa: CalendarDate): MakeupReading {
     return utcMidnight(resolveYear(day, month, m[3] ? Number(m[3]) : null, halaqa))
   })
 
-  // "أول أمس" before "أمس", so the day before yesterday isn't read as yesterday
-  const yesterday = `(?:${variants('امس')}|${variants('البارحه')})`
+  // Bare days of the month after يوم / ورد / تعويض / استدراك: "يوم29و 30",
+  // "ويوم 29". Only these keywords introduce one, so a verse number
+  // ("آية 49") is never read as a day. The keyword stays for cleanLeftover.
+  working = working.replace(
+    new RegExp(`(يوم|ورد|تعويض|${variants('استدراك')})\\s*(\\d{1,2})((?:\\s*و\\s*\\d{1,2})*)(?![\\d/:])`, 'g'),
+    (whole, keyword: string, first: string, more: string) => {
+      const resolved = [first, ...(more.match(/\d{1,2}/g) ?? [])].map((d) => resolveBareDay(Number(d), halaqa))
+      if (resolved.some((d) => d === null)) return whole
+      for (const d of resolved) dates.add(d!)
+      return keyword === 'يوم' ? ' ' : ` ${keyword} `
+    }
+  )
+
+  // "أول أمس" before "أمس", so the day before yesterday isn't read as yesterday.
+  // امبارح / مبارح is the Egyptian "yesterday".
+  const yesterday = `(?:${variants('امس')}|${variants('البارحه')}|${variants('امبارح')}|مبارح)`
   take(new RegExp(`(?:يوم\\s*)?${variants('اول')}\\s*${yesterday}`, 'g'), () => addDays(halaqa, -2))
   take(new RegExp(`(?:يوم\\s*)?${yesterday}`, 'g'), () => addDays(halaqa, -1))
 
@@ -306,6 +352,11 @@ const DETAIL_WORDS = new Set([
   ...SESSION_TYPES.map((t) => foldArabic(t)),
 ])
 
+const GLUED_SESSION_TYPE = new RegExp(
+  `^(\\p{L}{2,}?)(${SESSION_TYPES.map((t) => variants(foldArabic(t))).join('|')})$`,
+  'u'
+)
+
 function splitNameAndDetail(text: string): { name: string; detail: string } {
   // The bot's own format: "name - notes (type)"
   const dashOrParen = text.search(/\s-\s|\(/)
@@ -313,13 +364,27 @@ function splitNameAndDetail(text: string): { name: string; detail: string } {
   let detail = dashOrParen === -1 ? '' : text.slice(dashOrParen)
 
   const words = namePart.split(/\s+/).filter(Boolean)
-  const boundary = words.findIndex((word, i) => i >= 2 && DETAIL_WORDS.has(foldArabic(word)))
+  // A session type typed without a space after the name: "ريم فاروق حامدتسميع"
+  if (words.length >= 2) {
+    const glued = GLUED_SESSION_TYPE.exec(stripDecoration(words[words.length - 1]))
+    if (glued) {
+      words.splice(words.length - 1, 1, glued[1], glued[2])
+      namePart = words.join(' ')
+    }
+  }
+  const bareWord = (word: string) => foldArabic(word).replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '')
+  const boundary = words.findIndex((word, i) => i >= 2 && DETAIL_WORDS.has(bareWord(word)))
   if (boundary !== -1) {
     detail = `${words.slice(boundary).join(' ')} ${detail}`
     namePart = words.slice(0, boundary).join(' ')
   }
 
-  return { name: namePart.replace(/\s+/g, ' ').trim(), detail: detail.trim() }
+  const name = namePart
+    // Trailing separators before the details: "عبدالناصر.." / "علي .."
+    .replace(/[\s.…:،,\-]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return { name, detail: detail.replace(/^[\s.…:،,]+/, '').trim() }
 }
 
 function findSessionType(detail: string): string | null {
@@ -351,17 +416,23 @@ function parseLine(raw: string, index: number, kind: ManualListKind, halaqa: Cal
     .replace(NUMBERING, '')
     .replace(ALL_MARKS, ' ')
     .replace(DECORATIVE, ' ')
+    .replace(/\.{2,}|…/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
   const { name, detail } = splitNameAndDetail(body)
-  const sessionType = findSessionType(detail)
+  const writtenType = findSessionType(detail)
 
   const foldedDetail = forMatching(detail)
   const readsAsMakeup =
     kind === 'makeup' ||
-    sessionType === 'تعويض' ||
-    /(^|\s|\()(ورد|تعويض|استدراك)($|\s|:)/.test(foldedDetail)
+    writtenType === 'تعويض' ||
+    (kind !== 'exam_makeup' && /(^|\s|\()(ورد|تعويض|استدراك)($|\s|:)/.test(foldedDetail))
+
+  // A make-up turn is a تعويض whatever it was recited as ("تسميع ورد أمس"):
+  // that is the type that carries the made-up days. The written type is kept
+  // in the note so it isn't lost.
+  const sessionType = readsAsMakeup && kind !== 'exam_makeup' ? 'تعويض' : writtenType
 
   let makeupDates: number[] = []
   let note: string | null = detail === '' ? null : detail.replace(/^-\s*/, '').trim() || null
@@ -372,9 +443,10 @@ function parseLine(raw: string, index: number, kind: ManualListKind, halaqa: Cal
     note = cleanLeftover(reading.leftover)
   }
 
-  // A session type written on the line is not a note
-  if (note !== null && sessionType !== null) {
-    note = cleanLeftover(stripDecoration(note).replace(new RegExp(variants(foldArabic(sessionType)), 'g'), ' '))
+  // The session type written on the line is not a note — unless it was
+  // replaced by تعويض above, then it is the only place it survives
+  if (note !== null && writtenType !== null && writtenType === sessionType) {
+    note = cleanLeftover(stripDecoration(note).replace(new RegExp(variants(foldArabic(writtenType)), 'g'), ' '))
   }
 
   return {
@@ -427,7 +499,8 @@ function isHeaderLabel(line: string): boolean {
 
 function kindOf(headerText: string): ManualListKind {
   const folded = forMatching(headerText)
-  if (/استدراك|تعويض/.test(folded)) {
+  // مقرأة الورد المتراكم: the accumulated (missed) wird — a make-up halaqa
+  if (/استدراك|تعويض|متراكم/.test(folded)) {
     return /اختبار/.test(folded) ? 'exam_makeup' : 'makeup'
   }
   return 'regular'
@@ -494,24 +567,40 @@ export function defaultSessionTypeFor(kind: ManualListKind): string | null {
 
 /**
  * Name words for comparison: folded, with compound names joined so
- * "عبد الله" and "عبدالله" compare equal
+ * "عبد الله" and "عبدالله" compare equal, and ال dropped from every word
+ * after the first so "سلمى خالد شريف" and "سلمى خالد الشريف" compare equal.
  */
 function nameWords(name: string): string[] {
   return foldArabic(name.replace(/^@/, ''))
     .replace(/(^|\s)(عبد|ابو|ام) /g, '$1$2')
     .split(' ')
     .filter(Boolean)
+    .map((word, i) => (i > 0 && /^ال.{2,}$/.test(word) ? word.slice(2) : word))
 }
 
 function isPrefix(shorter: string[], longer: string[]): boolean {
   return shorter.length <= longer.length && shorter.every((word, i) => word === longer[i])
 }
 
+/** The one student in the list, or null for none or several */
+function onlyOne<T extends { id: string }>(candidates: T[]): string | null {
+  return candidates.length === 1 ? candidates[0].id : null
+}
+
+function storedNames<T extends { id: string; name: string }>(students: T[]) {
+  return students
+    .map((student) => ({ student, words: nameWords(student.name) }))
+    .filter((s) => s.words.length > 0)
+}
+
 /**
- * Match a written name to a student when it is unambiguous: the names are the
- * same, or one is the start of the other and is at least two words long
- * ("آية محمد" ↔ "آية محمد محمد"). Returns the student's id, or null when no
- * student or more than one fits — those go to the AI matcher and the reviewer.
+ * Match a written name to a student when it is unambiguous, trying in order:
+ * the names are the same; one is the start of the other and is at least two
+ * words long ("آية محمد" ↔ "آية محمد محمد"); the names are the same once
+ * spaces are ignored ("ليلىسعيد حسن" ↔ "ليلى سعيد حسن"). Each step only runs
+ * when the one before found no student at all, so two students fitting
+ * equally well stop the search. Returns the student's id, or null — those go
+ * to matchNameWithTypo, the AI matcher and the reviewer.
  */
 export function matchNameLocally<T extends { id: string; name: string }>(
   writtenName: string,
@@ -519,23 +608,62 @@ export function matchNameLocally<T extends { id: string; name: string }>(
 ): string | null {
   const written = nameWords(writtenName)
   if (written.length === 0) return null
+  const stored = storedNames(students)
 
-  const exact: T[] = []
-  const partial: T[] = []
-  for (const student of students) {
-    const stored = nameWords(student.name)
-    if (stored.length === 0) continue
-    if (stored.length === written.length && isPrefix(stored, written)) {
-      exact.push(student)
-    } else if (
-      Math.min(stored.length, written.length) >= 2 &&
-      (isPrefix(stored, written) || isPrefix(written, stored))
-    ) {
-      partial.push(student)
+  const exact = stored.filter((s) => s.words.length === written.length && isPrefix(s.words, written))
+  if (exact.length > 0) return onlyOne(exact.map((s) => s.student))
+
+  const partial = stored.filter(
+    (s) =>
+      Math.min(s.words.length, written.length) >= 2 &&
+      (isPrefix(s.words, written) || isPrefix(written, s.words))
+  )
+  if (partial.length > 0) return onlyOne(partial.map((s) => s.student))
+
+  const joined = written.join('')
+  return onlyOne(stored.filter((s) => s.words.join('') === joined).map((s) => s.student))
+}
+
+/** Levenshtein distance, giving up (returning limit + 1) once it exceeds limit */
+function editDistance(a: string, b: string, limit: number): number {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      )
     }
+    if (Math.min(...current) > limit) return limit + 1
+    previous = current
   }
+  return previous[b.length]
+}
 
-  if (exact.length === 1) return exact[0].id
-  if (exact.length === 0 && partial.length === 1) return partial[0].id
-  return null
+/**
+ * A looser match for when matchNameLocally found nothing: the names differ by
+ * a single letter ("سهى كمال ذكي" ↔ "سهى كمال زكي"), comparing the written
+ * name with the same number of words from the start of the stored one. Both
+ * must be at least two words and only one student may be that close. A
+ * single letter can also be a different person (أمل / آمال), so the caller
+ * shows this as a match to check rather than a certain one.
+ */
+export function matchNameWithTypo<T extends { id: string; name: string }>(
+  writtenName: string,
+  students: T[]
+): string | null {
+  const written = nameWords(writtenName)
+  if (written.length < 2) return null
+  return onlyOne(
+    storedNames(students)
+      .filter((s) => s.words.length >= 2)
+      .filter((s) => {
+        const n = Math.min(s.words.length, written.length)
+        return editDistance(written.slice(0, n).join(' '), s.words.slice(0, n).join(' '), 1) <= 1
+      })
+      .map((s) => s.student)
+  )
 }

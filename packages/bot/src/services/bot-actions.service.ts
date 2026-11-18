@@ -167,7 +167,7 @@ export class BotActionsService {
       sessionNumber,
     });
     if (sessionInfo && isExternalSession(sessionInfo)) {
-      throw new UserFacingError("لا يمكن إرسال القائمة: هذه الحلقة أُقيمت خارج تيليجرام.");
+      throw new UserFacingError("لا يمكن إرسال القائمة: هذه الحلقة أُضيفت بقائمة يدوية وقائمتها منشورة بالفعل.");
     }
     if (sessionInfo?.isLocked) {
       throw new UserFacingError("لا يمكن إرسال القائمة: الحلقة مغلقة. الرجاء فتح الحلقة أولاً.");

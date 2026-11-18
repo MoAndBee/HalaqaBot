@@ -6,7 +6,7 @@ import { api } from '@halakabot/db'
 import type { User } from '@halakabot/db'
 import { toast } from 'sonner'
 import { callBot } from '~/lib/bot-api'
-import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags, DoorClosed, DoorOpen, ClipboardList, ClipboardPlus } from 'lucide-react'
+import { ArrowRight, MoreVertical, Plus, UserPlus, UserSearch, Pencil, Copy, AtSign, Send, Eye, Lock, LockOpen, MessageSquare, Hash, X, Tags, DoorClosed, DoorOpen, ClipboardList, ClipboardPlus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTelegramAuthContext, useSelectedChannel } from '~/contexts/TelegramAuthContext'
 import {
@@ -35,6 +35,7 @@ import { EditScoreModal } from '~/components/EditScoreModal'
 import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import { UnlockSessionModal } from '~/components/UnlockSessionModal'
+import { DeleteSessionModal } from '~/components/DeleteSessionModal'
 import { BulkSessionTypeModal } from '~/components/BulkSessionTypeModal'
 import { ManualListModal, type ManualListMode } from '~/components/ManualListModal'
 import { PostMessagesView } from '~/components/PostMessagesView'
@@ -100,8 +101,10 @@ const SEND_LIST_TOAST_ID = 'send-participant-list'
 // Where an external (manual list) halaqa was held, for the session picker
 const PLATFORM_LABELS: Record<string, string> = {
   zoom: 'زوم',
+  telegram: 'تيليجرام',
+  // No longer offered; kept so halaqas saved with them still show a label
   meet: 'جوجل ميت',
-  other: 'خارج تيليجرام',
+  other: 'أخرى',
 }
 
 export default function PostDetail() {
@@ -120,6 +123,7 @@ export default function PostDetail() {
   const [isEditNotesModalOpen, setIsEditNotesModalOpen] = React.useState(false)
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
+  const [isDeleteSessionModalOpen, setIsDeleteSessionModalOpen] = React.useState(false)
   const [isBulkSessionTypeModalOpen, setIsBulkSessionTypeModalOpen] = React.useState(false)
   // Which manual list flow is open: replacing this session's list, or adding an external halaqa
   const [manualListMode, setManualListMode] = React.useState<ManualListMode | null>(null)
@@ -211,6 +215,7 @@ export default function PostDetail() {
   const bulkUpdateTurnQueueSessionType = useMutation(api.mutations.bulkUpdateTurnQueueSessionType)
   const lockSession = useMutation(api.mutations.lockSession)
   const unlockSession = useMutation(api.mutations.unlockSession)
+  const deleteSession = useMutation(api.mutations.deleteSession)
 
   // Sends the list through the bot. Resolves once it's posted in the chat;
   // returns false (after reporting why) if that failed.
@@ -856,9 +861,25 @@ export default function PostDetail() {
       })
       toast.success('تم فتح الحلقة بنجاح!')
     } catch (error: any) {
-      toast.error(error?.message || 'كلمة مرور خاطئة')
+      // Shown inside the modal
       throw error
     }
+  }
+
+  const handleDeleteSession = async (passcode: string) => {
+    if (!data) return
+
+    const sessionToDelete = selectedSession ?? data.currentSession
+    await deleteSession({
+      chatId,
+      postId,
+      sessionNumber: sessionToDelete,
+      passcode,
+    })
+
+    toast.success(`تم حذف الحلقة رقم ${sessionToDelete.toLocaleString('ar-EG')}`)
+    // Fall back to whichever halaqa is now current
+    setSelectedSession(undefined)
   }
 
   const handleToggleRegistrationClosed = async () => {
@@ -980,7 +1001,7 @@ export default function PostDetail() {
                       <SelectItem key={session.sessionNumber} value={session.sessionNumber.toString()}>
                         الحلقة {session.sessionNumber.toLocaleString('ar-EG')}
                         {session.teacherName && ` (${session.teacherName})`}
-                        {session.origin === 'external' && ` · ${PLATFORM_LABELS[session.platform ?? ''] ?? 'خارج تيليجرام'}`}
+                        {session.origin === 'external' && ` · ${PLATFORM_LABELS[session.platform ?? ''] ?? 'قائمة يدوية'}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1107,6 +1128,14 @@ export default function PostDetail() {
                     ))}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setIsDeleteSessionModalOpen(true)}
+                  className="text-red-600 focus:text-red-600 dark:text-red-500 dark:focus:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4 ml-2" />
+                  حذف الحلقة
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -1286,6 +1315,14 @@ export default function PostDetail() {
         onClose={() => setIsUnlockModalOpen(false)}
         onUnlock={handleUnlockSession}
         sessionNumber={selectedSession ?? data.currentSession}
+      />
+
+      <DeleteSessionModal
+        isOpen={isDeleteSessionModalOpen}
+        onClose={() => setIsDeleteSessionModalOpen(false)}
+        onDelete={handleDeleteSession}
+        sessionNumber={selectedSession ?? data.currentSession}
+        participantCount={data.activeUsers.length + data.completedUsers.length}
       />
 
       <BulkSessionTypeModal

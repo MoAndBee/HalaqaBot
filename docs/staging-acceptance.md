@@ -137,6 +137,16 @@ The Cloudflare account/domain handoff below reuses this existing deployment.
    deployment. The production Convex deployment and existing dev deployments
    were unchanged.
 
+## Latest source refresh (2026-11-18)
+
+The migration branch now incorporates `main` through `4619bb1`, including newer
+manual-list fixes and halaqa deletion. Personal-dev validation passed: 112 local
+tests (4 browser-only skips), 58 parser/isolation checks, 18 cloud API tests,
+4 cloud browser checks, builds and production dry run. Shared staging has not
+been redeployed with this refresh. See [current evidence](pr-165-review.md#main-branch-refresh-on-2026-11-18)
+and promote/smoke-test the final candidate before the live cutover. The completed
+Android staging checks should not be requested again merely to resolve conflicts.
+
 ## Merge decision
 
 Record the tested commit and deployed Worker version with results. Check that

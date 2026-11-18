@@ -50,8 +50,15 @@ SOURCES = [
     "scripts/production-config.ts", "scripts/prepare-production.ts",
     "scripts/prepare-production-secrets.ts", "packages/testing/test/production-config.test.ts",
     "docs/production-cutover.md", "docs/production-maintainer-prompt.md",
+    "packages/web/src/components/AdminPasscodeNotice.tsx",
+    "packages/web/src/components/DeleteSessionModal.tsx",
+    "packages/web/src/components/CompensationModal.tsx",
+    "packages/web/src/components/RegisterUserModal.tsx",
+    "packages/web/src/components/UnlockSessionModal.tsx",
 ]
 
+
+DELETED_SOURCES = ["packages/web/src/components/ShowMessagesModal.tsx"]
 
 def git(*args, env=None):
     return subprocess.check_output(["git", *args], cwd=ROOT, env=env)
@@ -83,18 +90,22 @@ def build_patch():
     for source in SOURCES:
         if not (ROOT / source).is_file():
             raise SystemExit(f"Missing handoff source: {source}")
+    for source in DELETED_SOURCES:
+        if (ROOT / source).exists():
+            raise SystemExit(f"Deleted handoff source unexpectedly exists: {source}")
     with tempfile.TemporaryDirectory(prefix="halaqabot-handoff-index-") as folder:
         env = {**os.environ, "GIT_INDEX_FILE": str(Path(folder) / "index")}
         git("read-tree", BASE, env=env)
         git("add", "--", *SOURCES, env=env)
+        git("rm", "--cached", "--ignore-unmatch", "--", *DELETED_SOURCES, env=env)
         expected_tree = git("write-tree", env=env)
         patch = git("diff", "--cached", "--binary", "--full-index", "--no-ext-diff", BASE, env=env)
         assert_no_known_secrets(patch)
         filename = Path(folder) / "changes.patch"
         filename.write_bytes(patch)
         git("read-tree", BASE, env=env)
-        git("apply", "--cached", "--check", str(filename), env=env)
-        git("apply", "--cached", str(filename), env=env)
+        git("apply", "--cached", "--check", "--whitespace=nowarn", str(filename), env=env)
+        git("apply", "--cached", "--whitespace=nowarn", str(filename), env=env)
         if git("write-tree", env=env) != expected_tree:
             raise SystemExit("Patch round-trip did not reproduce the selected source tree.")
         return patch
@@ -132,6 +143,7 @@ def main():
         "snapshot_date": snapshot_date,
         "patch_sha256": hashlib.sha256(patch).hexdigest(),
         "source_paths": SOURCES,
+        "deleted_paths": DELETED_SOURCES,
         "contains_secrets": False,
     }
     files = {

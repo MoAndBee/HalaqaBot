@@ -280,3 +280,60 @@ describe("manual lists preserve channel isolation", () => {
     expect(await admin.action(api.actions.matchManualListNames, input)).toEqual({ matches: [] });
   });
 });
+
+// The latest main branch adds a destructive operation; its passcode must never
+// substitute for authenticating the caller and authorizing the discussion.
+describe("halaqa deletion stays within its channel", () => {
+  const args = { chatId: CHAT_A, postId: POST, sessionNumber: 1, passcode: "adminunlock311225" };
+  async function seeded() {
+    const state = await fixture();
+    await state.t.run(async (ctx) => {
+      for (const chatId of [CHAT_A, CHAT_B]) {
+        await ctx.db.insert("posts", { chatId, postId: POST, createdAt: 1 });
+        for (const sessionNumber of [1, 2]) {
+          const base = { chatId, postId: POST, sessionNumber, createdAt: 1 };
+          await ctx.db.insert("sessions", { ...base, teacherName: "Teacher" });
+          await ctx.db.insert("turnQueue", { ...base, userId: STUDENT, position: 1 });
+          await ctx.db.insert("participationHistory", { ...base, userId: STUDENT, sessionType: "تسميع", completedAt: 2 });
+          await ctx.db.insert("lastListMessages", { chatId, postId: POST, sessionNumber, messageId: sessionNumber, updatedAt: 1 });
+        }
+      }
+    });
+    return state;
+  }
+  async function snapshot(t: Awaited<ReturnType<typeof fixture>>["t"]) {
+    return t.run(async (ctx) => ({
+      sessions: await ctx.db.query("sessions").collect(),
+      queue: await ctx.db.query("turnQueue").collect(),
+      history: await ctx.db.query("participationHistory").collect(),
+      posts: await ctx.db.query("posts").collect(),
+      messages: await ctx.db.query("lastListMessages").collect(),
+    }));
+  }
+  test("a correct passcode grants neither anonymous nor cross-channel deletion", async () => {
+    const { t, admin } = await seeded();
+    const before = await snapshot(t);
+    await expect(t.mutation(api.mutations.deleteSession, args)).rejects.toThrow("يجب تسجيل الدخول");
+    await expect(t.withIdentity({ subject: String(STUDENT) }).mutation(api.mutations.deleteSession, args)).rejects.toThrow("غير مصرح");
+    await expect(admin.mutation(api.mutations.deleteSession, { ...args, chatId: CHAT_B })).rejects.toThrow("غير مصرح");
+    expect(await snapshot(t)).toEqual(before);
+  });
+  test("an authorized admin still needs the correct passcode", async () => {
+    const { t, admin } = await seeded();
+    const before = await snapshot(t);
+    await expect(admin.mutation(api.mutations.deleteSession, { ...args, passcode: "wrong" })).rejects.toThrow("رمز الحماية غير صحيح");
+    expect(await snapshot(t)).toEqual(before);
+  });
+  test("deleting one halaqa preserves its post, sibling halaqa and other channel", async () => {
+    const { t, admin } = await seeded();
+    const before = await snapshot(t);
+    expect(await admin.mutation(api.mutations.deleteSession, args)).toEqual({ success: true, deletedQueue: 1, deletedHistory: 1 });
+    const after = await snapshot(t);
+    for (const table of ["sessions", "queue", "history", "messages"] as const) {
+      expect(after[table]).toEqual(before[table].filter(row => row.chatId !== CHAT_A || row.sessionNumber !== 1));
+    }
+    expect(after.posts).toEqual(before.posts);
+    await admin.mutation(api.mutations.deleteSession, { ...args, sessionNumber: 2 });
+    expect((await snapshot(t)).posts).toEqual(before.posts);
+  });
+});

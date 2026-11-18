@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { DayPicker } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ar } from 'date-fns/locale'
 import 'react-day-picker/dist/style.css'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 
 interface CompensationModalProps {
   isOpen: boolean
@@ -21,7 +22,6 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
     })
   )
   const [isSaving, setIsSaving] = useState(false)
-  const modalRef = useRef<HTMLDivElement>(null)
 
   // Update dates when currentDates or userName changes (to reset between users)
   useEffect(() => {
@@ -31,15 +31,6 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
       return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
     }))
   }, [currentDates, userName])
-
-  // Close on escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    if (isOpen) document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
 
   const handleDaySelect = (dates: Date[] | undefined) => {
     if (!dates) {
@@ -88,26 +79,18 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
     return format(date, 'EEEE، d MMMM yyyy', { locale: ar })
   }
 
-  if (!isOpen) return null
-
+  // A Radix dialog rather than a plain overlay, so it also works when opened
+  // from inside another dialog (the manual list review screen): a plain
+  // element outside the open dialog gets no clicks or focus.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div
-        ref={modalRef}
-        className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSaving && onClose()}>
+      <DialogContent
+        className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] p-0 gap-0"
         dir="rtl"
       >
-        <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">تحديد تواريخ التعويض</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            disabled={isSaving}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+        <div className="p-4 pr-12 border-b border-gray-200 dark:border-slate-700">
+          <DialogTitle className="text-lg font-bold text-gray-900 dark:text-white">تحديد تواريخ التعويض</DialogTitle>
+          <DialogDescription className="sr-only">اختاري الأيام التي يعوضها هذا الدور</DialogDescription>
         </div>
 
         <div className="p-4 overflow-y-auto">
@@ -171,6 +154,7 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
                   selected={selectedDates}
                   onSelect={handleDaySelect}
                   locale={ar}
+                  defaultMonth={selectedDates[0]}
                   disabled={{ after: new Date() }}
                 />
               </div>
@@ -239,7 +223,7 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
             )}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

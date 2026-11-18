@@ -1,6 +1,7 @@
 # Production cutover: PR #165 and halaqabot.bosla.to
 
-Prepared 2026-11-11. **Preparation only; production has not been deployed.**
+Prepared 2026-11-11; source integration refreshed 2026-11-18.
+**Preparation only; production has not been deployed.**
 Give the maintainer's agent [this prompt](production-maintainer-prompt.md).
 The maintainer owns the live server, credentials, merge and release window.
 Complete preparation first, obtain one confirmation of the concrete production
@@ -22,7 +23,12 @@ plan, then execute the switch in a single coordinated maintenance window.
 | Production bot, channel(s), linked group(s), forwarding group | Discover from the actual live service; preserve them |
 | Old Mini App clue | `https://halakabot.app.thawabcoding.work`, last DNS result `213.199.41.153` |
 
-The web host clue does not establish the bot process's location. Confirm the
+On 2026-11-18 Mohanad showed Coolify **Halaka Bot → production** with running
+**bot** and **Web app** applications on server `localhost`. Inspect these
+applications before merging or stopping anything. The screenshot alone does not
+confirm their deployed commits, configuration, transport or deployment hooks.
+
+The web host clue alone does not establish the bot process's location. Confirm the
 actual production deployment with the operator. If it differs from the pinned
 target, reconcile the config, verifier, template and build before proceeding;
 do not force the known target onto a different live service.

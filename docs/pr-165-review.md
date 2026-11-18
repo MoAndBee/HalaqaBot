@@ -260,3 +260,38 @@ applying supervisor were rejected without creating records. Public routes return
 Physical Android/Wi-Fi acceptance predates this source integration; no additional
 phone acceptance is claimed. Real Groq and physical iPhone tests remain unverified.
 Production has not been changed.
+
+
+## Main-branch refresh on 2026-11-18
+
+Merged `main` at `4619bb1` (PRs #171–#175) into the migration candidate.
+Conflict resolution retains direct Worker actions, authenticated Convex access,
+student/channel isolation, new passcode error handling and the new halaqa delete
+UI. The new `deleteSession` mutation now starts with chat authorization: knowing
+its passcode cannot grant anonymous or other-channel access. Its tests cover
+rejection before writes, correct-passcode deletion, sibling/other-channel
+preservation and keeping the post after its last halaqa is deleted. Manual-list
+parser/matching/date fixes and the existing bot behavior are retained. The manual
+session send restriction uses main's updated wording in the Worker.
+
+Validation on the combined candidate:
+
+- Local package suite: **112 passed, 4 cloud-browser-only skips, 0 failed**.
+- Parser and isolation/deletion checks: **58 passed, 0 failed** (37 parser tests,
+  21 isolation/deletion tests).
+- Personal cloud `doting-viper-550`: backend deployment passed, **18 Worker API
+  tests** and **4 browser tests** passed. The API suite includes the additional
+  real-Convex deletion/access test added after the local package run.
+- DB/bot/web builds and the production Wrangler dry run passed through the
+  local-only preparation helper.
+- Rebuilt portable handoff: secret scan and clean-index patch round-trip passed.
+  It includes the new UI dependencies and deletion of the unused old modal;
+  parser fixture whitespace is preserved when applying the patch.
+
+Only personal dev was updated. Shared staging still runs runtime source
+`3f287da` / Worker `f31fa01a-cead-4391-a085-7e8ef2d11205`; the earlier physical
+Android/Wi-Fi acceptance is historical, not proof of this newer combined source.
+Promote and smoke-test the final release candidate before production cutover.
+Neither production nor Coolify's running bot/web app was changed. Coolify access
+is now available; its two running resources still need configuration/auto-deploy
+inspection before merging #165 into main.
