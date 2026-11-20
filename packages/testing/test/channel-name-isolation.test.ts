@@ -337,3 +337,100 @@ describe("halaqa deletion stays within its channel", () => {
     expect((await snapshot(t)).posts).toEqual(before.posts);
   });
 });
+
+describe("adding a supervisor with the admin passcode", () => {
+  const PASSCODE = "adminunlock311225";
+  const SECOND_ADMIN_A = 104;
+  const addArgs = {
+    channelId: CHANNEL_A, chatId: CHAT_A, postId: POST, sessionNumber: 1,
+    supervisorUserId: SECOND_ADMIN_A, passcode: PASSCODE,
+  };
+  async function seeded(options: { locked?: boolean } = {}) {
+    const state = await fixture();
+    await state.t.run(async (ctx) => {
+      await ctx.db.insert("channelAdmins", {
+        channelId: CHANNEL_A, userId: SECOND_ADMIN_A, status: "administrator",
+        firstName: "Second", lastName: "admin", updatedAt: 1,
+      });
+      await ctx.db.insert("sessions", {
+        chatId: CHAT_A, postId: POST, sessionNumber: 1, teacherName: "Test teacher",
+        supervisorUserIds: [ADMIN_A], isLocked: options.locked ?? false, createdAt: 1,
+      });
+    });
+    return state;
+  }
+  async function supervisorIds(t: Awaited<ReturnType<typeof fixture>>["t"]) {
+    return t.run(async (ctx) => {
+      const session = await ctx.db.query("sessions").first();
+      return session?.supervisorUserIds ?? [];
+    });
+  }
+
+  test("a correct passcode adds a channel admin as a supervisor", async () => {
+    const { t, admin } = await seeded();
+    expect(await admin.mutation(api.mutations.addSessionSupervisorWithPasscode, addArgs))
+      .toEqual({ added: true });
+    expect(await supervisorIds(t)).toEqual([ADMIN_A, SECOND_ADMIN_A]);
+  });
+
+  test("a wrong passcode is rejected and nothing changes", async () => {
+    const { t, admin } = await seeded();
+    await expect(admin.mutation(api.mutations.addSessionSupervisorWithPasscode, { ...addArgs, passcode: "wrong" }))
+      .rejects.toThrow("رمز الحماية غير صحيح");
+    expect(await supervisorIds(t)).toEqual([ADMIN_A]);
+  });
+
+  test("the target must be an admin of this channel", async () => {
+    const { t, admin } = await seeded();
+    for (const userId of [STUDENT, ADMIN_B]) {
+      await expect(admin.mutation(api.mutations.addSessionSupervisorWithPasscode, { ...addArgs, supervisorUserId: userId }))
+        .rejects.toThrow("إداريات القناة");
+    }
+    expect(await supervisorIds(t)).toEqual([ADMIN_A]);
+  });
+
+  test("a student or a non-admin cannot add supervisors even with the passcode", async () => {
+    const { t, admin } = await seeded();
+    await expect(t.withIdentity({ subject: String(STUDENT) }).mutation(api.mutations.addSessionSupervisorWithPasscode, addArgs))
+      .rejects.toThrow("غير مصرح");
+    await expect(admin.mutation(api.mutations.addSessionSupervisorWithPasscode, { ...addArgs, chatId: CHAT_B }))
+      .rejects.toThrow("غير مصرح");
+    expect(await supervisorIds(t)).toEqual([ADMIN_A]);
+  });
+
+  test("a locked halaqa cannot receive a supervisor, even with the passcode", async () => {
+    const { t, admin } = await seeded({ locked: true });
+    await expect(admin.mutation(api.mutations.addSessionSupervisorWithPasscode, addArgs))
+      .rejects.toThrow("locked");
+    expect(await supervisorIds(t)).toEqual([ADMIN_A]);
+  });
+
+  test("adding an existing supervisor is a no-op", async () => {
+    const { t, admin } = await seeded();
+    await admin.mutation(api.mutations.addSessionSupervisorWithPasscode, addArgs);
+    expect(await admin.mutation(api.mutations.addSessionSupervisorWithPasscode, addArgs))
+      .toEqual({ added: false, alreadyPresent: true });
+    expect(await supervisorIds(t)).toEqual([ADMIN_A, SECOND_ADMIN_A]);
+  });
+
+  test("the picker lists only channel admins who are not already supervisors", async () => {
+    const { admin } = await seeded();
+    expect(await admin.query(api.queries.getAddableSupervisors, sessionArgs)).toEqual([
+      { userId: SECOND_ADMIN_A, name: "Second admin" },
+    ]);
+  });
+
+  test("the picker does not reveal admins of another channel", async () => {
+    const { admin } = await seeded();
+    const args = { ...sessionArgs, channelId: CHANNEL_B };
+    await expect(admin.query(api.queries.getAddableSupervisors, args)).rejects.toThrow("غير مصرح");
+  });
+
+  test("adding yourself without the passcode still works", async () => {
+    const { t, admin } = await seeded();
+    expect(await admin.mutation(api.mutations.addSessionSupervisor, {
+      chatId: CHAT_A, postId: POST, sessionNumber: 1, supervisorUserId: SECOND_ADMIN_A,
+    })).toEqual({ added: true });
+    expect(await supervisorIds(t)).toEqual([ADMIN_A, SECOND_ADMIN_A]);
+  });
+});
