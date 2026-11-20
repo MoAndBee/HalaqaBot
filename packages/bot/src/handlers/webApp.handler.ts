@@ -20,11 +20,10 @@ export function registerWebAppHandler(
     console.log(`📱 /admin command from user ${userId}`);
 
     try {
-      // Check if user is a channel administrator
-      const isAuthorized = await convex.query(api.queries.isUserAuthorized, {
-        userId,
-        channelId: config.channelId,
-      });
+      // Match the Mini App's channel picker: admins of any active, registered
+      // channel can open it, including channels other than the fallback one.
+      const channels = await convex.query(api.queries.getMyChannels, { userId });
+      const isAuthorized = channels.length > 0;
 
       if (!isAuthorized) {
         console.log(`⛔ User ${userId} is not authorized (not a channel admin)`);
