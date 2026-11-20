@@ -1,0 +1,150 @@
+name: Production release
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/production.yml
+      - scripts/*production*
+      - packages/bot/wrangler.production.bosla.toml
+  workflow_run:
+    workflows: [Test]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full current main commit SHA to release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Never cancel a release between the backend and Worker deployments.
+concurrency:
+  group: production-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Select and validate source
+        id: source
+        uses: actions/github-script@v7
+        env:
+          REQUESTED_SHA: ${{ inputs.release_sha }}
+        with:
+          script: |
+            let sha = context.sha;
+            if (context.eventName === 'workflow_run') sha = context.payload.workflow_run.head_sha;
+            if (context.eventName === 'workflow_dispatch') {
+              if (context.ref !== 'refs/heads/main') throw new Error('Dispatch from main only');
+              sha = process.env.REQUESTED_SHA;
+              if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error('Supply a full commit SHA');
+            }
+            if (context.eventName !== 'pull_request') {
+              const { data } = await github.rest.repos.getBranch({ ...context.repo, branch: 'main' });
+              if (sha !== data.commit.sha) throw new Error('Candidate is no longer current main; release the latest tested main');
+            }
+            core.setOutput('sha', sha);
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      # workflow_run already has a successful Test run for this exact SHA.
+      - if: github.event_name != 'workflow_run'
+        run: bun run test
+      - name: Build and dry-run the production release (no credentials)
+        run: bun scripts/prepare-production.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-web-${{ steps.source.outputs.sha }}
+          path: packages/bot/.production/web
+          if-no-files-found: error
+          retention-days: 7
+      - name: Report preparation status
+        env:
+          RELEASE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_ENABLED: ${{ vars.PRODUCTION_RELEASE_ENABLED }}
+        run: |
+          echo "Prepared production candidate: $RELEASE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Release switch: ${RELEASE_ENABLED:-false}. Production requires the value true." >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: prepare
+    if: github.event_name != 'pull_request' && vars.PRODUCTION_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://halaqabot.bosla.to
+    env:
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+      CLOUDFLARE_ACCOUNT_ID: fe626a504678476d9e8c2d942794d30f
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-web-${{ needs.prepare.outputs.sha }}
+          path: packages/bot/.production/web
+      - name: Read-only credential and live-service preflight
+        run: bun scripts/verify-production.ts preflight
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
+          CONVEX_DEPLOY_KEY: ${{ secrets.PRODUCTION_CONVEX_DEPLOY_KEY }}
+          CONVEX_AUTH_PRIVATE_KEY: ${{ secrets.PRODUCTION_CONVEX_AUTH_PRIVATE_KEY }}
+      - name: Reject stale source before production writes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.getBranch({ ...context.repo, branch: 'main' });
+            if (data.commit.sha !== process.env.RELEASE_SHA) throw new Error('Main advanced; release the latest tested main instead');
+      - name: Deploy production Convex first
+        working-directory: packages/db
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.PRODUCTION_CONVEX_DEPLOY_KEY }}
+        run: |
+          umask 077
+          config="$RUNNER_TEMP/convex-production.env"
+          trap 'rm -f "$config"' EXIT
+          printf 'CONVEX_DEPLOY_KEY=%s\nCONVEX_DEPLOYMENT=prod:incredible-lyrebird-981\n' "$CONVEX_DEPLOY_KEY" > "$config"
+          CONVEX_DEPLOY_KEY='' ./node_modules/.bin/convex deploy --env-file "$config" --yes --typecheck disable
+      - name: Deploy Worker and prepared Mini App assets
+        working-directory: packages/bot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
+        # Existing Worker secrets, queues, webhook and cron are retained.
+        run: ./node_modules/.bin/wrangler deploy --config wrangler.production.bosla.toml --tag "$RELEASE_SHA"
+      - name: Verify the released production service
+        run: bun scripts/verify-production.ts released
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
+          CONVEX_AUTH_PRIVATE_KEY: ${{ secrets.PRODUCTION_CONVEX_AUTH_PRIVATE_KEY }}
+      - name: Record release result
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          echo "Production release $RELEASE_SHA: $RESULT" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Check logs before retrying a partial release. Do not roll back Convex automatically.' >> "$GITHUB_STEP_SUMMARY"

@@ -22,10 +22,11 @@ async function run(command: string[], cwd: string) {
 await run(["bun", "run", "build:db"], root);
 await run(["bun", "run", "build:bot"], root);
 await run(["bun", "./node_modules/.bin/vite", "build", "--outDir", "../bot/.production/web", "--emptyOutDir"], path.join(root, "packages/web"));
+const commit = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: root }).stdout.toString().trim();
+await writeFile(path.join(bot, ".production/web/release.json"), JSON.stringify({ commit }) + "\n");
 const bootstrap = { ...config, main: path.join(bot, config.main), assets: { ...config.assets, directory: path.join(bot, config.assets.directory) }, triggers: { crons: [] } };
 await writeFile(path.join(output, "wrangler.bootstrap.json"), JSON.stringify(bootstrap, null, 2) + "\n", { mode: 0o600 });
 await run(["./node_modules/.bin/wrangler", "deploy", "--config", "wrangler.production.bosla.toml", "--dry-run", "--outdir", path.join(output, "dry-run")], bot);
-const commit = Bun.spawnSync(["git", "rev-parse", "HEAD"], { cwd: root }).stdout.toString().trim();
 const dirty = Bun.spawnSync(["git", "status", "--porcelain"], { cwd: root }).stdout.toString().trim() !== "";
 await writeFile(path.join(output, "preparation.json"), JSON.stringify({ sourceCommit: commit, workingTreeDirty: dirty, ...PRODUCTION, deployed: false }, null, 2) + "\n", { mode: 0o600 });
 console.log("Production build and Wrangler dry run passed. Bootstrap config has no cron. No deployment, DNS, queues, webhook or backend changes were made.");
