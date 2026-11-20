@@ -4,7 +4,7 @@
   "source_branch": "codex/production-cutover-record",
   "source_repository": "https://github.com/MoAndBee/HalaqaBot.git",
   "snapshot_date": "2026-11-20",
-  "patch_sha256": "baa22abe12f3111cb279241151a3aa50dd8b19b9e123e88b6d1fef2257aeef6f",
+  "patch_sha256": "d8aaaa53c598eaa6770f5b58c4e41af070168ecd7bf17a014d4b566b8a1865c8",
   "source_paths": [
     ".gitignore",
     "README.md",
@@ -48,6 +48,8 @@
     "packages/db/convex/mutations.ts",
     "packages/db/convex/schema.ts",
     "packages/testing/test/channel-name-isolation.test.ts",
+    "packages/bot/src/handlers/webApp.handler.ts",
+    "packages/testing/test/telegram-flow.test.ts",
     "packages/testing/test/convex-auth.test.ts",
     "packages/bot/src/services/bot-actions.service.ts",
     "packages/db/convex/actions.ts",
@@ -77,5 +79,5 @@
     "packages/web/src/components/ShowMessagesModal.tsx"
   ],
   "contains_secrets": false,
-  "archive_sha256": "d1603b399bc8ef3c49348399b28a4bbf2db011539b4a5ec8bee3c736b7de515c"
+  "archive_sha256": "bf38ec4fd92440055ee660dd63e74327c5cc6497290a6a573d81b83a86d89ffd"
 }

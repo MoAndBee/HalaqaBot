@@ -13,8 +13,8 @@ were retained. PR [#165](https://github.com/MoAndBee/HalaqaBot/pull/165) is merg
 | Webhook | `https://halaqabot.bosla.to/telegram` |
 | Cloudflare owner | Bosla, account `fe626a504678476d9e8c2d942794d30f` |
 | Worker | `halaqabot` |
-| Production Worker version | `61d199d6-afc8-49c8-bfcc-99c27ab6eb13` |
-| Released source | main merge `34487f5805e7ede2d28dc9e65a0b408fcd8adbf0`, same runtime tree as tested candidate `f0db5c9` |
+| Production Worker version | `30523cfd-692f-4fff-85c4-9795c12a147a` (includes the `/admin` correction below) |
+| Released source | main `b8182bfaecb5071c3431fc0ddcf0b353cfbd53b2`; initial migration merge `34487f5`, then hotfix [#177](https://github.com/MoAndBee/HalaqaBot/pull/177) (`9ee6eff`) |
 | Convex | Existing `Bosla / halaqabotdb` default production `incredible-lyrebird-981` |
 | Convex URL | `https://incredible-lyrebird-981.convex.cloud` |
 | Queues | `halaqabot-updates`, `halaqabot-imports`, `halaqabot-dead-letters` |
@@ -75,9 +75,32 @@ retry the webhook with pending-update dropping to address a stale menu label.
   This verifies a real Telegram event through the new delivery/queue/backend/
   reply chain while preserving permissions. Server access did not grant him a
   Telegram role.
-- **Still pending:** a real production channel admin opening an existing halaqa
-  on an Android phone over Wi-Fi. Physical iPhone/Safari acceptance is unverified.
-  Do not describe the simulated mobile viewport or non-admin denial as that pass.
+- Mohanad used an existing production admin's phone: the persistent blue menu
+  opened the Mini App and displayed the expected production halaqas. On a
+  non-admin phone, both entry paths correctly denied access.
+- That admin's `/admin` command incorrectly denied access; the correction below
+  is now deployed. **Still pending:** a fresh `/admin` on the same admin's phone,
+  then opening the returned panel button. Physical iPhone/Safari acceptance is
+  unverified; the tester did not specify the phone/network for this latest check.
+
+## Post-cutover `/admin` correction
+
+The command still checked only `CHANNEL_ID`, the original fallback channel,
+while the Mini App correctly used the person's active registered channels.
+PR [#177](https://github.com/MoAndBee/HalaqaBot/pull/177), now merged, makes the
+command use that same `getMyChannels` lookup. It changes neither roles nor
+channel-scoped backend permissions and requires no Convex deployment or data
+change.
+
+Validation: 34 local Telegram-flow/channel-isolation tests and 13 Telegram-flow
+tests against the personal cloud backend passed. The new other-channel admin
+regression fails against the original handler. Production builds/dry run passed;
+a read-only diagnostic with existing production admin records verified the
+corrected handler and outsider denial, intercepting every Telegram reply locally
+(zero real messages or database writes). Staging deployment and live HTTPS,
+admin/outsider auth and webhook checks passed before production deployment.
+Only the new `/admin` phone result needs repeating; previously passed checks
+remain recorded.
 
 ## Known historical state
 
@@ -128,7 +151,9 @@ images, private backups and access through the agreed rollback window.
 
 ## Remaining operator actions
 
-1. Ask an existing production channel admin to perform the physical-phone check.
+1. On the same production admin's phone, send a fresh `/admin`; expect
+   **🎛️ فتح لوحة التحكم**, then open it and an existing halaqa. The persistent
+   menu already passed. Non-admin denial already passed through both paths.
 2. Verify the separately configured BotFather Main Mini App URL and known per-chat
    menu overrides. The bot reports a Main Mini App exists; its URL cannot be read
    from `getMe`. Update to `https://halaqabot.bosla.to/` if necessary. Old-domain
@@ -139,7 +164,7 @@ images, private backups and access through the agreed rollback window.
    review the historical missing channel and stale tasks separately.
 
 Shared staging remains `halaqabot-staging.bosla.to` / `perfect-clam-401`. It was
-promoted to the merged candidate for final validation; its Worker version is
-`b8d0f86c-3d9d-4b5d-9ce5-5fdd0bcb52a0`. Its separate bot, data and scheduler were
+promoted to the merged candidate for final validation and then the same `/admin`
+correction; its Worker version is `a56c40ee-82af-45a2-8bf2-2018e1255716`. Its separate bot, data and scheduler were
 retained. Personal and teammate deployments were not part of the production
 cutover.

@@ -1,7 +1,10 @@
 **2026-11-20 update:** the final merged runtime was promoted and smoke-tested on
 shared staging, then deployed to production. See the [production completion record](production-cutover-2026-11-20.md).
-A real production admin's phone check remains pending; completed staging checks
-should not be repeated merely because the release is now in production.
+The production admin's persistent menu opened the expected halaqas on a real
+phone, and both entry paths denied a non-admin. The `/admin` command's fallback
+channel bug was fixed in #177 and deployed: only a fresh admin `/admin` and its
+returned panel button need repeating. Completed staging checks should not be
+repeated merely because the release is now in production.
 
 # Remaining acceptance checks for PR #165
 

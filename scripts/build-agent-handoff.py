@@ -40,6 +40,8 @@ SOURCES = [
     "packages/db/convex/auth.ts", "packages/db/convex/queries.ts",
     "packages/db/convex/mutations.ts", "packages/db/convex/schema.ts",
     "packages/testing/test/channel-name-isolation.test.ts",
+    "packages/bot/src/handlers/webApp.handler.ts",
+    "packages/testing/test/telegram-flow.test.ts",
     "packages/testing/test/convex-auth.test.ts",
     "packages/bot/src/services/bot-actions.service.ts", "packages/db/convex/actions.ts",
     "packages/db/src/index.ts", "packages/db/src/sessionOrigin.ts",
