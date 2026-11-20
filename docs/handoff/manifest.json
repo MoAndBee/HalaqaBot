@@ -1,10 +1,10 @@
 {
   "repository": "https://github.com/MoAndBee/HalaqaBot.git",
   "base_commit": "5b00b67d2378d8f7f29073ab4fc58d1d833742f8",
-  "source_branch": "claude/telegram-cloudflare-workers-migration-c09q4a",
+  "source_branch": "codex/production-cutover-record",
   "source_repository": "https://github.com/MoAndBee/HalaqaBot.git",
-  "snapshot_date": "2026-11-18",
-  "patch_sha256": "ec552910df9c14cbf598ae93dc662a7b15fbb6b11b37a5878a1ea71d181dfeb4",
+  "snapshot_date": "2026-11-20",
+  "patch_sha256": "d8aaaa53c598eaa6770f5b58c4e41af070168ecd7bf17a014d4b566b8a1865c8",
   "source_paths": [
     ".gitignore",
     "README.md",
@@ -48,6 +48,8 @@
     "packages/db/convex/mutations.ts",
     "packages/db/convex/schema.ts",
     "packages/testing/test/channel-name-isolation.test.ts",
+    "packages/bot/src/handlers/webApp.handler.ts",
+    "packages/testing/test/telegram-flow.test.ts",
     "packages/testing/test/convex-auth.test.ts",
     "packages/bot/src/services/bot-actions.service.ts",
     "packages/db/convex/actions.ts",
@@ -66,6 +68,7 @@
     "packages/testing/test/production-config.test.ts",
     "docs/production-cutover.md",
     "docs/production-maintainer-prompt.md",
+    "docs/production-cutover-2026-11-20.md",
     "packages/web/src/components/AdminPasscodeNotice.tsx",
     "packages/web/src/components/DeleteSessionModal.tsx",
     "packages/web/src/components/CompensationModal.tsx",
@@ -76,5 +79,5 @@
     "packages/web/src/components/ShowMessagesModal.tsx"
   ],
   "contains_secrets": false,
-  "archive_sha256": "bffe84de2039265a8265c24d0bb01e5a59ef4684bc0bd464594b669850a44953"
+  "archive_sha256": "bf38ec4fd92440055ee660dd63e74327c5cc6497290a6a573d81b83a86d89ffd"
 }

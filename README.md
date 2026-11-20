@@ -42,7 +42,7 @@ Mini App (web) ──────▶ Convex (data, live queries)
 New to this project? Start with [the local testing walkthrough](docs/local-testing.md).
 Real Telegram testing uses [the separate team staging environment](docs/staging.md).
 Handing setup to a teammate? Use [the agent environment handoff](docs/agent-environment-handoff.md).
-The pending domain migration is covered in [the bosla.to cutover plan](docs/bosla-domain.md).
+Production is live at **https://halaqabot.bosla.to**. See the [completed cutover and current operations](docs/production-cutover-2026-11-20.md).
 
 Prerequisites: [Bun](https://bun.sh/). Run `bun install` first.
 

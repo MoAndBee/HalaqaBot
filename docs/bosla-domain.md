@@ -1,6 +1,10 @@
 # Moving to bosla.to
 
-The selected Mini App address is **https://halaqabot.bosla.to/**.
+Production is now live at **https://halaqabot.bosla.to/**. The old hostname
+redirects to it. Read the [completed release record](production-cutover-2026-11-20.md)
+for current targets, validation and remaining operator checks.
+
+The preparation/history below describes the work before that cutover.
 The account-pinned production configuration and local build/secret checks are
 prepared. Use the [complete coordinated cutover runbook](production-cutover.md)
 and [copyable maintainer-agent prompt](production-maintainer-prompt.md). Preparation
@@ -17,7 +21,7 @@ Mini App assets and `/api/*` at `https://halaqabot.bosla.to`, plus the Telegram
 webhook at `/telegram`. Build with an empty `VITE_BOT_API_URL` for same-origin
 requests. The Telegram bot username and production Convex URL stay unchanged.
 
-## Production inventory and required access (2026-11-11)
+## Historical pre-cutover inventory (2026-11-11, updated 2026-11-18)
 
 Read-only checks found:
 
