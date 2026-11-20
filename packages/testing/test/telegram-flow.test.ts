@@ -99,6 +99,54 @@ describe("/admin", () => {
     expect(reply.text).toContain("لا يمكنك الوصول");
     expect(reply.reply_markup).toBeUndefined();
   });
+
+  test("an admin of another active channel gets the same access as the Mini App", async () => {
+    const owner = stack.sim.addUser({ first_name: "Second channel owner" });
+    const { channelId } = stack.sim.createChannel({ title: "Another halaqa", ownerId: owner.id });
+    stack.sim.chat(channelId).members.set(stack.sim.bot.id, "left");
+    stack.sim.setMemberStatus(channelId, stack.sim.bot.id, "administrator");
+    await stack.waitFor(async () =>
+      (await stack.query(api.queries.getMyChannels, { userId: owner.id })).length === 1,
+      { message: "the other channel's admin membership to sync" },
+    );
+    const channels = await stack.query(api.queries.getMyChannels, { userId: owner.id });
+    expect(channels.map((c) => c.channelId)).toEqual([channelId]);
+    expect(await stack.query(api.queries.isUserAuthorized, {
+      userId: owner.id, channelId: stack.world.channelId,
+    })).toBe(false);
+
+    const chatId = stack.sim.privateChat(owner.id);
+    stack.sim.sendUserMessage(chatId, owner.id, "/admin");
+    const reply = await stack.waitFor(
+      () => stack.sim.history(chatId).find((m) => m.from?.id === stack.sim.bot.id),
+      { message: "the other channel admin's panel button" },
+    );
+    expect((reply.reply_markup as any)?.inline_keyboard?.[0]?.[0]?.web_app?.url).toBe("http://localhost:3000");
+  });
+
+  test("an admin with only an inactive channel is denied just like the Mini App", async () => {
+    const owner = stack.sim.addUser({ first_name: "Inactive channel owner" });
+    const { channelId, groupId } = stack.sim.createChannel({ title: "Inactive halaqa", ownerId: owner.id });
+    stack.sim.chat(channelId).members.set(stack.sim.bot.id, "left");
+    stack.sim.setMemberStatus(channelId, stack.sim.bot.id, "administrator");
+    await stack.waitFor(async () =>
+      (await stack.query(api.queries.getMyChannels, { userId: owner.id })).length === 1,
+      { message: "the channel's admin membership to sync before deactivation" },
+    );
+    await stack.mutation(api.mutations.upsertChannel, {
+      channelId, chatId: groupId!, isActive: false,
+    });
+    expect(await stack.query(api.queries.getMyChannels, { userId: owner.id })).toEqual([]);
+
+    const chatId = stack.sim.privateChat(owner.id);
+    stack.sim.sendUserMessage(chatId, owner.id, "/admin");
+    const reply = await stack.waitFor(
+      () => stack.sim.history(chatId).find((m) => m.from?.id === stack.sim.bot.id),
+      { message: "inactive channel admin's denial" },
+    );
+    expect(reply.text).toContain("لا يمكنك الوصول");
+    expect(reply.reply_markup).toBeUndefined();
+  });
 });
 
 describe("channel admins follow Telegram", () => {
