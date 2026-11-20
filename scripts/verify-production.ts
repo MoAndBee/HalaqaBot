@@ -56,7 +56,9 @@ for (const path of ["/api/auth/token", "/telegram"]) {
 if (mode === "released") {
   let matched = false;
   for (let attempt = 0; attempt < 6; attempt++) {
-    const response = await request(`${PRODUCTION.origin}/release.json`, { cache: "no-store" });
+    const response = await request(`${PRODUCTION.origin}/release.json?commit=${process.env.RELEASE_SHA}`, {
+      headers: { "Cache-Control": "no-cache" },
+    });
     try {
       matched = response.ok && (await response.json() as any).commit === process.env.RELEASE_SHA;
     } catch { /* An older release may still serve the SPA fallback. */ }
