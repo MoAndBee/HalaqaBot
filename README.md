@@ -43,6 +43,7 @@ New to this project? Start with [the local testing walkthrough](docs/local-testi
 Real Telegram testing uses [the separate team staging environment](docs/staging.md).
 Handing setup to a teammate? Use [the agent environment handoff](docs/agent-environment-handoff.md).
 Production is live at **https://halaqabot.bosla.to**. See the [completed cutover and current operations](docs/production-cutover-2026-11-20.md).
+Routine releases use the [production release workflow and release switch](docs/production-releases.md).
 
 Prerequisites: [Bun](https://bun.sh/). Run `bun install` first.
 
@@ -303,7 +304,9 @@ with new IDs and keeps the bot connected.
 
    The bot's production deploy command is a no-op on purpose. Connecting the
    repository builds the production branch on every merge, and production
-   deploys stay manual (see "First deploy") until that's decided.
+   releases now use the [GitHub Actions production workflow](docs/production-releases.md)
+   when its explicit release switch is enabled. Keep this Workers Builds command
+   as a no-op to avoid a second deployment path.
 3. **Preview secrets**, on each Worker's Preview base config:
    - Bot (in `packages/bot`), via `bunx wrangler preview base-config secret put <NAME>`:
      `BOT_TOKEN` (any `<digits>:<text>`), `TELEGRAM_WEBHOOK_SECRET` and
