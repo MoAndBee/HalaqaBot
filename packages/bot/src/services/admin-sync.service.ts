@@ -11,8 +11,6 @@ export interface ChannelAdmin {
 }
 
 export class AdminSyncService {
-  private syncInterval: NodeJS.Timeout | null = null;
-
   constructor(
     private convex: ConvexHttpClient,
     private telegramApi: Api,
@@ -110,40 +108,6 @@ export class AdminSyncService {
 
     for (const channelId of channelIds) {
       await this.fetchAndSync(channelId);
-    }
-  }
-
-  /**
-   * Start periodic sync (every 5 minutes) across all registered channels.
-   * The optional fallbackChannelIds are synced even before any channel has been
-   * auto-discovered into the registry.
-   */
-  startPeriodicSync(fallbackChannelIds: number[] = []): void {
-    if (this.syncInterval) {
-      console.warn("⚠️  Periodic sync already running, stopping previous interval");
-      this.stopPeriodicSync();
-    }
-
-    console.log(`⏰ Starting periodic admin sync across registered channels (every 5 minutes)`);
-
-    // Sync immediately on start
-    this.fetchAndSyncAll(fallbackChannelIds);
-
-    // Then sync every 5 minutes
-    const FIVE_MINUTES = 5 * 60 * 1000;
-    this.syncInterval = setInterval(() => {
-      this.fetchAndSyncAll(fallbackChannelIds);
-    }, FIVE_MINUTES);
-  }
-
-  /**
-   * Stop periodic sync
-   */
-  stopPeriodicSync(): void {
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-      this.syncInterval = null;
-      console.log(`⏹️  Stopped periodic admin sync`);
     }
   }
 }

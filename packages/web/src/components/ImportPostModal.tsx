@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { useSelectedChannel, useTelegramAuthContext } from '~/contexts/TelegramAuthContext'
+import { useSelectedChannel } from '~/contexts/TelegramAuthContext'
+import { callBot } from '~/lib/bot-api'
 
 /** An old post the bot has messages for but never registered. */
 interface DiscoveredPost {
@@ -32,13 +33,11 @@ interface ImportPostModalProps {
  * Adds a halaqa the bot never recorded — a post published before the bot was
  * made an admin of the channel, which therefore never reached it.
  *
- * The lookup runs on the bot (only it can talk to Telegram), so the request is
- * queued and its progress is followed on the import record.
+ * The lookup runs on the bot (only it can talk to Telegram). The bot queues it
+ * and records progress on the import record, which this modal follows.
  */
 export function ImportPostModal({ isOpen, onClose }: ImportPostModalProps) {
   const { chatId, channelId } = useSelectedChannel()
-  const { user } = useTelegramAuthContext()
-  const requestPostImport = useMutation(api.mutations.requestPostImport)
   const registerDiscoveredPost = useMutation(api.mutations.registerDiscoveredPost)
 
   // Old posts the bot already has messages for. Recovering these needs no
@@ -110,11 +109,10 @@ export function ImportPostModal({ isOpen, onClose }: ImportPostModalProps) {
     setDoneMessage('')
 
     try {
-      const result = await requestPostImport({
+      const result = await callBot<{ importId: Id<'postImports'> | null }>('/api/import-post', {
         chatId,
         channelId,
         link: trimmed,
-        requestedBy: user?.id,
       })
 
       if (result.importId) {
@@ -126,7 +124,7 @@ export function ImportPostModal({ isOpen, onClose }: ImportPostModalProps) {
       }
     } catch (err: any) {
       setIsSubmitting(false)
-      setError(err?.data ?? 'تعذر إرسال الطلب. حاولي مرة أخرى.')
+      setError(err?.message || 'تعذر إرسال الطلب. حاولي مرة أخرى.')
     }
   }
 

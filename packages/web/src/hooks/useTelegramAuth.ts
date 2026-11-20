@@ -22,20 +22,14 @@ export interface AuthState {
   webApp: TelegramWebApp | null
 }
 
-// Dev bypass: set VITE_DEV_USER_ID in .env.local to skip Telegram auth entirely
-const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID
-  ? Number(import.meta.env.VITE_DEV_USER_ID)
-  : null
-
 export function useTelegramAuth(): AuthState {
   const [user, setUser] = useState<TelegramUser | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(!DEV_USER_ID)
+  const [isLoading, setIsLoading] = useState(true)
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null)
 
   // Step 1: Extract user from Telegram Web App
   useEffect(() => {
-    if (DEV_USER_ID) return  // skip in dev mode
     const tg = window.Telegram?.WebApp
 
     if (!tg) {
@@ -100,15 +94,6 @@ export function useTelegramAuth(): AuthState {
     // User extracted — nothing else to wait for.
     setIsLoading(false)
   }, [])
-
-  if (DEV_USER_ID) {
-    return {
-      user: { id: DEV_USER_ID, firstName: 'Dev', lastName: 'User' },
-      isLoading: false,
-      error: null,
-      webApp: null,
-    }
-  }
 
   return {
     user,

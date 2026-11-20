@@ -1,27 +1,29 @@
 {
   "name": "@halakabot/bot",
   "version": "1.0.0",
-  "description": "Telegram bot using Grammy framework",
+  "description": "Telegram bot using Grammy framework, deployed on Cloudflare Workers",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./src/worker.ts",
   "scripts": {
-    "dev": "bun run src/index.ts",
-    "start": "bun run src/index.ts",
-    "build": "tsc --build"
+    "dev": "wrangler dev",
+    "build": "tsc --build",
+    "deploy": "wrangler deploy",
+    "webhook:set": "bun run scripts/set-webhook.ts"
   },
   "dependencies": {
     "@ai-sdk/groq": "^2.0.28",
+    "@grammyjs/auto-retry": "2.0.2",
     "@halakabot/db": "workspace:*",
-    "@types/express": "^5.0.5",
     "ai": "^5.0.89",
     "convex": "^1.29.0",
-    "express": "^5.1.0",
     "grammy": "^1.38.3",
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261028.1",
     "@types/bun": "^1.3.1",
     "@types/node": "^22.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.154.0"
   }
 }

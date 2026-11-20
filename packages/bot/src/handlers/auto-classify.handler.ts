@@ -1,7 +1,7 @@
 import type { Bot, Context } from "grammy";
 import type { ClassificationService } from "../services/classification.service";
 import type { ConvexHttpClient } from "@halakabot/db";
-import type { MessageService } from "../services/message.service";
+import { SERVICE_ACCOUNT_IDS, type MessageService } from "../services/message.service";
 import type { UserListService } from "../services/user-list.service";
 import type { Config } from "../config/environment";
 import { api } from "@halakabot/db";
@@ -27,6 +27,17 @@ export function registerAutoClassifyHandler(
 
     // Get chat and post context from the command
     const chatId = ctx.chat!.id;
+
+    // Runs a paid LLM batch and adds people to the list: channel admins only.
+    // An admin posting anonymously (as the group itself) counts: only admins
+    // can do that, but Telegram hides who they are.
+    const userId = ctx.from?.id;
+    const anonymousGroupAdmin = ctx.message?.sender_chat?.id === chatId;
+    const myChannels = userId ? await convex.query(api.queries.getMyChannels, { userId }) : [];
+    if (!anonymousGroupAdmin && !myChannels.some((channel) => channel.chatId === chatId)) {
+      console.log(`⛔ /auto from user ${userId} who doesn't administer chat ${chatId}, ignoring`);
+      return;
+    }
 
     // Try to get the post ID and channel ID from the replied message or from the database
     let postId: number | null = null;
@@ -149,7 +160,7 @@ export function registerAutoClassifyHandler(
           postId,
           messageId
         );
-        if (author) {
+        if (author && author.id !== 0 && !SERVICE_ACCOUNT_IDS.has(author.id)) {
           authors.push(author);
           // Map author ID to detected name if available
           const detectedName = messageIdToName.get(messageId);

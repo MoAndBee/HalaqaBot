@@ -1,0 +1,28 @@
+# The test suite on every pull request: the real bot Worker (wrangler dev, local
+# queues) against the Telegram simulator and an in-memory Convex, all on the
+# runner. Needs no secrets, so it runs for PRs from forks too. The browser tests
+# need a real Convex deployment (TEST_CONVEX_URL) and are skipped here.
+
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test

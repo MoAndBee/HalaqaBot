@@ -1,0 +1,8 @@
+name = "halaqabot-staging-classifier"
+main = "src/staging-classifier.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["global_fetch_strictly_public"]
+workers_dev = true
+
+[observability]
+enabled = true

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
+import { useSelectedChannel } from '~/contexts/TelegramAuthContext'
 import { Search, UserPlus } from 'lucide-react'
 import {
   Dialog,
@@ -31,7 +32,9 @@ export function AddUserModal({ isOpen, onClose, onAdd }: AddUserModalProps) {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  const searchResults = useQuery(api.queries.searchUsers, { query: debouncedQuery })
+  // Only this channel's students: admins can't search other channels' rosters.
+  const { chatId } = useSelectedChannel()
+  const searchResults = useQuery(api.queries.searchUsers, { query: debouncedQuery, chatId })
 
   useEffect(() => {
     if (isOpen) {

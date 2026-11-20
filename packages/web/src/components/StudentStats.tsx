@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
+import { useSelectedChannel } from '~/contexts/TelegramAuthContext'
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -25,8 +26,10 @@ interface Participation {
 }
 
 export function StudentStats({ userId, onBack }: StudentStatsProps) {
-  const user = useQuery(api.queries.getUser, { userId })
-  const participations = useQuery(api.queries.getUserParticipations, { userId })
+  // Convex only shows a student through a chat this admin runs.
+  const { chatId } = useSelectedChannel()
+  const user = useQuery(api.queries.getUser, { userId, chatId })
+  const participations = useQuery(api.queries.getUserParticipations, { userId, chatId })
   const [currentDate, setCurrentDate] = useState(new Date())
 
   // Loading state - queries haven't returned yet

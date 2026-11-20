@@ -3,6 +3,16 @@ import { compareSessionsNewestFirst, pickCurrentSession } from "../src/sessionOr
 import { v } from "convex/values";
 import { paginationOptsValidator, type GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
+import {
+  getCaller,
+  hasStudentActivityInChat,
+  requireBot,
+  requireChannelAccess,
+  requireChannelChatAccess,
+  requireChatAccess,
+  requireSelf,
+  requireStudentAccess,
+} from "./auth";
 
 export const getMessageAuthor = query({
   args: {
@@ -11,6 +21,7 @@ export const getMessageAuthor = query({
     messageId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const message = await ctx.db
       .query("messageAuthors")
       .withIndex("by_chat_post_message", (q) =>
@@ -38,6 +49,7 @@ export const getPostIdForMessage = query({
     messageId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const message = await ctx.db
       .query("messageAuthors")
       .withIndex("by_chat_message", (q) =>
@@ -61,6 +73,7 @@ export const getUserList = query({
     sessionNumber: v.optional(v.number()), // if not provided, get latest session
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     let sessionNumber = args.sessionNumber;
 
     // If no session number provided, find the latest session
@@ -176,6 +189,7 @@ export const getAvailableSessions = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Query sessions table directly to get all sessions
     const allSessions = await ctx.db
       .query("sessions")
@@ -211,6 +225,7 @@ export const getSessionInfo = query({
     sessionNumber: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     const sessionMeta = await ctx.db
       .query("sessions")
       .withIndex("by_chat_post_session", (q) =>
@@ -242,6 +257,7 @@ export const getLastListMessage = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const record = await ctx.db
       .query("lastListMessages")
       .withIndex("by_chat_post", (q) =>
@@ -270,6 +286,7 @@ export const getClassification = query({
     messageId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const classification = await ctx.db
       .query("messageClassifications")
       .withIndex("by_chat_post_message", (q) =>
@@ -297,6 +314,7 @@ export const getLatestActivityTypeForUser = query({
     userId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     // Get all messageAuthors entries for this user in this post
     const userMessages = await ctx.db
       .query("messageAuthors")
@@ -311,7 +329,7 @@ export const getLatestActivityTypeForUser = query({
     }
 
     // Get all classifications for these messages that have an activityType
-    const allClassifications = [];
+    const allClassifications: Doc<"messageClassifications">[] = [];
     for (const msg of userMessages) {
       const classification = await ctx.db
         .query("messageClassifications")
@@ -345,6 +363,7 @@ export const getMessageText = query({
     messageId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const message = await ctx.db
       .query("messageAuthors")
       .withIndex("by_chat_post_message", (q) =>
@@ -365,6 +384,7 @@ export const getUnclassifiedMessages = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     // Get all users in the list (from both turnQueue and participationHistory)
     const queueUsers = await ctx.db
       .query("turnQueue")
@@ -435,6 +455,7 @@ export const getUnclassifiedMessages = query({
 export const getPaginatedPosts = query({
   args: { paginationOpts: paginationOptsValidator, chatId: v.number() },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Scope posts to the selected channel's discussion group so each channel's
     // admins only see their own posts.
     const result = await ctx.db
@@ -476,6 +497,7 @@ export const getPaginatedPosts = query({
 export const getAllPosts = query({
   args: {},
   handler: async (ctx) => {
+    await requireBot(ctx);
     // Get users from both turnQueue and participationHistory
     const queueUsers = await ctx.db.query("turnQueue").collect();
     const completedUsers = await ctx.db.query("participationHistory").collect();
@@ -536,6 +558,7 @@ export const getPostDetails = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Get users from both turnQueue and participationHistory
     const queueUsers = await ctx.db
       .query("turnQueue")
@@ -586,6 +609,7 @@ export const getChannelIdForPost = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     // Try to get channel ID from messageAuthors first
     const message = await ctx.db
       .query("messageAuthors")
@@ -601,6 +625,7 @@ export const getChannelIdForPost = query({
 export const getAllMessageClassifications = query({
   args: {},
   handler: async (ctx) => {
+    await requireBot(ctx);
     const classifications = await ctx.db
       .query("messageClassifications")
       .collect();
@@ -619,6 +644,7 @@ export const getAllMessageClassifications = query({
 export const getAllUsers = query({
   args: {},
   handler: async (ctx) => {
+    await requireBot(ctx);
     const users = await ctx.db.query("users").collect();
 
     return users.map((user) => ({
@@ -636,8 +662,11 @@ export const getAllUsers = query({
 export const getUser = query({
   args: {
     userId: v.number(),
+    // The chat the admin is looking from; required for everyone but the bot.
+    chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireStudentAccess(ctx, args.userId, args.chatId);
     const user = await ctx.db
       .query("users")
       .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
@@ -660,13 +689,18 @@ export const getUser = query({
 export const getUserParticipations = query({
   args: {
     userId: v.number(),
+    // Only this chat's participations; required for everyone but the bot.
+    chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireStudentAccess(ctx, args.userId, args.chatId);
     // Get all participations for this user
-    const participations = await ctx.db
-      .query("participationHistory")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
+    const participations = (
+      await ctx.db
+        .query("participationHistory")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .collect()
+    ).filter((p) => args.chatId === undefined || p.chatId === args.chatId);
 
     // Sort by completedAt (newest first)
     participations.sort((a, b) => b.completedAt - a.completedAt);
@@ -690,6 +724,7 @@ export const getMessagesForPost = query({
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     const messages = await ctx.db
       .query("messageAuthors")
       .withIndex("by_chat_post", (q) =>
@@ -748,6 +783,7 @@ export const getMessagesByUserId = query({
     userId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const messages = await ctx.db
       .query("messageAuthors")
       .filter((q) => q.eq(q.field("userId"), args.userId))
@@ -836,6 +872,9 @@ export const searchUsers = query({
     chatId: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Only the bot may search everyone; admins search their own chat.
+    if (args.chatId !== undefined) await requireChatAccess(ctx, args.chatId);
+    else await requireBot(ctx);
     if (!args.query.trim()) {
       return [];
     }
@@ -883,7 +922,7 @@ export const searchUsers = query({
   },
 });
 
-export const getUsersByIds = query({
+export const getUsersByIds = internalQuery({
   args: {
     userIds: v.array(v.number()),
   },
@@ -909,53 +948,13 @@ export const getUsersByIds = query({
   },
 });
 
-export const getPendingBotTasks = query({
-  args: {},
-  handler: async (ctx) => {
-    const tasks = await ctx.db
-      .query("botTasks")
-      .withIndex("by_status", (q) => q.eq("status", "pending"))
-      .collect();
-
-    return tasks.map((task) => ({
-      _id: task._id,
-      type: task.type,
-      chatId: task.chatId,
-      postId: task.postId,
-      messageId: task.messageId,
-      sessionNumber: task.sessionNumber,
-      flower: task.flower,
-      importId: task.importId,
-      status: task.status,
-      createdAt: task.createdAt,
-    }));
-  },
-});
-
-/**
- * Status of a single bot task, for the web app to track a queued task (e.g.
- * a participant list send) through to actual completion by the bot.
- */
-export const getBotTaskStatus = query({
-  args: {
-    taskId: v.id("botTasks"),
-  },
-  handler: async (ctx, args) => {
-    const task = await ctx.db.get(args.taskId);
-    if (!task) return null;
-    return {
-      status: task.status,
-      error: task.error,
-    };
-  },
-});
-
 export const getParticipationSummary = query({
   args: {
     chatId: v.number(),
     postId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // Get all sessions for this post
     const sessions = await ctx.db
       .query("sessions")
@@ -1052,6 +1051,7 @@ export const getTasmeeAttendance = query({
     chatId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     const chatId = args.chatId;
 
     const [historyEntries, queueEntries] = await Promise.all([
@@ -1113,6 +1113,7 @@ export const getExamRecords = query({
     chatId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     // All completed اختبار participations for this chat
     const examEntries = await ctx.db
       .query("participationHistory")
@@ -1170,6 +1171,7 @@ export const getChannelStudents = query({
     chatId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     const allUsers = await ctx.db.query("users").collect();
     const chatUserIds = await collectChatUserIds(ctx, args.chatId);
 
@@ -1198,7 +1200,7 @@ export const getChannelStudents = query({
   },
 });
 
-export const getLongMessagesBySaturday = query({
+export const getLongMessagesBySaturday = internalQuery({
   args: {
     adminUserIds: v.array(v.number()), // Admin user IDs to filter by
   },
@@ -1251,6 +1253,7 @@ export const getMyChannels = query({
     userId: v.number(),
   },
   handler: async (ctx, args) => {
+    requireSelf(await getCaller(ctx), args.userId);
     // Find every channel this user is an admin of.
     const adminRows = await ctx.db.query("channelAdmins").collect();
     const myChannelIds = new Set(
@@ -1295,6 +1298,7 @@ export const getMyChannels = query({
 export const getActiveChannels = query({
   args: {},
   handler: async (ctx) => {
+    await requireBot(ctx);
     const channels = await ctx.db
       .query("channels")
       .withIndex("by_active", (q) => q.eq("isActive", true))
@@ -1321,6 +1325,7 @@ export const isUserAuthorized = query({
     channelId: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     // Check if user is in channelAdmins table
     const admin = await ctx.db
       .query("channelAdmins")
@@ -1338,48 +1343,31 @@ export const isUserAuthorized = query({
 });
 
 /**
- * Find the channelAdmins record for a user, preferring the given channel but
- * falling back to any channel the user administers. The fallback matters when
- * the channels registry contains more than one row pointing at the same
- * discussion group (e.g. the group itself was mistakenly registered as a
- * channel): the admin's record — including their preferredName — lives under
- * the real channelId, and scoping strictly to the selected one would lose it.
+ * Admin names, including preferred names, belong to the selected channel.
+ * A missing record must not fall back to another channel's private profile.
  */
 async function findAdminRecord(
   ctx: { db: GenericDatabaseReader<DataModel> },
   channelId: number,
   userId: number
 ) {
-  const admin = await ctx.db
+  return await ctx.db
     .query("channelAdmins")
     .withIndex("by_channel_user", (q) =>
       q.eq("channelId", channelId).eq("userId", userId)
     )
     .first();
-  if (admin) return admin;
-
-  const anyChannel = await ctx.db
-    .query("channelAdmins")
-    .filter((q) => q.eq(q.field("userId"), userId))
-    .collect();
-  // Prefer a record with a preferredName set, then most recently updated.
-  anyChannel.sort(
-    (a, b) =>
-      Number(Boolean(b.preferredName)) - Number(Boolean(a.preferredName)) ||
-      b.updatedAt - a.updatedAt
-  );
-  return anyChannel[0] ?? null;
 }
 
 /**
- * Resolve a user's display name for supervisor/admin UI. Tries channelAdmins
- * (channel-scoped, then any channel), then falls back to the users table so a
- * former admin's name doesn't degrade to a raw Telegram ID after their
- * channelAdmins record is removed by the periodic sync.
+ * Preserve a former supervisor's student name only if the student belongs to
+ * this discussion. A client-controlled session assignment alone is not proof
+ * of membership and must not unlock the global users table.
  */
 async function resolveSupervisorName(
   ctx: { db: GenericDatabaseReader<DataModel> },
   channelId: number,
+  chatId: number,
   userId: number
 ): Promise<string | null> {
   const admin = await findAdminRecord(ctx, channelId, userId);
@@ -1392,7 +1380,9 @@ async function resolveSupervisorName(
     .query("users")
     .withIndex("by_user_id", (q) => q.eq("userId", userId))
     .first();
-  return user?.realName || user?.telegramName || null;
+  if (!user) return null;
+  if (user.homeChatId !== chatId && !(await hasStudentActivityInChat(ctx, userId, chatId))) return null;
+  return user.realName || user.telegramName || null;
 }
 
 function adminDisplayName(admin: {
@@ -1414,7 +1404,9 @@ export const getAdminDisplayName = query({
     userId: v.number(),
     channelId: v.number(),
   },
+  returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
+    await requireChannelAccess(ctx, args.channelId);
     const admin = await findAdminRecord(ctx, args.channelId, args.userId);
 
     if (!admin) {
@@ -1439,7 +1431,9 @@ export const getSessionSupervisorName = query({
     sessionNumber: v.number(),
     channelId: v.number(),
   },
+  returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
+    await requireChannelChatAccess(ctx, args.channelId, args.chatId);
     // Find the session
     const session = await ctx.db
       .query("sessions")
@@ -1469,7 +1463,7 @@ export const getSessionSupervisorName = query({
     // Look up each admin and resolve their display name
     const names: string[] = [];
     for (const userId of supervisorIds) {
-      const name = await resolveSupervisorName(ctx, args.channelId, userId);
+      const name = await resolveSupervisorName(ctx, args.channelId, args.chatId, userId);
       if (name) {
         names.push(name);
       } else {
@@ -1492,7 +1486,9 @@ export const getSessionSupervisors = query({
     sessionNumber: v.number(),
     channelId: v.number(),
   },
+  returns: v.array(v.object({ userId: v.number(), name: v.string() })),
   handler: async (ctx, args) => {
+    await requireChannelChatAccess(ctx, args.channelId, args.chatId);
     const session = await ctx.db
       .query("sessions")
       .withIndex("by_chat_post_session", (q) =>
@@ -1516,7 +1512,7 @@ export const getSessionSupervisors = query({
     const result: { userId: number; name: string }[] = [];
     for (const userId of supervisorIds) {
       const name =
-        (await resolveSupervisorName(ctx, args.channelId, userId)) ||
+        (await resolveSupervisorName(ctx, args.channelId, args.chatId, userId)) ||
         `#${userId}`;
       result.push({ userId, name });
     }
@@ -1562,6 +1558,12 @@ export const getParticipationHistoryBatch = internalQuery({
 export const getPostImport = query({
   args: { importId: v.id("postImports") },
   handler: async (ctx, args) => {
+    const record = await ctx.db.get(args.importId);
+    if (!record) {
+      await getCaller(ctx);
+      return null;
+    }
+    await requireChatAccess(ctx, record.chatId);
     return await ctx.db.get(args.importId);
   },
 });
@@ -1581,6 +1583,7 @@ export const getPostSearchBounds = query({
     timestamp: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireBot(ctx);
     const below = await ctx.db
       .query("posts")
       .withIndex("by_chat_created", (q) =>
@@ -1625,6 +1628,7 @@ const UNREGISTERED_SCAN_LIMIT = 16000;
 export const getUnregisteredPosts = query({
   args: { chatId: v.number() },
   handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
     const messages = await ctx.db
       .query("messageAuthors")
       .withIndex("by_chat_post", (q) => q.eq("chatId", args.chatId))

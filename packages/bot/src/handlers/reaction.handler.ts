@@ -1,11 +1,12 @@
 import type { Bot, Context } from "grammy";
-import type { MessageService } from "../services/message.service";
+import { SERVICE_ACCOUNT_IDS, type MessageService } from "../services/message.service";
 import type { UserListService } from "../services/user-list.service";
 import type { ClassificationService } from "../services/classification.service";
 import type { ConvexHttpClient } from "@halakabot/db";
 import { api } from "@halakabot/db";
 import type { Config } from "../config/environment";
 import { detectRealNameFromMessage } from "../services/name-detection.service";
+import { RetryLater } from "../errors";
 
 export function registerReactionHandler(
   bot: Bot,
@@ -61,39 +62,17 @@ export function registerReactionHandler(
     if (hasOkHandEmoji && !hadOkHandEmoji) {
       const messageId = ctx.messageReaction!.message_id;
 
-      // Try to find the post ID and channel ID from the database
-      // Use retry mechanism to handle race condition with message handler
-      let result = await convex.query(api.queries.getPostIdForMessage, {
+      // Find the post ID and channel ID from the database
+      const result = await convex.query(api.queries.getPostIdForMessage, {
         chatId,
         messageId,
       });
 
-      // If message not in database, retry a few times with delays
-      // This handles the race condition where admin reacts before message is stored
+      // The message may not be stored yet: its own update can reach us after
+      // the reaction. Have the queue retry this one shortly, after that update
+      // (the consumer gives up, ignoring the reaction, after a few tries).
       if (!result) {
-        const maxRetries = 3;
-        const retryDelays = [500, 1000, 2000]; // ms between retries
-
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-          console.log(`⏳ Message ${messageId} not found in database, retrying in ${retryDelays[attempt]}ms (attempt ${attempt + 1}/${maxRetries})...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
-
-          result = await convex.query(api.queries.getPostIdForMessage, {
-            chatId,
-            messageId,
-          });
-
-          if (result) {
-            console.log(`✅ Message ${messageId} found after ${attempt + 1} retry(ies)`);
-            break;
-          }
-        }
-
-        // If still not found after retries, give up
-        if (!result) {
-          console.log(`⚠️  Message ${messageId} not found in database after ${maxRetries} retries, ignoring reaction`);
-          return;
-        }
+        throw new RetryLater(`message ${messageId} not stored yet`);
       }
 
       const { postId, channelId } = result;
@@ -125,6 +104,11 @@ export function registerReactionHandler(
         postId,
         messageId,
       );
+
+      if (messageAuthor && SERVICE_ACCOUNT_IDS.has(messageAuthor.id)) {
+        console.log(`⚠️  Message ${messageId} was sent by a Telegram service account, ignoring reaction`);
+        return;
+      }
 
       if (messageAuthor) {
         // Detect the sender's real name from the message. This is the shared

@@ -1,4 +1,4 @@
-import { groq } from "@ai-sdk/groq";
+import { createGroq, type GroqProvider } from "@ai-sdk/groq";
 import { generateObject } from "ai";
 import { z } from "zod";
 
@@ -40,7 +40,10 @@ const activityTypeOnlySchema = z.object({
 
 export class ClassificationService {
 
-  constructor() {
+  private groq: GroqProvider;
+
+  constructor(apiKey: string, baseURL?: string) {
+    this.groq = createGroq({ apiKey, baseURL });
   }
 
   /**
@@ -60,7 +63,7 @@ export class ClassificationService {
         .join(",");
 
       const { object } = await generateObject({
-        model: groq("openai/gpt-oss-120b"),
+        model: this.groq("openai/gpt-oss-120b"),
         schema: batchClassificationSchema,
         providerOptions: {
           groq: {
@@ -167,7 +170,7 @@ Return the message_id, contains_name (true/false), names array, and activity_typ
         .join(",");
 
       const { object } = await generateObject({
-        model: groq("openai/gpt-oss-120b"),
+        model: this.groq("openai/gpt-oss-120b"),
         schema: activityTypeOnlySchema,
         providerOptions: {
           groq: {
