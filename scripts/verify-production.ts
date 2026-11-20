@@ -4,6 +4,7 @@ import { appendFile, readFile } from "node:fs/promises";
 import { api, ConvexHttpClient } from "../packages/db/src/index";
 import { botConvexClient } from "../packages/bot/scripts/convex-client";
 import { PRODUCTION, validateProductionConfig } from "./production-config";
+import { waitForWorkerRelease } from "./production-version";
 
 const mode = process.argv[2];
 assert(mode === "preflight" || mode === "released", "Expected preflight or released");
@@ -72,12 +73,7 @@ if (mode === "released") {
   const script = await (await request(new URL(scriptPath, PRODUCTION.origin).href)).text();
   assert(script.includes(PRODUCTION.backend), "Frontend is not using production Convex");
   assert(!script.includes("perfect-clam-401.convex.cloud"), "Staging backend found in production frontend");
-  const deployments = await cloudflare(`workers/scripts/${PRODUCTION.worker}/deployments`);
-  const active = deployments.deployments?.[0];
-  assert(active?.versions?.length === 1 && active.versions[0].percentage === 100, "Expected one fully active production Worker version");
-  const version = await cloudflare(`workers/scripts/${PRODUCTION.worker}/versions/${active.versions[0].version_id}`);
-  assert.equal(version.annotations?.["workers/tag"], process.env.RELEASE_SHA, "Active Worker does not match the released commit");
-  const versions = active.versions.map((version: any) => version.version_id).join(", ");
+  const versions = (await waitForWorkerRelease(cloudflare, PRODUCTION.worker, process.env.RELEASE_SHA!)).join(", ");
   if (process.env.GITHUB_STEP_SUMMARY) {
     await appendFile(process.env.GITHUB_STEP_SUMMARY, `Released commit: ${process.env.RELEASE_SHA}\n\nActive Worker versions: ${versions}\n\nHTTPS, production frontend, authenticated reads and unsigned-request denial passed.\n`);
   }
