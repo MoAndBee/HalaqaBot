@@ -1476,6 +1476,53 @@ export const getSessionSupervisorName = query({
 });
 
 /**
+ * Channel admins who can still be added as a supervisor of this halaqa, as
+ * {userId, name} pairs. Used by the "أضف مشرفة" picker.
+ */
+export const getAddableSupervisors = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    channelId: v.number(),
+  },
+  returns: v.array(v.object({ userId: v.number(), name: v.string() })),
+  handler: async (ctx, args) => {
+    await requireChannelChatAccess(ctx, args.channelId, args.chatId);
+
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", args.sessionNumber)
+      )
+      .first();
+
+    const current = new Set<number>(
+      session?.supervisorUserIds?.length
+        ? session.supervisorUserIds
+        : session?.supervisorUserId
+          ? [session.supervisorUserId]
+          : []
+    );
+
+    const admins = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel", (q) => q.eq("channelId", args.channelId))
+      .collect();
+
+    return admins
+      .filter((admin) => !current.has(admin.userId))
+      .map((admin) => ({
+        userId: admin.userId,
+        name: adminDisplayName(admin) || `#${admin.userId}`,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  },
+});
+
+/**
  * Get the list of supervisors for a session as {userId, name} pairs.
  * Used by the UI to show each admin individually with a remove button.
  */

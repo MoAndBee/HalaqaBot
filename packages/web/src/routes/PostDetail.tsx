@@ -36,6 +36,7 @@ import { CompensationModal } from '~/components/CompensationModal'
 import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import { UnlockSessionModal } from '~/components/UnlockSessionModal'
 import { DeleteSessionModal } from '~/components/DeleteSessionModal'
+import { AddSupervisorModal } from '~/components/AddSupervisorModal'
 import { BulkSessionTypeModal } from '~/components/BulkSessionTypeModal'
 import { ManualListModal, type ManualListMode } from '~/components/ManualListModal'
 import { PostMessagesView } from '~/components/PostMessagesView'
@@ -124,6 +125,7 @@ export default function PostDetail() {
   const [isStartNewSessionModalOpen, setIsStartNewSessionModalOpen] = React.useState(false)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = React.useState(false)
   const [isDeleteSessionModalOpen, setIsDeleteSessionModalOpen] = React.useState(false)
+  const [isAddSupervisorModalOpen, setIsAddSupervisorModalOpen] = React.useState(false)
   const [isBulkSessionTypeModalOpen, setIsBulkSessionTypeModalOpen] = React.useState(false)
   // Which manual list flow is open: replacing this session's list, or adding an external halaqa
   const [manualListMode, setManualListMode] = React.useState<ManualListMode | null>(null)
@@ -181,6 +183,13 @@ export default function PostDetail() {
     api.queries.getSessionSupervisors,
     data?.currentSession ? { chatId, postId, sessionNumber: data.currentSession, channelId: CHANNEL_ID } : 'skip'
   )
+  // Channel admins who can still be added as supervisors (only while the picker is open)
+  const addableSupervisors = useQuery(
+    api.queries.getAddableSupervisors,
+    isAddSupervisorModalOpen && data?.currentSession
+      ? { chatId, postId, sessionNumber: selectedSession ?? data.currentSession, channelId: CHANNEL_ID }
+      : 'skip'
+  )
   // Fetch current admin's display name (for editing their preferred name)
   const currentAdminName = useQuery(
     api.queries.getAdminDisplayName,
@@ -208,6 +217,7 @@ export default function PostDetail() {
   const registerUser = useMutation(api.mutations.registerUser)
   const assignSessionSupervisor = useMutation(api.mutations.assignSessionSupervisor)
   const addSessionSupervisor = useMutation(api.mutations.addSessionSupervisor)
+  const addSessionSupervisorWithPasscode = useMutation(api.mutations.addSessionSupervisorWithPasscode)
   const removeSessionSupervisor = useMutation(api.mutations.removeSessionSupervisor)
   const takeOverSession = useMutation(api.mutations.takeOverSession)
   const setTurnQueueCompensation = useMutation(api.mutations.setTurnQueueCompensation)
@@ -796,6 +806,23 @@ export default function PostDetail() {
     }
   }
 
+  const handleAddSupervisor = async (supervisorUserId: number, passcode: string) => {
+    if (!data) return
+
+    const currentSession = selectedSession ?? data.currentSession
+
+    await addSessionSupervisorWithPasscode({
+      channelId: CHANNEL_ID,
+      chatId,
+      postId,
+      sessionNumber: currentSession,
+      supervisorUserId,
+      passcode,
+    })
+
+    toast.success('تمت إضافة المشرفة!')
+  }
+
   const handleRemoveSupervisor = async (userId: number) => {
     if (!data) return
 
@@ -1174,6 +1201,13 @@ export default function PostDetail() {
                       <UserPlus className="h-4 w-4 ml-2" />
                       أضفني كمشرفة
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setIsAddSupervisorModalOpen(true)}
+                      disabled={sessionInfo?.isLocked}
+                    >
+                      <UserPlus className="h-4 w-4 ml-2" />
+                      أضف مشرفة
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <span className="font-medium">المشرفات:</span>
@@ -1315,6 +1349,14 @@ export default function PostDetail() {
         onClose={() => setIsUnlockModalOpen(false)}
         onUnlock={handleUnlockSession}
         sessionNumber={selectedSession ?? data.currentSession}
+      />
+
+      <AddSupervisorModal
+        isOpen={isAddSupervisorModalOpen}
+        onClose={() => setIsAddSupervisorModalOpen(false)}
+        onAdd={handleAddSupervisor}
+        sessionNumber={selectedSession ?? data.currentSession}
+        candidates={addableSupervisors}
       />
 
       <DeleteSessionModal

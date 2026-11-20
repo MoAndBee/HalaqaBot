@@ -2189,6 +2189,59 @@ export const assignSessionSupervisor = mutation({
  * Add the current admin as an additional supervisor (used by تسلم الحلقة and أضفني كمشرفة).
  * Does nothing if the user is already in the list.
  */
+/**
+ * Append a supervisor to a halaqa's list, creating the halaqa if it does not
+ * exist yet. Callers must authorize the request before calling this.
+ */
+async function appendSessionSupervisor(
+  ctx: GenericMutationCtx<DataModel>,
+  args: { chatId: number; postId: number; sessionNumber: number; supervisorUserId: number },
+) {
+  // Check if session is locked before any modifications
+  await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+
+  // Find the session
+  const session = await ctx.db
+    .query("sessions")
+    .withIndex("by_chat_post_session", (q) =>
+      q.eq("chatId", args.chatId)
+        .eq("postId", args.postId)
+        .eq("sessionNumber", args.sessionNumber)
+    )
+    .first();
+
+  if (!session) {
+    // Create session with this supervisor
+    await ctx.db.insert("sessions", {
+      chatId: args.chatId,
+      postId: args.postId,
+      sessionNumber: args.sessionNumber,
+      teacherName: "",
+      supervisorUserId: args.supervisorUserId,
+      supervisorUserIds: [args.supervisorUserId],
+      createdAt: Date.now(),
+    });
+    console.log(`Created session with supervisor ${args.supervisorUserId}`);
+    return { added: true };
+  }
+
+  const currentIds = getEffectiveSupervisorIds(session);
+
+  // Already in list – nothing to do
+  if (currentIds.includes(args.supervisorUserId)) {
+    console.log(`Supervisor ${args.supervisorUserId} already in list`);
+    return { added: false, alreadyPresent: true };
+  }
+
+  const updatedIds = [...currentIds, args.supervisorUserId];
+  await ctx.db.patch(session._id, {
+    supervisorUserIds: updatedIds,
+  });
+
+  console.log(`Added supervisor ${args.supervisorUserId} to session. All: ${updatedIds.join(", ")}`);
+  return { added: true };
+}
+
 export const addSessionSupervisor = mutation({
   args: {
     chatId: v.number(),
@@ -2198,49 +2251,41 @@ export const addSessionSupervisor = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
-    // Check if session is locked before any modifications
-    await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
+    return appendSessionSupervisor(ctx, args);
+  },
+});
 
-    // Find the session
-    const session = await ctx.db
-      .query("sessions")
-      .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("sessionNumber", args.sessionNumber)
+/**
+ * Admin-only: add another channel admin as a supervisor of a halaqa. Guarded by
+ * the admin passcode like the other admin actions, and the target must be an
+ * admin of the channel that owns the discussion.
+ */
+export const addSessionSupervisorWithPasscode = mutation({
+  args: {
+    channelId: v.number(),
+    chatId: v.number(),
+    postId: v.number(),
+    sessionNumber: v.number(),
+    supervisorUserId: v.number(),
+    passcode: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChannelChatAccess(ctx, args.channelId, args.chatId);
+    if (args.passcode !== ADMIN_PASSCODE) {
+      throw new ConvexError("رمز الحماية غير صحيح");
+    }
+
+    const target = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_channel_user", (q) =>
+        q.eq("channelId", args.channelId).eq("userId", args.supervisorUserId)
       )
       .first();
-
-    if (!session) {
-      // Create session with this supervisor
-      await ctx.db.insert("sessions", {
-        chatId: args.chatId,
-        postId: args.postId,
-        sessionNumber: args.sessionNumber,
-        teacherName: "",
-        supervisorUserId: args.supervisorUserId,
-        supervisorUserIds: [args.supervisorUserId],
-        createdAt: Date.now(),
-      });
-      console.log(`Created session with supervisor ${args.supervisorUserId}`);
-      return { added: true };
+    if (!target) {
+      throw new ConvexError("يمكن إضافة المشرفات من إداريات القناة فقط");
     }
 
-    const currentIds = getEffectiveSupervisorIds(session);
-
-    // Already in list – nothing to do
-    if (currentIds.includes(args.supervisorUserId)) {
-      console.log(`Supervisor ${args.supervisorUserId} already in list`);
-      return { added: false, alreadyPresent: true };
-    }
-
-    const updatedIds = [...currentIds, args.supervisorUserId];
-    await ctx.db.patch(session._id, {
-      supervisorUserIds: updatedIds,
-    });
-
-    console.log(`Added supervisor ${args.supervisorUserId} to session. All: ${updatedIds.join(", ")}`);
-    return { added: true };
+    return appendSessionSupervisor(ctx, args);
   },
 });
 
