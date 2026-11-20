@@ -108,6 +108,12 @@ jobs:
         with:
           name: production-web-${{ needs.prepare.outputs.sha }}
           path: packages/bot/.production/web
+      - name: Generate local Convex bindings for smoke checks
+        working-directory: packages/db
+        env:
+          CONVEX_DEPLOY_KEY: ''
+          CONVEX_DEPLOYMENT: anonymous:local
+        run: ./node_modules/.bin/convex codegen --typecheck disable
       - name: Read-only credential and live-service preflight
         run: bun scripts/verify-production.ts preflight
         env:

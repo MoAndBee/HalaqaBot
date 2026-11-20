@@ -15,10 +15,16 @@ await mkdir(path.join(bot, ".production"), { recursive: true, mode: 0o700 });
 // Never pass loaded credentials or simulator values to build tools.
 const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(CONVEX_|PRODUCTION_|STAGING_|BOT_TOKEN$|TELEGRAM_|GROQ_|TEST_|SIM_|PREVIEW_|VITE_|CLOUDFLARE_|CF_)/.test(name)));
 Object.assign(env, { VITE_CONVEX_URL: PRODUCTION.backend, VITE_BOT_API_URL: "", CLOUDFLARE_ACCOUNT_ID: PRODUCTION.account, WRANGLER_SEND_METRICS: "false" });
-async function run(command: string[], cwd: string) {
-  const proc = Bun.spawn(command, { cwd, env, stdout: "inherit", stderr: "inherit" });
+async function run(command: string[], cwd: string, overrides: Record<string, string> = {}) {
+  const proc = Bun.spawn(command, { cwd, env: { ...env, ...overrides }, stdout: "inherit", stderr: "inherit" });
   if (await proc.exited !== 0) throw new Error(`Production preparation failed: ${command.slice(0, 3).join(" ")}`);
 }
+// A fresh release checkout has no ignored _generated files. Generate locally,
+// independently of the test job, without selecting or deploying a cloud backend.
+await run(["./node_modules/.bin/convex", "codegen", "--typecheck", "disable"], path.join(root, "packages/db"), {
+  CONVEX_DEPLOY_KEY: "",
+  CONVEX_DEPLOYMENT: "anonymous:local",
+});
 await run(["bun", "run", "build:db"], root);
 await run(["bun", "run", "build:bot"], root);
 await run(["bun", "./node_modules/.bin/vite", "build", "--outDir", "../bot/.production/web", "--emptyOutDir"], path.join(root, "packages/web"));
