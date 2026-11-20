@@ -1,9 +1,11 @@
 # Portable agent handoff
 
-Use the current PR #165 migration branch:
-`MoAndBee/HalaqaBot:claude/telegram-cloudflare-workers-migration-c09q4a`.
-PRs #168 and #169 were merged into it; it includes the environment helpers,
-security fix, active Bosla configs and [full runbook](../agent-environment-handoff.md).
+Use current `MoAndBee/HalaqaBot:main` for the released runtime. PRs #168/#169
+were merged into #165, and #165 was merged into main for the completed
+[2026-11-20 production cutover](../production-cutover-2026-11-20.md).
+The bundle includes the environment helpers, security fixes, active Bosla configs
+and [full runbook](../agent-environment-handoff.md). It is an archival snapshot;
+do not replay the initial production migration on the already-live service.
 
 Staging is already live at **https://halaqabot-staging.bosla.to**, backed by
 `Bosla / halaqabotdb / staging` (`perfect-clam-401`). The old separate Convex
@@ -30,7 +32,7 @@ Extract outside your checkout before switching branches. Read the extracted
 `docs/agent-environment-handoff.md`. The archive contains a patch for the exact
 base commit in `manifest.json`, the runbook and supporting docs; it contains no
 environment files, dependency folders, built web assets, or live credentials.
-Obtain private secrets separately. Do not apply its patch over the stacked branch.
+Obtain private secrets separately. Do not apply its patch over current main or any existing release checkout.
 The archive now includes both the environment changes and the merged backend
 security fix. Do not cherry-pick #169 on top of it or apply it over the current
 migration branch. For a new checkout at the pinned base:

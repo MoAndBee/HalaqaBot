@@ -1,4 +1,8 @@
-# Prompt for the maintainer's agent
+# Historical initial-cutover prompt
+
+Production went live on 2026-11-20. Read the [completion record](production-cutover-2026-11-20.md)
+before acting. The initial migration prompt below is retained as history; do not
+rerun it on the live service.
 
 Copy the following into the agent that has access to the existing production
 host, GitHub, Bosla Cloudflare, Convex and the production Telegram bot credentials.

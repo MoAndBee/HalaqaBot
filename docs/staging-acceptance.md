@@ -1,3 +1,8 @@
+**2026-11-20 update:** the final merged runtime was promoted and smoke-tested on
+shared staging, then deployed to production. See the [production completion record](production-cutover-2026-11-20.md).
+A real production admin's phone check remains pending; completed staging checks
+should not be repeated merely because the release is now in production.
+
 # Remaining acceptance checks for PR #165
 
 Use only `@halaqabot_bosla_staging_bot`, `HalaqaBot Staging — Channel`, and

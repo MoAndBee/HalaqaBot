@@ -12,6 +12,10 @@ local-only build/dry run and secret-target checks. No production changes have
 been made. The maintainer's agent executes that release; routine dev/staging
 work continues to use this runbook.
 
+**Production is live as of 2026-11-20.** See the [completed cutover](production-cutover-2026-11-20.md)
+for the production Worker, legacy redirect, recovery resources and remaining
+physical-admin acceptance. PR #165 is merged; use current `main` for new development.
+
 ## Decision: reuse team staging; isolate personal work
 
 Reuse the existing shared staging bot, channel, discussion group and named
@@ -66,7 +70,7 @@ personal Cloudflare hosting stays available during preparation and rollback.
 | Shared Convex URL | `https://perfect-clam-401.convex.cloud` |
 | Shared database dashboard | https://dashboard.convex.dev/d/perfect-clam-401 |
 | Mohanad's personal dev | `doting-viper-550`, in `bosla / halaqabotdb` |
-| Existing live app's Convex project | Same project, `bosla / halaqabotdb`; leave its default production deployment unchanged |
+| Existing live app's Convex project | Same project, `bosla / halaqabotdb`; production is now live there; routine development must not change it |
 | Known production deployment in that project | `incredible-lyrebird-981`; confirm inventory before any future production work |
 | Teammate dev mentioned in CLAUDE.md | `wry-crab-519`, reference `dev/mohmed-nasser`; do not use or alter it |
 
@@ -135,8 +139,8 @@ PRs #168 and #169 were merged into PR #165's migration branch. Use that branch
 as the authoritative source; it includes the setup, security and Bosla configs:
 
 ```bash
-git fetch origin claude/telegram-cloudflare-workers-migration-c09q4a
-git switch -c setup/bosla-staging origin/claude/telegram-cloudflare-workers-migration-c09q4a
+git fetch origin main
+git switch -c setup/bosla-staging origin/main
 bun install --frozen-lockfile
 bun run test
 ```

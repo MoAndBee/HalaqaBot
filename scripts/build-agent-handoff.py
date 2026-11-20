@@ -50,6 +50,7 @@ SOURCES = [
     "scripts/production-config.ts", "scripts/prepare-production.ts",
     "scripts/prepare-production-secrets.ts", "packages/testing/test/production-config.test.ts",
     "docs/production-cutover.md", "docs/production-maintainer-prompt.md",
+    "docs/production-cutover-2026-11-20.md",
     "packages/web/src/components/AdminPasscodeNotice.tsx",
     "packages/web/src/components/DeleteSessionModal.tsx",
     "packages/web/src/components/CompensationModal.tsx",
@@ -138,7 +139,7 @@ def main():
     metadata = {
         "repository": "https://github.com/MoAndBee/HalaqaBot.git",
         "base_commit": BASE,
-        "source_branch": "claude/telegram-cloudflare-workers-migration-c09q4a",
+        "source_branch": "codex/production-cutover-record",
         "source_repository": "https://github.com/MoAndBee/HalaqaBot.git",
         "snapshot_date": snapshot_date,
         "patch_sha256": hashlib.sha256(patch).hexdigest(),

@@ -1,7 +1,9 @@
 # Production cutover: PR #165 and halaqabot.bosla.to
 
 Prepared 2026-11-11; source integration refreshed 2026-11-18.
-**Preparation only; production has not been deployed.**
+**Completed on 2026-11-20: production is live.** Read the
+[completion record and current recovery state](production-cutover-2026-11-20.md)
+first. The initial switch below is historical; do not repeat it.
 Give the maintainer's agent [this prompt](production-maintainer-prompt.md).
 The maintainer owns the live server, credentials, merge and release window.
 Complete preparation first, obtain one confirmation of the concrete production
