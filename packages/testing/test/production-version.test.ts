@@ -1,5 +1,26 @@
 import { expect, test } from "bun:test";
-import { waitForWorkerRelease } from "../../../scripts/production-version";
+import { retryProductionCheck, waitForWorkerRelease } from "../../../scripts/production-version";
+
+test("complete release verification retries incomplete settings before checking the version", async () => {
+  let reads = 0;
+  let waits = 0;
+  const result = await retryProductionCheck(async () => {
+    if (++reads === 1) throw new Error("Missing production Worker binding BOT_TOKEN");
+    return "all health checks passed";
+  }, { attempts: 3, wait: async () => { waits++; } });
+  expect(result).toBe("all health checks passed");
+  expect(reads).toBe(2);
+  expect(waits).toBe(1);
+});
+
+test("complete release verification preserves a persistent health failure after bounded retries", async () => {
+  let reads = 0;
+  await expect(retryProductionCheck(async () => {
+    reads++;
+    throw new Error("Missing production Worker binding BOT_TOKEN");
+  }, { attempts: 3, wait: async () => {} })).rejects.toThrow("Missing production Worker binding BOT_TOKEN");
+  expect(reads).toBe(3);
+});
 
 test("release verification waits for a stale deployment list to reach the released Worker", async () => {
   let lists = 0;
