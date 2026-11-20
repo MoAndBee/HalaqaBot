@@ -72,7 +72,8 @@ advances after the final check, the following tested release runs afterward.
 Post-deploy checks verify HTTPS routes, unsigned auth/webhook rejection,
 authenticated existing-channel reads, anonymous Convex denial, the production
 frontend backend URL, and the expected asset commit. The job summary records the
-source commit and active Worker version IDs. These checks do not send Telegram
+source commit and active Worker version IDs, and checks the Worker's version tag
+matches the released commit. These checks do not send Telegram
 messages or modify app data.
 
 ## Failure and phone checks
