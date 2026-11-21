@@ -4,7 +4,7 @@ import { appendFile, readFile } from "node:fs/promises";
 import { api, ConvexHttpClient } from "../packages/db/src/index";
 import { botConvexClient } from "../packages/bot/scripts/convex-client";
 import { PRODUCTION, validateProductionConfig } from "./production-config";
-import { waitForWorkerRelease } from "./production-version";
+import { retryProductionCheck, waitForWorkerRelease } from "./production-version";
 
 const mode = process.argv[2];
 assert(mode === "preflight" || mode === "released", "Expected preflight or released");
@@ -30,52 +30,55 @@ async function cloudflare(path: string) {
   return body.result;
 }
 
-const settings = await cloudflare(`workers/scripts/${PRODUCTION.worker}/settings`);
-for (const name of ["BOT_TOKEN", "GROQ_API_KEY", "CONVEX_URL", "TELEGRAM_WEBHOOK_SECRET", "CONVEX_AUTH_PRIVATE_KEY", "WEB_APP_URL"]) {
-  assert(settings.bindings?.some((binding: any) => binding.name === name), `Missing production Worker binding ${name}`);
-}
-for (const name of ["GROQ_BASE_URL", "TELEGRAM_API_ROOT", "PREVIEW_MODE", "SIM_CONTROL_TOKEN"]) {
-  assert(!settings.bindings?.some((binding: any) => binding.name === name), `Unexpected production override ${name}`);
-}
+async function verify() {
+  const settings = await cloudflare(`workers/scripts/${PRODUCTION.worker}/settings`);
+  for (const name of ["BOT_TOKEN", "GROQ_API_KEY", "CONVEX_URL", "TELEGRAM_WEBHOOK_SECRET", "CONVEX_AUTH_PRIVATE_KEY", "WEB_APP_URL"]) {
+    assert(settings.bindings?.some((binding: any) => binding.name === name), `Missing production Worker binding ${name}`);
+  }
+  for (const name of ["GROQ_BASE_URL", "TELEGRAM_API_ROOT", "PREVIEW_MODE", "SIM_CONTROL_TOKEN"]) {
+    assert(!settings.bindings?.some((binding: any) => binding.name === name), `Unexpected production override ${name}`);
+  }
 
-const client = await botConvexClient(PRODUCTION.backend);
-const channels = await client.query(api.queries.getActiveChannels, {});
-assert(channels.length > 0, "Expected existing active production channels");
-const anonymous = new ConvexHttpClient(PRODUCTION.backend, { logger: false });
-await assert.rejects(anonymous.query(api.queries.getActiveChannels, {}),
-  (error: any) => typeof error.data === "string" && error.data.includes("يجب تسجيل الدخول"));
+  const client = await botConvexClient(PRODUCTION.backend);
+  const channels = await client.query(api.queries.getActiveChannels, {});
+  assert(channels.length > 0, "Expected existing active production channels");
+  const anonymous = new ConvexHttpClient(PRODUCTION.backend, { logger: false });
+  await assert.rejects(anonymous.query(api.queries.getActiveChannels, {}),
+    (error: any) => typeof error.data === "string" && error.data.includes("يجب تسجيل الدخول"));
 
-for (const path of ["/", "/halaqas"]) {
-  assert.equal((await request(PRODUCTION.origin + path)).status, 200, `Production ${path} is unavailable`);
-}
-for (const path of ["/api/auth/token", "/telegram"]) {
-  assert.equal((await request(PRODUCTION.origin + path, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
-  })).status, 401, `Unsigned ${path} must be denied`);
-}
+  for (const path of ["/", "/halaqas"]) {
+    assert.equal((await request(PRODUCTION.origin + path)).status, 200, `Production ${path} is unavailable`);
+  }
+  for (const path of ["/api/auth/token", "/telegram"]) {
+    assert.equal((await request(PRODUCTION.origin + path, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    })).status, 401, `Unsigned ${path} must be denied`);
+  }
 
-if (mode === "released") {
-  let matched = false;
-  for (let attempt = 0; attempt < 6; attempt++) {
+  if (mode === "released") {
+    let matched = false;
     const response = await request(`${PRODUCTION.origin}/release.json?commit=${process.env.RELEASE_SHA}`, {
       headers: { "Cache-Control": "no-cache" },
     });
     try {
       matched = response.ok && (await response.json() as any).commit === process.env.RELEASE_SHA;
     } catch { /* An older release may still serve the SPA fallback. */ }
-    if (matched) break;
-    if (attempt < 5) await Bun.sleep(5_000);
+    assert(matched, "Production assets do not match the released commit");
+    const html = await (await request(PRODUCTION.origin)).text();
+    const scriptPath = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(match => match[1]).find(path => path?.startsWith("/assets/"));
+    assert(scriptPath, "Expected a production app script");
+    const script = await (await request(new URL(scriptPath, PRODUCTION.origin).href)).text();
+    assert(script.includes(PRODUCTION.backend), "Frontend is not using production Convex");
+    assert(!script.includes("perfect-clam-401.convex.cloud"), "Staging backend found in production frontend");
+    const versions = (await waitForWorkerRelease(cloudflare, PRODUCTION.worker, process.env.RELEASE_SHA!, { attempts: 1 })).join(", ");
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      await appendFile(process.env.GITHUB_STEP_SUMMARY, `Released commit: ${process.env.RELEASE_SHA}\n\nActive Worker versions: ${versions}\n\nHTTPS, production frontend, authenticated reads and unsigned-request denial passed.\n`);
+    }
   }
-  assert(matched, "Production assets do not match the released commit");
-  const html = await (await request(PRODUCTION.origin)).text();
-  const scriptPath = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(match => match[1]).find(path => path?.startsWith("/assets/"));
-  assert(scriptPath, "Expected a production app script");
-  const script = await (await request(new URL(scriptPath, PRODUCTION.origin).href)).text();
-  assert(script.includes(PRODUCTION.backend), "Frontend is not using production Convex");
-  assert(!script.includes("perfect-clam-401.convex.cloud"), "Staging backend found in production frontend");
-  const versions = (await waitForWorkerRelease(cloudflare, PRODUCTION.worker, process.env.RELEASE_SHA!)).join(", ");
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    await appendFile(process.env.GITHUB_STEP_SUMMARY, `Released commit: ${process.env.RELEASE_SHA}\n\nActive Worker versions: ${versions}\n\nHTTPS, production frontend, authenticated reads and unsigned-request denial passed.\n`);
-  }
+  console.log(`Production ${mode} checks passed (no app data writes or Telegram messages).`);
 }
-console.log(`Production ${mode} checks passed (no app data writes or Telegram messages).`);
+
+// Retry the complete read-only check after a deploy: settings bindings, assets,
+// deployment lists and version tags can become visible at different times.
+// Preflight stays strict and never retries missing credentials before a write.
+await retryProductionCheck(verify, { attempts: mode === "released" ? 12 : 1 });
