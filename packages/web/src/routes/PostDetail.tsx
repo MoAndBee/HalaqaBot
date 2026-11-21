@@ -37,6 +37,7 @@ import { StartNewSessionModal } from '~/components/StartNewSessionModal'
 import { UnlockSessionModal } from '~/components/UnlockSessionModal'
 import { DeleteSessionModal } from '~/components/DeleteSessionModal'
 import { AddSupervisorModal } from '~/components/AddSupervisorModal'
+import { adminActionErrorMessage } from '~/components/AdminPasscodeNotice'
 import { BulkSessionTypeModal } from '~/components/BulkSessionTypeModal'
 import { ManualListModal, type ManualListMode } from '~/components/ManualListModal'
 import { PostMessagesView } from '~/components/PostMessagesView'
@@ -842,7 +843,7 @@ export default function PostDetail() {
       toast.success('تمت إزالة المشرفة!')
     } catch (error: any) {
       // Server throws a human-readable Arabic error when only one supervisor remains
-      toast.error(error?.message || 'فشل إزالة المشرفة')
+      toast.error(adminActionErrorMessage(error, 'فشل إزالة المشرفة'))
       console.error('Remove supervisor failed:', error)
     }
   }
@@ -869,7 +870,7 @@ export default function PostDetail() {
       })
       toast.success('تم إغلاق الحلقة بنجاح!')
     } catch (error: any) {
-      toast.error(error?.message || 'فشل إغلاق الحلقة')
+      toast.error(adminActionErrorMessage(error, 'فشل إغلاق الحلقة'))
       console.error('Lock session failed:', error)
     }
   }
@@ -968,7 +969,7 @@ export default function PostDetail() {
         callBot('/api/react', { chatId, postId, messageId }).catch(() => {})
       }
     } catch (error: any) {
-      toast.error(error?.message || 'فشل إضافة المستخدم')
+      toast.error(adminActionErrorMessage(error, 'فشل إضافة المستخدم'))
       throw error
     }
   }

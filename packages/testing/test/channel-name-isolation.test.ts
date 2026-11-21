@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { api } from "@halakabot/db";
+import { ConvexError } from "convex/values";
 import { createConvexEmulator } from "../src/convex-emulator";
 
 const CHANNEL_A = -100101;
@@ -401,7 +402,7 @@ describe("adding a supervisor with the admin passcode", () => {
   test("a locked halaqa cannot receive a supervisor, even with the passcode", async () => {
     const { t, admin } = await seeded({ locked: true });
     await expect(admin.mutation(api.mutations.addSessionSupervisorWithPasscode, addArgs))
-      .rejects.toThrow("locked");
+      .rejects.toThrow("الحلقة مغلقة");
     expect(await supervisorIds(t)).toEqual([ADMIN_A]);
   });
 
@@ -432,5 +433,43 @@ describe("adding a supervisor with the admin passcode", () => {
       chatId: CHAT_A, postId: POST, sessionNumber: 1, supervisorUserId: SECOND_ADMIN_A,
     })).toEqual({ added: true });
     expect(await supervisorIds(t)).toEqual([ADMIN_A, SECOND_ADMIN_A]);
+  });
+});
+
+// Production Convex hides the message of a plain Error ("Server Error"), so
+// messages meant for the admin must be ConvexError data to reach the app.
+// (convex-test hands the data back as JSON text, hence toContain.)
+describe("refusals the admin must read reach the app", () => {
+  async function seeded() {
+    const state = await fixture();
+    await state.t.run(async (ctx) => {
+      const base = { chatId: CHAT_A, postId: POST, sessionNumber: 1, createdAt: 1 };
+      await ctx.db.insert("sessions", { ...base, teacherName: "Teacher", supervisorUserIds: [ADMIN_A] });
+      await ctx.db.insert("participationHistory", { ...base, userId: STUDENT, sessionType: "اختبار", completedAt: 2 });
+    });
+    return state;
+  }
+  async function refusal(promise: Promise<unknown>): Promise<unknown> {
+    try {
+      await promise;
+    } catch (error) {
+      return error;
+    }
+    throw new Error("expected the mutation to be refused");
+  }
+  const args = { chatId: CHAT_A, postId: POST, sessionNumber: 1 };
+
+  test("locking with an unscored exam explains why", async () => {
+    const { admin } = await seeded();
+    const error = await refusal(admin.mutation(api.mutations.lockSession, { ...args, lockedBy: "manual" }));
+    expect(error).toBeInstanceOf(ConvexError);
+    expect((error as ConvexError<string>).data).toContain("اختبار بدون درجة");
+  });
+
+  test("removing the last supervisor explains why", async () => {
+    const { admin } = await seeded();
+    const error = await refusal(admin.mutation(api.mutations.removeSessionSupervisor, { ...args, supervisorUserId: ADMIN_A }));
+    expect(error).toBeInstanceOf(ConvexError);
+    expect((error as ConvexError<string>).data).toContain("يجب أن تبقى مشرفة واحدة على الأقل");
   });
 });
