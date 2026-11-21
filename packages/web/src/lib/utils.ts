@@ -25,6 +25,27 @@ export function registerConfirmHost(host: ConfirmHost): () => void {
   }
 }
 
+type PromptHost = (message: string, defaultValue: string) => Promise<string | null>
+let promptHost: PromptHost | null = null
+
+/** Registers the in-app text input dialog (see ConfirmHost). Returns an unregister function. */
+export function registerPromptHost(host: PromptHost): () => void {
+  promptHost = host
+  return () => {
+    if (promptHost === host) promptHost = null
+  }
+}
+
+/**
+ * Ask the user for text, like window.prompt, but through the in-app dialog:
+ * the Telegram app doesn't always display browser prompts. Resolves to null
+ * when cancelled.
+ */
+export function appPrompt(message: string, defaultValue = ''): Promise<string | null> {
+  if (promptHost) return promptHost(message, defaultValue)
+  return Promise.resolve(window.prompt(message, defaultValue))
+}
+
 function fallbackConfirm(message: string): Promise<boolean> {
   if (confirmHost) return confirmHost(message)
   return Promise.resolve(window.confirm(message))

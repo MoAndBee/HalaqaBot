@@ -1,5 +1,5 @@
 import React from 'react'
-import { tgConfirm, formatHijriDate } from '@/lib/utils'
+import { tgConfirm, appPrompt, formatHijriDate } from '@/lib/utils'
 import { Link, useParams } from 'wouter'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@halakabot/db'
@@ -724,7 +724,7 @@ export default function PostDetail() {
     const currentSession = selectedSession ?? data.currentSession
     const currentTeacherName = sessionInfo?.teacherName || ''
 
-    const teacherName = window.prompt('أدخل اسم المعلم/المعلمة:', currentTeacherName)
+    const teacherName = await appPrompt('أدخل اسم المعلم/المعلمة:', currentTeacherName)
 
     if (teacherName === null) return
 
@@ -755,7 +755,7 @@ export default function PostDetail() {
     // Use current admin's name as default
     const currentName = currentAdminName || ''
 
-    const newName = window.prompt('تعديل الاسم المفضل (سيظهر في جميع الحلقات):', currentName)
+    const newName = await appPrompt('تعديل الاسم المفضل (سيظهر في جميع الحلقات):', currentName)
 
     if (newName === null) return
 

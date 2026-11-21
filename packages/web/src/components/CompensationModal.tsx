@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { DayPicker } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ar } from 'date-fns/locale'
@@ -54,7 +55,7 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
 
   const handleSave = async () => {
     if (selectedDates.length === 0) {
-      alert('يرجى تحديد تاريخ واحد على الأقل')
+      toast.error('يرجى تحديد تاريخ واحد على الأقل')
       return
     }
 
@@ -69,7 +70,7 @@ export function CompensationModal({ isOpen, onClose, onSave, currentDates, userN
       onClose()
     } catch (error) {
       console.error('Error saving compensation dates:', error)
-      alert('حدث خطأ أثناء الحفظ')
+      toast.error('حدث خطأ أثناء الحفظ')
     } finally {
       setIsSaving(false)
     }
