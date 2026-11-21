@@ -1,5 +1,5 @@
 import { useSortable } from '@dnd-kit/sortable'
-import { tgConfirm } from '@/lib/utils'
+import { tgConfirm, appPrompt } from '@/lib/utils'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
 import { MoreVertical, GripVertical, Pencil, StickyNote, Tag, Plus, ArrowDown, ArrowUp, ArrowUpDown, Trash2, Check, X, Calendar, Hash, GraduationCap } from 'lucide-react'
@@ -106,13 +106,13 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     }
   }
 
-  const handleMoveToPosition = () => {
+  const handleMoveToPosition = async () => {
     if (!onMoveToPosition || !user.entryId || !totalUsers) {
       return
     }
 
     const currentPosition = index + 1
-    const positionInput = window.prompt(
+    const positionInput = await appPrompt(
       `أدخل رقم الدور (من 1 إلى ${totalUsers})\nالدور الحالي: ${currentPosition}`,
       currentPosition.toString()
     )
@@ -122,7 +122,7 @@ export function DraggableUser({ user, index, onDelete, onUpdateDisplayName, onUp
     const newPosition = parseInt(positionInput.trim(), 10)
 
     if (isNaN(newPosition) || newPosition < 1 || newPosition > totalUsers) {
-      alert(`الرجاء إدخال رقم صحيح بين 1 و ${totalUsers}`)
+      toast.error(`الرجاء إدخال رقم صحيح بين 1 و ${totalUsers}`)
       return
     }
 

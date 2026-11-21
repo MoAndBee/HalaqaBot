@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,7 +28,7 @@ export function SplitButton({ onComplete, disabled = false, defaultSessionType =
 
   const handleComplete = () => {
     if (!selectedType) {
-      alert('الرجاء اختيار نوع الدور')
+      toast.error('الرجاء اختيار نوع الدور')
       return
     }
     onComplete(selectedType)
