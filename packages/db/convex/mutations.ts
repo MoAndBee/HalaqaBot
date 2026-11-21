@@ -155,7 +155,7 @@ async function checkSessionLock(
     .first();
 
   if (session?.isLocked) {
-    throw new Error("This session is locked and cannot be modified. Please unlock it first.");
+    throw new ConvexError("الحلقة مغلقة ولا يمكن تعديلها. الرجاء فتحها أولاً.");
   }
 }
 
@@ -1038,7 +1038,7 @@ export const bulkUpdateTurnQueueSessionType = mutation({
   handler: async (ctx, args) => {
     for (const entryId of args.entryIds) await requireEntryAccess(ctx, entryId);
     if (args.sessionType === 'تعويض') {
-      throw new Error('لا يمكن تعيين نوع التعويض بشكل جماعي');
+      throw new ConvexError('لا يمكن تعيين نوع التعويض بشكل جماعي');
     }
 
     for (const entryId of args.entryIds) {
@@ -1228,7 +1228,7 @@ export const updateParticipationScore = mutation({
     await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
 
     if (entry.sessionType !== 'اختبار') {
-      throw new Error("الدرجة متاحة فقط لمشاركات الاختبار");
+      throw new ConvexError("الدرجة متاحة فقط لمشاركات الاختبار");
     }
 
     await ctx.db.patch(args.entryId, {
@@ -1254,7 +1254,7 @@ export const updateTurnQueueScore = mutation({
     await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
 
     if (entry.sessionType !== 'اختبار') {
-      throw new Error("الدرجة متاحة فقط لمشاركات الاختبار");
+      throw new ConvexError("الدرجة متاحة فقط لمشاركات الاختبار");
     }
 
     await ctx.db.patch(args.entryId, {
@@ -1312,7 +1312,7 @@ export const bulkUpdateParticipationScores = mutation({
       await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
 
       if (entry.sessionType !== 'اختبار') {
-        throw new Error("الدرجة متاحة فقط لمشاركات الاختبار");
+        throw new ConvexError("الدرجة متاحة فقط لمشاركات الاختبار");
       }
 
       await ctx.db.patch(update.entryId, { score: update.score });
@@ -1731,26 +1731,6 @@ export const lockSession = mutation({
 
     if (!session) {
       throw new Error("Session not found");
-    }
-
-    // Prevent locking while any اختبار participation in this session has no score
-    const history = await ctx.db
-      .query("participationHistory")
-      .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("sessionNumber", args.sessionNumber)
-      )
-      .collect();
-
-    const unscored = history.filter(
-      (p) => p.sessionType === 'اختبار' && p.score === undefined
-    );
-
-    if (unscored.length > 0) {
-      throw new Error(
-        `لا يمكن إغلاق الحلقة: يوجد ${unscored.length.toLocaleString('ar-EG')} اختبار بدون درجة. الرجاء إضافة الدرجات أولاً.`
-      );
     }
 
     // Lock the session
@@ -2320,7 +2300,7 @@ export const removeSessionSupervisor = mutation({
     const currentIds = getEffectiveSupervisorIds(session);
 
     if (currentIds.length <= 1) {
-      throw new Error("At least one supervisor must remain");
+      throw new ConvexError("يجب أن تبقى مشرفة واحدة على الأقل");
     }
 
     const updatedIds = currentIds.filter((id) => id !== args.supervisorUserId);
@@ -2422,7 +2402,7 @@ export const registerUser = mutation({
       );
 
     if (existingUser) {
-      throw new Error("مستخدم بهذا الاسم موجود بالفعل");
+      throw new ConvexError("مستخدم بهذا الاسم موجود بالفعل");
     }
 
     // Generate a unique negative userId for manually registered users
