@@ -1,5 +1,6 @@
 import { Route, Switch } from 'wouter'
 import { Toaster } from '@/components/ui/sonner'
+import { ConfirmHost } from './components/ConfirmHost'
 import { ThemeProvider } from './components/ThemeProvider'
 import { TelegramAuthProvider, useTelegramAuthContext } from './contexts/TelegramAuthContext'
 import { LoadingScreen } from './components/LoadingScreen'
@@ -73,6 +74,7 @@ function AppContent() {
           </Route>
         </Switch>
         <Toaster position="top-center" dir="rtl" />
+        <ConfirmHost />
       </Layout>
     </ThemeProvider>
   )
