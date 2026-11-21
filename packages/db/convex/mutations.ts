@@ -1733,26 +1733,6 @@ export const lockSession = mutation({
       throw new Error("Session not found");
     }
 
-    // Prevent locking while any اختبار participation in this session has no score
-    const history = await ctx.db
-      .query("participationHistory")
-      .withIndex("by_chat_post_session", (q) =>
-        q.eq("chatId", args.chatId)
-          .eq("postId", args.postId)
-          .eq("sessionNumber", args.sessionNumber)
-      )
-      .collect();
-
-    const unscored = history.filter(
-      (p) => p.sessionType === 'اختبار' && p.score === undefined
-    );
-
-    if (unscored.length > 0) {
-      throw new ConvexError(
-        `لا يمكن إغلاق الحلقة: يوجد ${unscored.length.toLocaleString('ar-EG')} اختبار بدون درجة. الرجاء إضافة الدرجات أولاً.`
-      );
-    }
-
     // Lock the session
     await ctx.db.patch(session._id, {
       isLocked: true,

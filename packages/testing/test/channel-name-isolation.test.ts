@@ -439,7 +439,7 @@ describe("adding a supervisor with the admin passcode", () => {
 // Production Convex hides the message of a plain Error ("Server Error"), so
 // messages meant for the admin must be ConvexError data to reach the app.
 // (convex-test hands the data back as JSON text, hence toContain.)
-describe("refusals the admin must read reach the app", () => {
+describe("locking and supervisor removal", () => {
   async function seeded() {
     const state = await fixture();
     await state.t.run(async (ctx) => {
@@ -459,11 +459,11 @@ describe("refusals the admin must read reach the app", () => {
   }
   const args = { chatId: CHAT_A, postId: POST, sessionNumber: 1 };
 
-  test("locking with an unscored exam explains why", async () => {
-    const { admin } = await seeded();
-    const error = await refusal(admin.mutation(api.mutations.lockSession, { ...args, lockedBy: "manual" }));
-    expect(error).toBeInstanceOf(ConvexError);
-    expect((error as ConvexError<string>).data).toContain("اختبار بدون درجة");
+  test("a halaqa with an unscored exam can still be locked", async () => {
+    const { t, admin } = await seeded();
+    expect(await admin.mutation(api.mutations.lockSession, { ...args, lockedBy: "manual" })).toEqual({ success: true });
+    const session = await t.run((ctx) => ctx.db.query("sessions").first());
+    expect(session?.isLocked).toBe(true);
   });
 
   test("removing the last supervisor explains why", async () => {

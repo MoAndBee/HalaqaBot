@@ -853,10 +853,20 @@ export default function PostDetail() {
 
     const currentSession = selectedSession ?? data.currentSession
 
+    // Locking is allowed with unscored exams, but scores can't be added once
+    // locked, so mention them in the confirmation.
+    const unscoredExams = data.completedUsers.filter(
+      (user) => user.sessionType === 'اختبار' && user.score == null
+    ).length
+    const unscoredWarning = unscoredExams > 0
+      ? `\n\nتنبيه: يوجد ${unscoredExams.toLocaleString('ar-EG')} اختبار بدون درجة.`
+      : ''
+
     // Ask for confirmation before locking
     const confirmed = await tgConfirm(
       `هل أنت متأكد من إغلاق الحلقة رقم ${currentSession.toLocaleString('ar-EG')}؟\n\n` +
-      'بعد الإغلاق، لن تتمكن من تعديل أي بيانات في هذه الحلقة إلا بعد فتحها بكلمة المرور.'
+      'بعد الإغلاق، لن تتمكن من تعديل أي بيانات في هذه الحلقة إلا بعد فتحها بكلمة المرور.' +
+      unscoredWarning
     )
 
     if (!confirmed) return
