@@ -6,6 +6,9 @@ main = "src/worker.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = false
+# Worker Previews (one per pull request) need preview URLs. Without this, every
+# release would turn them off again. Production itself stays off workers.dev.
+preview_urls = true
 routes = [{ pattern = "halaqabot.bosla.to", custom_domain = true }]
 
 # Mini App and API share the production origin. The existing bosla.to zone is used.

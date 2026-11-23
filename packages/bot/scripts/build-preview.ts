@@ -105,7 +105,9 @@ export function previewConfig(vars: Record<string, string> = {}) {
     main: path.join(BOT_DIR, "src/worker.ts"),
     compatibility_date: "2026-09-01",
     compatibility_flags: ["nodejs_compat", "global_fetch_strictly_public"],
-    workers_dev: true,
+    // Matches production: the Worker stays off workers.dev, its Previews use preview URLs.
+    workers_dev: false,
+    preview_urls: true,
     rules: [{ type: "Data", globs: ["**/*.jpeg"], fallthrough: true }],
     assets: {
       directory: path.join(WEB_DIR, "dist"),
