@@ -221,6 +221,10 @@ export default defineSchema({
     lastName: v.optional(v.string()),
     username: v.optional(v.string()),
     preferredName: v.optional(v.string()), // Custom name set by admin via "تعديل اسم المشرفة"
+    // Set when the admin is no longer an admin in Telegram. The row is kept so
+    // her name still shows on the halaqas she supervised; a removed row grants
+    // no access and is not offered as a supervisor. Cleared if she returns.
+    removedAt: v.optional(v.number()),
     updatedAt: v.number(), // Last sync timestamp
   })
     .index("by_channel", ["channelId"])

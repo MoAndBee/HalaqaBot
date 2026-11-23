@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
 import {
+  findActiveAdmin,
   getCaller,
   requireAnyAdmin,
   requireBot,
@@ -12,6 +13,7 @@ import {
   requireChatAccess,
   requireEntryAccess,
   requireStudentAccess,
+  requireSupervisorCandidate,
 } from "./auth";
 import { EXTERNAL_SESSION_ORIGIN, pickCurrentSession } from "../src/sessionOrigin";
 
@@ -1526,6 +1528,7 @@ export const startNewSession = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireSupervisorCandidate(ctx, args.chatId, args.supervisorUserId);
     // Get all existing sessions for this post
     const allSessions = await ctx.db
       .query("sessions")
@@ -1965,10 +1968,11 @@ export const syncChannelAdmins = mutation({
     // Create a set of new admin user IDs
     const newAdminUserIds = new Set(args.admins.map((admin) => admin.userId));
 
-    // Remove admins that are no longer in the list
+    // Soft-remove admins that are no longer in the list: their row stays so
+    // their name still shows on the halaqas they supervised.
     for (const existingAdmin of existingAdmins) {
-      if (!newAdminUserIds.has(existingAdmin.userId)) {
-        await ctx.db.delete(existingAdmin._id);
+      if (!newAdminUserIds.has(existingAdmin.userId) && existingAdmin.removedAt === undefined) {
+        await ctx.db.patch(existingAdmin._id, { removedAt: now, updatedAt: now });
         console.log(`Removed admin ${existingAdmin.userId} from channel ${args.channelId}`);
       }
     }
@@ -1984,6 +1988,7 @@ export const syncChannelAdmins = mutation({
           firstName: admin.firstName,
           lastName: admin.lastName,
           username: admin.username,
+          removedAt: undefined, // an admin again: restore her access
           updatedAt: now,
         });
       } else {
@@ -2075,13 +2080,8 @@ export const updateAdminPreferredName = mutation({
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
-    // Find the admin in channelAdmins table
-    const admin = await ctx.db
-      .query("channelAdmins")
-      .withIndex("by_channel_user", (q) =>
-        q.eq("channelId", args.channelId).eq("userId", args.userId)
-      )
-      .first();
+    // Only a current admin of this channel can be renamed
+    const admin = await findActiveAdmin(ctx, args.channelId, args.userId);
 
     if (!admin) {
       throw new Error(`Admin with userId ${args.userId} not found for channel ${args.channelId}`);
@@ -2118,6 +2118,7 @@ export const assignSessionSupervisor = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireSupervisorCandidate(ctx, args.chatId, args.supervisorUserId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2231,6 +2232,7 @@ export const addSessionSupervisor = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireSupervisorCandidate(ctx, args.chatId, args.supervisorUserId);
     return appendSessionSupervisor(ctx, args);
   },
 });
@@ -2255,12 +2257,7 @@ export const addSessionSupervisorWithPasscode = mutation({
       throw new ConvexError("رمز الحماية غير صحيح");
     }
 
-    const target = await ctx.db
-      .query("channelAdmins")
-      .withIndex("by_channel_user", (q) =>
-        q.eq("channelId", args.channelId).eq("userId", args.supervisorUserId)
-      )
-      .first();
+    const target = await findActiveAdmin(ctx, args.channelId, args.supervisorUserId);
     if (!target) {
       throw new ConvexError("يمكن إضافة المشرفات من إداريات القناة فقط");
     }
@@ -2322,6 +2319,7 @@ export const takeOverSession = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireSupervisorCandidate(ctx, args.chatId, args.newSupervisorUserId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 

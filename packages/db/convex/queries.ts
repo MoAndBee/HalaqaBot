@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator, type GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
 import {
+  findActiveAdmin,
   getCaller,
   hasStudentActivityInChat,
   requireBot,
@@ -1255,10 +1256,13 @@ export const getMyChannels = query({
   handler: async (ctx, args) => {
     requireSelf(await getCaller(ctx), args.userId);
     // Find every channel this user is an admin of.
-    const adminRows = await ctx.db.query("channelAdmins").collect();
+    const adminRows = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
     const myChannelIds = new Set(
       adminRows
-        .filter((row) => row.userId === args.userId)
+        .filter((row) => row.removedAt === undefined)
         .map((row) => row.channelId)
     );
 
@@ -1326,15 +1330,8 @@ export const isUserAuthorized = query({
   },
   handler: async (ctx, args) => {
     await requireBot(ctx);
-    // Check if user is in channelAdmins table
-    const admin = await ctx.db
-      .query("channelAdmins")
-      .withIndex("by_channel_user", (q) =>
-        q.eq("channelId", args.channelId).eq("userId", args.userId)
-      )
-      .first();
-
-    const isAuthorized = admin !== null;
+    // An admin of this channel who is still an admin in Telegram
+    const isAuthorized = (await findActiveAdmin(ctx, args.channelId, args.userId)) !== null;
 
     console.log(`Authorization check for user ${args.userId} on channel ${args.channelId}: ${isAuthorized ? "✅ AUTHORIZED" : "❌ UNAUTHORIZED"}`);
 
@@ -1345,6 +1342,7 @@ export const isUserAuthorized = query({
 /**
  * Admin names, including preferred names, belong to the selected channel.
  * A missing record must not fall back to another channel's private profile.
+ * Removed admins are included on purpose: past halaqas keep their names.
  */
 async function findAdminRecord(
   ctx: { db: GenericDatabaseReader<DataModel> },
@@ -1513,6 +1511,8 @@ export const getAddableSupervisors = query({
       .collect();
 
     return admins
+      // No longer an admin in Telegram: kept for past halaqas' names only
+      .filter((admin) => admin.removedAt === undefined)
       .filter((admin) => !current.has(admin.userId))
       .map((admin) => ({
         userId: admin.userId,

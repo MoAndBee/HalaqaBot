@@ -40,13 +40,28 @@ export async function requireBot(ctx: AuthCtx): Promise<void> {
   if ((await getCaller(ctx)).kind !== "bot") denied();
 }
 
+type DbCtx = { db: GenericDatabaseReader<DataModel> };
+
+/**
+ * The user's admin row for this channel, unless she is no longer an admin
+ * there. Removed rows are kept only so past supervisors' names still show;
+ * everything that grants access or offers her as a supervisor goes through here.
+ */
+export async function findActiveAdmin(ctx: DbCtx, channelId: number, userId: number) {
+  const row = await ctx.db
+    .query("channelAdmins")
+    .withIndex("by_channel_user", (q) => q.eq("channelId", channelId).eq("userId", userId))
+    .first();
+  return row && row.removedAt === undefined ? row : null;
+}
+
 /** Channels a user administers (by channelId). */
 async function adminChannelIds(ctx: Ctx, userId: number): Promise<Set<number>> {
   const rows = await ctx.db
     .query("channelAdmins")
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .collect();
-  return new Set(rows.map((row) => row.channelId));
+  return new Set(rows.filter((row) => row.removedAt === undefined).map((row) => row.channelId));
 }
 
 /**
@@ -89,12 +104,33 @@ export async function requireChatAccess(ctx: Ctx, chatId: number): Promise<Calle
 export async function requireChannelAccess(ctx: Ctx, channelId: number): Promise<Caller> {
   const caller = await getCaller(ctx);
   if (caller.kind === "bot") return caller;
-  const admin = await ctx.db
-    .query("channelAdmins")
-    .withIndex("by_channel_user", (q) => q.eq("channelId", channelId).eq("userId", caller.userId))
-    .first();
-  if (!admin) denied();
+  if (!(await findActiveAdmin(ctx, channelId, caller.userId))) denied();
   return caller;
+}
+
+/**
+ * The user being made a supervisor of a halaqa in chatId must be a current
+ * admin of a channel that owns that discussion. Authorizing the caller is not
+ * enough: without this, any admin could put an arbitrary Telegram ID on a halaqa.
+ */
+export async function requireSupervisorCandidate(
+  ctx: DbCtx,
+  chatId: number,
+  userId: number,
+): Promise<void> {
+  // Same lookup as requireChatAccess: chatId may be the discussion or the channel
+  const byChat = await ctx.db
+    .query("channels")
+    .withIndex("by_chat", (q) => q.eq("chatId", chatId))
+    .collect();
+  const byChannel = await ctx.db
+    .query("channels")
+    .withIndex("by_channel", (q) => q.eq("channelId", chatId))
+    .collect();
+  for (const channel of [...byChat, ...byChannel]) {
+    if (channel.isActive && (await findActiveAdmin(ctx, channel.channelId, userId))) return;
+  }
+  throw new ConvexError("يمكن إضافة المشرفات من إداريات القناة فقط");
 }
 
 /** Authorize both IDs and verify that the channel actually owns this discussion. */

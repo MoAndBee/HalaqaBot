@@ -13,6 +13,7 @@ import { REGISTRATION_POST, publishHalaqa, turnQueue } from "./helpers";
 
 const NOT_SIGNED_IN = "يجب تسجيل الدخول من خلال تيليجرام";
 const DENIED = "غير مصرح";
+const NOT_A_CHANNEL_ADMIN = "يمكن إضافة المشرفات من إداريات القناة فقط";
 
 let stack: Stack;
 let postId: number;
@@ -155,17 +156,15 @@ describe("an admin of another channel", () => {
     expect(await admin.query(api.queries.getAdminDisplayName, {
       channelId: world.channelId, userId: other.ownerId,
     })).toBeNull();
-    await admin.mutation(api.mutations.takeOverSession, {
+    // Not an admin of this channel, so she can't be put on one of its halaqas
+    expect(await failure(admin.mutation(api.mutations.takeOverSession, {
       chatId: world.groupId, postId: probePostId, sessionNumber: 1,
       newSupervisorUserId: other.ownerId,
-    });
+    }))).toBe(NOT_A_CHANNEL_ADMIN);
     const args = {
       channelId: world.channelId, chatId: world.groupId, postId: probePostId, sessionNumber: 1,
     };
     expect(await admin.query(api.queries.getSessionSupervisorName, args)).toBeNull();
-    expect(await admin.query(api.queries.getSessionSupervisors, args)).toEqual([
-      { userId: other.ownerId, name: `#${other.ownerId}` },
-    ]);
   });
 
   test("can't probe a student through a local assignment or manufacture membership", async () => {
@@ -175,13 +174,11 @@ describe("an admin of another channel", () => {
     const args = {
       channelId: other.channelId, chatId: other.groupId, postId: 999_992, sessionNumber: 1,
     };
-    await outsider.mutation(api.mutations.takeOverSession, {
+    // A student is no admin of the outsider's channel: she can't be made a supervisor there
+    expect(await failure(outsider.mutation(api.mutations.takeOverSession, {
       chatId: args.chatId, postId: args.postId, sessionNumber: 1, newSupervisorUserId: userId,
-    });
+    }))).toBe(NOT_A_CHANNEL_ADMIN);
     expect(await outsider.query(api.queries.getSessionSupervisorName, args)).toBeNull();
-    expect(await outsider.query(api.queries.getSessionSupervisors, args)).toEqual([
-      { userId, name: `#${userId}` },
-    ]);
     const entryArgs = { chatId: args.chatId, postId: args.postId, sessionNumber: 1, userId };
     expect(await failure(outsider.mutation(api.mutations.addUserToList, entryArgs))).toBe(DENIED);
     expect(await failure(outsider.mutation(api.mutations.addUserAtPosition, {
