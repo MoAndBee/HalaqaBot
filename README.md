@@ -300,12 +300,11 @@ with new IDs and keeps the bot connected.
    | Build command | `bun install --frozen-lockfile` | `bun install --frozen-lockfile` |
    | Deploy command (production branch) | `bun scripts/cloudflare-production.ts` | `cd packages/testing && npx wrangler deploy` |
    | Non-production branch deploy command | `bun packages/bot/scripts/build-preview.ts` | `cd packages/testing && npx wrangler preview` |
-   | Build variables | `CONVEX_DEPLOY_KEY` (the preview deploy key), plus the production variables in [production releases](docs/production-releases.md) | |
+   | Build variables | `CONVEX_DEPLOY_KEY` (the preview deploy key), plus `PRODUCTION_CONVEX_DEPLOY_KEY` (see [production releases](docs/production-releases.md)) | |
 
    Workers Builds deploys production on every merge to `main`, and nothing else
    does. GitHub Actions only runs tests and the preview smoke check. See
-   [production releases](docs/production-releases.md) for the build variables
-   and the `PRODUCTION_RELEASE_ENABLED` switch.
+   [production releases](docs/production-releases.md) for the build variable and what each release runs.
 3. **Preview secrets**, on each Worker's Preview base config:
    - Bot (in `packages/bot`), via `bunx wrangler preview base-config secret put <NAME>`:
      `BOT_TOKEN` (any `<digits>:<text>`), `TELEGRAM_WEBHOOK_SECRET` and

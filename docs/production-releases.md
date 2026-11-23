@@ -8,16 +8,17 @@ production `incredible-lyrebird-981`. Keep the old Coolify bot stopped.
 On every push to `main`, the `halaqabot` Worker's production deploy command
 runs `bun scripts/cloudflare-production.ts`. It does the following:
 
-1. Builds DB/bot, builds the Mini App against production Convex and dry-runs
+1. Runs the full test suite (`bun run test`, about a minute). It uses the local
+   Telegram simulator and an in-memory Convex and needs no secrets. A failing
+   test stops the release before anything is deployed.
+2. Builds DB/bot, builds the Mini App against production Convex and dry-runs
    `packages/bot/wrangler.production.bosla.toml`, using
    `scripts/prepare-production.ts`.
-2. Stops there unless the build variable `PRODUCTION_RELEASE_ENABLED` is `true`.
-3. If `PRODUCTION_CONVEX_AUTH_PRIVATE_KEY` is set, runs read-only preflight checks.
-4. Deploys production Convex first, then the Worker with the built assets and
+3. Deploys production Convex first, then the Worker with the built assets and
    the production cron. It tags the Worker version with the commit SHA.
-5. If `PRODUCTION_CONVEX_AUTH_PRIVATE_KEY` is set, runs read-only post-release
-   checks. They cover HTTPS, unsigned request denial, authenticated reads, the
-   frontend's backend URL and the asset commit.
+4. Checks the live site, without credentials: `/release.json` serves this
+   commit, the pages load, and unsigned `/api/auth/token` and `/telegram`
+   requests are rejected with 401.
 
 Routine releases leave the following as they are: Worker runtime secrets, the
 webhook and menu, the queues, and the Convex environment values.
@@ -43,8 +44,6 @@ Set these build variables on `halaqabot`:
 | --- | --- | --- |
 | `CONVEX_DEPLOY_KEY` | secret | Convex **preview** deploy key, for PR previews |
 | `PRODUCTION_CONVEX_DEPLOY_KEY` | secret | `prod:incredible-lyrebird-981\|…` deployment-scoped write key |
-| `PRODUCTION_CONVEX_AUTH_PRIVATE_KEY` | secret (optional) | Production signing JWK, for the read-only checks |
-| `PRODUCTION_RELEASE_ENABLED` | text | `true` to deploy. Any other value, or leaving it unset, builds only |
 
 The production key uses a different variable name from `CONVEX_DEPLOY_KEY`.
 Preview builds then cannot push a branch to production Convex by mistake, and
@@ -67,12 +66,8 @@ used this same command and config, so the Worker's settings stay as they are.
 Workers Builds' own settings (the commands, the branch and the build variables)
 are not in any config file. Changing a Wrangler config cannot overwrite them.
 
-## Tests before release
-
-Workers Builds deploys every push to `main`, whether or not tests have run.
-The GitHub `Test` workflow still runs on every PR and on `main`. Make it a
-required status check in `main`'s branch protection, so that untested code
-cannot reach `main`.
+To pause production deploys, disable builds for the `halaqabot` Worker in the
+dashboard, or temporarily set its deploy command to `echo paused`.
 
 ## Failure and phone checks
 
