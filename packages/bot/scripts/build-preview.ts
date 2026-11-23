@@ -76,6 +76,11 @@ export async function deployConvexAndBuildWebApp(
   const env = { CONVEX_DEPLOY_KEY: deployKey, VITE_BOT_API_URL: "" };
 
   if (deployment.kind === "preview") {
+    // A fresh Workers Builds checkout has no (gitignored) convex/_generated,
+    // which the web app and bot import. Generate it locally first, without
+    // selecting a cloud backend, as scripts/prepare-production.ts does.
+    await run([path.join(DB_DIR, "node_modules/.bin/convex"), "codegen", "--typecheck", "disable"], DB_DIR,
+      { CONVEX_DEPLOY_KEY: "", CONVEX_DEPLOYMENT: "anonymous:local" });
     // Its own deployment, created on first push. CONVEX_AUTH_JWKS comes from
     // the Convex project's default environment variables for previews.
     await run(
