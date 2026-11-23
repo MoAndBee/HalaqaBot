@@ -35,6 +35,20 @@ export const SESSION_TYPE_COLORS: Record<string, string> = {
   'تعويض': 'bg-yellow-500',
 }
 
+// Short labels for tight spaces (calendar cells). Three letters plus a tatweel
+// (ـ) to mark the cut. The tatweel is left off when the third letter doesn't
+// join the next one (ا، ر، و), since it would float detached; دعم is already
+// three letters, so it stays whole.
+export const SESSION_TYPE_ABBREVIATIONS: Record<string, string> = {
+  'تلاوة': 'تلا',
+  'تسميع': 'تسمـ',
+  'تطبيق': 'تطبـ',
+  'اختبار': 'اختـ',
+  'دعم': 'دعم',
+  'مراجعة': 'مرا',
+  'تعويض': 'تعو',
+}
+
 // Sort order for participation types (for visual consistency in calendars/lists)
 export const SESSION_TYPE_ORDER: Record<string, number> = {
   'تسميع': 1,

@@ -7,7 +7,21 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader } from '~/components/Loader'
-import { SESSION_TYPE_COLORS, SESSION_TYPE_ORDER } from '@/lib/session-types'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  SESSION_TYPES,
+  SESSION_TYPE_ABBREVIATIONS,
+  SESSION_TYPE_COLORS,
+  SESSION_TYPE_ORDER,
+} from '@/lib/session-types'
+
+const fullDate = (timestamp: number) =>
+  new Date(timestamp).toLocaleDateString('ar-EG', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
 
 interface StudentStatsProps {
   userId: number
@@ -31,6 +45,7 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   const user = useQuery(api.queries.getUser, { userId, chatId })
   const participations = useQuery(api.queries.getUserParticipations, { userId, chatId })
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
   // Loading state - queries haven't returned yet
   if (user === undefined || participations === undefined) {
@@ -215,11 +230,14 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                     year === today.getFullYear()
 
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={day}
+                      disabled={!hasParticipations}
+                      onClick={() => setSelectedDay(day)}
                       className={`
-                        rounded-lg border-2 p-1 flex flex-col items-center
-                        transition-all min-h-[60px]
+                        rounded-lg border-2 p-0.5 sm:p-1 flex flex-col items-center min-w-0
+                        transition-all min-h-[60px] disabled:cursor-default
                         ${isToday ? 'border-primary' : 'border-border'}
                         ${hasParticipations ? 'hover:scale-105 cursor-pointer bg-muted/30' : 'bg-background'}
                       `}
@@ -228,33 +246,97 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                         {day.toLocaleString('ar-EG')}
                       </div>
                       {hasParticipations && (
-                        <div className="flex flex-col gap-0.5 w-full items-center">
-                          {dayParticipations.map((p, idx) => (
-                            <div
-                              key={idx}
-                              className={`text-[9px] p-0 rounded text-white font-medium whitespace-nowrap w-[125%] flex items-center justify-center ${
-                                SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
-                              }`}
-                              title={
-                                p.sessionType === 'اختبار' && p.score != null
-                                  ? `${p.sessionType} - الدرجة: ${p.score.toLocaleString('ar-EG')}`
-                                  : p.sessionType
-                              }
-                            >
-                              {p.sessionType === 'اختبار' && p.score != null
-                                ? `${p.sessionType} ${p.score.toLocaleString('ar-EG')}`
-                                : p.sessionType}
-                            </div>
-                          ))}
+                        <div className="flex flex-col gap-0.5 w-full items-stretch">
+                          {dayParticipations.map((p, idx) => {
+                            const showScore = p.sessionType === 'اختبار' && p.score != null
+                            return (
+                              <div
+                                key={idx}
+                                className={`text-[11px] leading-4 sm:text-xs sm:leading-5 rounded text-white font-medium whitespace-nowrap overflow-hidden text-center ${
+                                  SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
+                                }`}
+                              >
+                                <span className="md:hidden">
+                                  {SESSION_TYPE_ABBREVIATIONS[p.sessionType] ?? p.sessionType}
+                                </span>
+                                <span className="hidden md:inline">
+                                  {p.sessionType}
+                                  {showScore && ` ${p.score!.toLocaleString('ar-EG')}`}
+                                </span>
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
+
+              {/* Legend */}
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                {SESSION_TYPES.map((type) => (
+                  <span key={type} className="flex items-center gap-1.5">
+                    <span
+                      className={`rounded px-1.5 text-xs leading-5 text-white font-medium ${SESSION_TYPE_COLORS[type]}`}
+                    >
+                      {SESSION_TYPE_ABBREVIATIONS[type]}
+                    </span>
+                    <span className="text-muted-foreground">{type}</span>
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">اضغطي على اليوم لعرض التفاصيل</p>
             </div>
           </CardContent>
         </Card>
+
+        {/* Day details */}
+        <Dialog
+          open={selectedDay !== null}
+          onOpenChange={(open) => !open && setSelectedDay(null)}
+        >
+          <DialogContent dir="rtl" className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader className="text-right sm:text-right">
+              <DialogTitle>
+                {selectedDay !== null && fullDate(new Date(year, month, selectedDay).getTime())}
+              </DialogTitle>
+            </DialogHeader>
+            <ul className="space-y-3">
+              {selectedDay !== null &&
+                (participationsByDate[`${year}-${month}-${selectedDay}`] || []).map((p, idx) => {
+                  const isCompensation = !!p.compensatingForDates?.length
+                  return (
+                    <li key={idx} className="rounded-lg border p-3 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`rounded px-2 text-sm leading-6 text-white font-bold ${
+                            SESSION_TYPE_COLORS[p.sessionType] || 'bg-gray-500'
+                          }`}
+                        >
+                          {p.sessionType}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          الحلقة {p.sessionNumber.toLocaleString('ar-EG')}
+                        </span>
+                        {p.score != null && (
+                          <Badge variant="secondary">
+                            الدرجة: {p.score.toLocaleString('ar-EG')}
+                          </Badge>
+                        )}
+                      </div>
+                      {isCompensation && (
+                        <p className="text-sm text-muted-foreground">
+                          تعويض، أُدّي يوم {fullDate(p.completedAt)}
+                        </p>
+                      )}
+                      {p.notes && <p className="text-sm whitespace-pre-wrap">{p.notes}</p>}
+                    </li>
+                  )
+                })}
+            </ul>
+          </DialogContent>
+        </Dialog>
 
         {/* Stats Section - Placeholder */}
         <Card>
