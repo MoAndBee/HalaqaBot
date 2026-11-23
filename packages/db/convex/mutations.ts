@@ -16,10 +16,11 @@ import {
   requireSupervisorCandidate,
 } from "./auth";
 import { EXTERNAL_SESSION_ORIGIN, pickCurrentSession } from "../src/sessionOrigin";
+import { enrollStudent, normalizeName, requireAddableStudent } from "./enrollment";
 
 // Passcode for admin-only actions (unlocking a halaqa, registering a user,
 // deleting a halaqa). Checked server-side so the web app can't bypass it.
-const ADMIN_PASSCODE = "adminunlock311225";
+export const ADMIN_PASSCODE = "adminunlock311225";
 
 /**
  * Parsing for Telegram message links (t.me/...).
@@ -297,7 +298,7 @@ export const addUserToList = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
-    await requireStudentAccess(ctx, args.userId, args.chatId);
+    await requireAddableStudent(ctx, args.userId, args.chatId);
     // Determine the session number to use
     let sessionNumber = args.sessionNumber;
 
@@ -359,6 +360,9 @@ export const addUserToList = mutation({
 
     // Track this post for efficient pagination
     await upsertPost(ctx, args.chatId, args.postId, addedAt);
+    // Her first turn here puts her on the course roster (and back on it if she
+    // was removed and signed up herself through the bot)
+    await enrollStudent(ctx, args.chatId, args.userId, "activity");
 
     // Ensure the session exists in the sessions table
     const existingSession = await ctx.db
@@ -397,7 +401,7 @@ export const addUserAtPosition = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
-    await requireStudentAccess(ctx, args.userId, args.chatId);
+    await requireAddableStudent(ctx, args.userId, args.chatId);
     // Determine the session number
     let sessionNumber = args.sessionNumber;
     if (sessionNumber === undefined) {
@@ -473,6 +477,8 @@ export const addUserAtPosition = mutation({
       isCompensation: args.isCompensation,
       compensatingForDates: args.compensatingForDates,
     });
+
+    await enrollStudent(ctx, args.chatId, args.userId, "activity");
 
     // Get the newly inserted entry
     const insertedEntry = await ctx.db.get(newEntry);
@@ -1355,7 +1361,7 @@ export const bulkUpdateParticipationScores = mutation({
       let consumedFromQueue = false;
 
       for (const entry of addition.entries) {
-        await requireStudentAccess(ctx, entry.userId, chatId);
+        await requireAddableStudent(ctx, entry.userId, chatId);
         if (alreadyExamined.has(entry.userId)) {
           skipped++;
           continue;
@@ -1382,6 +1388,7 @@ export const bulkUpdateParticipationScores = mutation({
           consumedFromQueue = true;
         }
 
+        await enrollStudent(ctx, chatId, entry.userId, "activity");
         await ctx.db.insert("participationHistory", {
           chatId,
           postId,
@@ -2387,25 +2394,39 @@ export const registerUser = mutation({
       throw new Error("Name cannot be empty");
     }
 
-    // Check if a user with this exact name already exists (case-insensitive)
-    const existingUser = await ctx.db
-      .query("users")
-      .collect()
-      .then((users) =>
-        users.find(
-          (u) =>
-            u.realName?.toLowerCase() === trimmedName.toLowerCase() ||
-            u.telegramName.toLowerCase() === trimmedName.toLowerCase()
-        )
-      );
+    const allUsers = await ctx.db.query("users").collect();
 
-    if (existingUser) {
+    // The same name may exist in another course: that is a different roster.
+    // Within this course (removed students included, who should be added back
+    // rather than registered twice) the name must be new.
+    const sameName = (u: (typeof allUsers)[number]) => {
+      const wanted = normalizeName(trimmedName);
+      return normalizeName(u.realName ?? "") === wanted || normalizeName(u.telegramName) === wanted;
+    };
+    if (args.chatId !== undefined) {
+      const chatId = args.chatId;
+      const enrolled = await ctx.db
+        .query("channelStudents")
+        .withIndex("by_chat", (q) => q.eq("chatId", chatId))
+        .collect();
+      const usersById = new Map(allUsers.map((u) => [u.userId, u]));
+      const clash = enrolled.find((e) => {
+        const u = usersById.get(e.userId);
+        return u !== undefined && sameName(u);
+      });
+      if (clash) {
+        throw new ConvexError(
+          clash.removedAt === undefined
+            ? "طالبة بهذا الاسم موجودة بالفعل في هذه الدورة"
+            : "طالبة بهذا الاسم محذوفة من هذه الدورة، أعيدي إضافتها من صفحة الطالبات"
+        );
+      }
+    } else if (allUsers.some(sameName)) {
       throw new ConvexError("مستخدم بهذا الاسم موجود بالفعل");
     }
 
     // Generate a unique negative userId for manually registered users
     // Start from -1 and go down to avoid conflicts with Telegram user IDs
-    const allUsers = await ctx.db.query("users").collect();
     const manualUserIds = allUsers
       .map((u) => u.userId)
       .filter((id) => id < 0);
@@ -2423,6 +2444,10 @@ export const registerUser = mutation({
       homeChatId: args.chatId,
       updatedAt: Date.now(),
     });
+    if (args.chatId !== undefined) {
+      const caller = await getCaller(ctx);
+      await enrollStudent(ctx, args.chatId, newUserId, "manual", caller.kind === "user" ? caller.userId : undefined);
+    }
 
     console.log(`Manually registered user: ${trimmedName} with userId ${newUserId}`);
     return { userId: newUserId, name: trimmedName };
@@ -2663,7 +2688,7 @@ export const applyManualList = mutation({
 
     // Validate every entry before writing anything
     for (const entry of args.entries) {
-      await requireStudentAccess(ctx, entry.userId, chatId);
+      await requireAddableStudent(ctx, entry.userId, chatId);
       if (entry.done && !entry.sessionType) {
         throw new ConvexError("يجب تحديد نوع المشاركة لكل دور مكتمل");
       }
@@ -2786,6 +2811,7 @@ export const applyManualList = mutation({
       const isCompensation = entry.sessionType === "تعويض";
       const compensatingForDates = isCompensation ? entry.compensatingForDates : undefined;
       const notes = entry.notes?.trim() || undefined;
+      await enrollStudent(ctx, chatId, entry.userId, "activity");
 
       if (entry.done) {
         await ctx.db.insert("participationHistory", {

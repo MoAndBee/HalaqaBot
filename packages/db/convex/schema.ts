@@ -134,6 +134,25 @@ export default defineSchema({
     .index("by_user_id", ["userId"])
     .index("by_home_chat", ["homeChatId"]),
 
+  // Which students belong to which course. A channel's roster is its active
+  // rows here; users stays the one record of the person, so a student in two
+  // courses has two rows here and one in users. Telegram students are enrolled
+  // by their first turn; others are added by an admin.
+  channelStudents: defineTable({
+    chatId: v.number(), // Discussion group of the course, like turnQueue.chatId
+    userId: v.number(), // users.userId
+    source: v.string(), // "activity" (enrolled by taking a turn) | "manual" (added by an admin)
+    addedBy: v.optional(v.number()), // Telegram user ID of the admin who added her
+    addedAt: v.number(), // timestamp in ms
+    // Removed from the roster by an admin. Hidden from the roster and search,
+    // and admins can't add her to a halaqa; her halaqa data is untouched.
+    // Cleared when an admin adds her back or she signs up herself via the bot.
+    removedAt: v.optional(v.number()),
+  })
+    .index("by_chat", ["chatId"])
+    .index("by_user", ["userId"])
+    .index("by_chat_user", ["chatId", "userId"]),
+
   sessions: defineTable({
     chatId: v.number(),
     postId: v.number(),

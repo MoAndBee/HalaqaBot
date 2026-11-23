@@ -280,10 +280,13 @@ describe("the Worker's token endpoint", () => {
 test("every public Convex function starts with an access check", async () => {
   const dir = path.resolve(import.meta.dir, "../../db/convex");
   // A check, possibly per item or per branch: `for (...) await requireEntryAccess(...)`.
-  const checks = /^((if|for) \(.*?\) )?(await )?require\w*\(|getCaller\(|internal\.auth\.|ctx\.db\.get\(args\.importId\)/;
+  // Or keeping the caller it returns: `const caller = await requireChatAccess(...)`.
+  const checks = /^((if|for) \(.*?\) )?((const|let) \w+ = )?(await )?require\w*\(|getCaller\(|internal\.auth\.|ctx\.db\.get\(args\.importId\)/;
   const checked = new Set<string>();
   const unchecked: string[] = [];
-  for (const file of ["queries.ts", "mutations.ts", "actions.ts"]) {
+  // Every module that defines public functions; a new one must be added here.
+  const modules = ["queries", "mutations", "actions", "students"];
+  for (const file of modules.map((m) => `${m}.ts`)) {
     // Each definition on its own, so one function's check can't count for another.
     const source = readFileSync(path.join(dir, file), "utf8");
     for (const chunk of source.split(/^(?=export const )/m)) {
@@ -301,7 +304,7 @@ test("every public Convex function starts with an access check", async () => {
 
   // And the parse saw every function Convex registers as public.
   const registered: string[] = [];
-  for (const file of ["queries", "mutations", "actions"]) {
+  for (const file of modules) {
     const module = await import(path.join(dir, `${file}.ts`));
     for (const [name, fn] of Object.entries(module)) {
       if ((fn as { isPublic?: boolean })?.isPublic) registered.push(`${file}:${name}`);
