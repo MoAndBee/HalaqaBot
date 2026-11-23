@@ -618,42 +618,47 @@ export function ManualListModal({
               </>
             )}
           </DialogFooter>
+
+          {/* The child dialogs live inside this dialog's React tree on purpose.
+              On touch, Radix checks for a tap outside a dialog on the click
+              that follows it; by then a child dialog's own button has closed
+              it, so a child rendered as a sibling made that tap count as
+              outside and closed this dialog too, losing the whole list. */}
+          {pickerRow && (
+            <StudentPickerModal
+              isOpen
+              onClose={() => setPickerRowKey(null)}
+              extractedName={pickerRow.line.name}
+              selectedId={pickerRow.userId === null ? null : String(pickerRow.userId)}
+              students={studentOptions}
+              onSelect={(id) =>
+                updateRow(pickerRow.key, {
+                  userId: id === null ? null : Number(id),
+                  match: id === null ? 'none' : 'manual',
+                })
+              }
+            />
+          )}
+
+          {datesRow && (
+            <CompensationModal
+              isOpen
+              onClose={() => setDatesRowKey(null)}
+              userName={
+                (datesRow.userId !== null ? nameById.get(datesRow.userId) : undefined) ?? datesRow.line.name
+              }
+              currentDates={datesRow.dates}
+              onSave={(dates) => updateRow(datesRow.key, { dates })}
+            />
+          )}
+
+          <RegisterUserModal
+            isOpen={registerRowKey !== null}
+            onClose={() => setRegisterRowKey(null)}
+            onRegister={handleRegister}
+          />
         </DialogContent>
       </Dialog>
-
-      {pickerRow && (
-        <StudentPickerModal
-          isOpen
-          onClose={() => setPickerRowKey(null)}
-          extractedName={pickerRow.line.name}
-          selectedId={pickerRow.userId === null ? null : String(pickerRow.userId)}
-          students={studentOptions}
-          onSelect={(id) =>
-            updateRow(pickerRow.key, {
-              userId: id === null ? null : Number(id),
-              match: id === null ? 'none' : 'manual',
-            })
-          }
-        />
-      )}
-
-      {datesRow && (
-        <CompensationModal
-          isOpen
-          onClose={() => setDatesRowKey(null)}
-          userName={
-            (datesRow.userId !== null ? nameById.get(datesRow.userId) : undefined) ?? datesRow.line.name
-          }
-          currentDates={datesRow.dates}
-          onSave={(dates) => updateRow(datesRow.key, { dates })}
-        />
-      )}
-
-      <RegisterUserModal
-        isOpen={registerRowKey !== null}
-        onClose={() => setRegisterRowKey(null)}
-        onRegister={handleRegister}
-      />
     </>
   )
 }
