@@ -303,3 +303,23 @@ describe("merging an old Telegram account into a student's new one, within a cou
     expect(exams.find((r) => r.postId === 2)?.score).toBe(17);
   });
 });
+
+describe("removing a list of students from a course", () => {
+  test("hides them from that roster only, reports the rest, and a dry run changes nothing", async () => {
+    const { t, adminA, adminB } = await fixture();
+    const remove = internal.migrations.removeStudentsFromCourse.removeStudentsFromCourse;
+    const dry = await t.mutation(remove, { chatId: CHAT_B, userIds: [HUDA, FATIMA], dryRun: true });
+    expect(dry.removing.map((r: { userId: number }) => r.userId)).toEqual([HUDA]);
+    expect(dry.skipped).toEqual([{ userId: FATIMA, reason: "not on this course's roster" }]);
+    expect(await rosterIds(adminB, CHAT_B)).toContain(HUDA);
+
+    await t.mutation(remove, { chatId: CHAT_B, userIds: [HUDA, FATIMA], dryRun: false });
+    expect(await rosterIds(adminB, CHAT_B)).toEqual([HUDA_SECOND]);
+    expect(await rosterIds(adminA, CHAT_A)).toEqual([FATIMA]);
+    // Her turn in course B is still there
+    const turns = await t.run((ctx) => ctx.db.query("turnQueue").withIndex("by_user", (q) => q.eq("userId", HUDA)).collect());
+    expect(turns).toHaveLength(1);
+    const again = await t.mutation(remove, { chatId: CHAT_B, userIds: [HUDA], dryRun: true });
+    expect(again.skipped).toEqual([{ userId: HUDA, reason: "already removed" }]);
+  });
+});
