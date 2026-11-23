@@ -48,3 +48,56 @@ No data step. From this release, an admin Telegram no longer lists keeps her
 `channelAdmins` row with `removedAt` set: no access, not offered as a
 supervisor, name still shown on past halaqas. Admins removed before this release
 were deleted and stay deleted.
+
+## 3. Old Telegram accounts in the Aal Imran course (decided 2026-11-23)
+
+Four students in "دورة أصحاب سورة آل عمران" (chat -1003931211469) moved to a new
+Telegram account. Their old accounts posted nothing in this course, but admins
+kept picking them by their identical names, so 11 turns, including 5 exam
+scores, landed on the old accounts. A rename does not cause this: students are
+keyed by Telegram user ID, which never changes.
+
+`migrations/mergeStudentAccounts` moves the old account's turns in this course
+to the new account and takes the old account off this course's roster. Other
+courses are untouched. Dry-run each pair first, then rerun with `"dryRun": false`:
+
+| Old account | New account |
+|---|---|
+| 5663778282 | 1706430170 (@Doaakotp) |
+| 6394724516 | 8910263729 (@Haifa_2022) |
+| 758360644 (@mumina000) | 5005254081 (@Design000Corner) |
+| 1076437838 (@Hoda_Ramdan) | 8999542475 (@Hoda_R_Morsy) |
+
+```
+CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY_PROD_WRITE_CAUTION bunx convex run migrations/mergeStudentAccounts:mergeStudentAccounts '{"chatId": -1003931211469, "fromUserId": 5663778282, "toUserId": 1706430170, "dryRun": true}'
+```
+
+A turn the new account already has (same halaqa and type) is not moved; the dry
+run lists it under `clashes` with both scores. Expected: one for @mumina000, the
+exam of 2026-11-04 (post 33058, session 8): 18 on the old account, 19 on the new.
+Decided 2026-11-23: 19 is her real score. For this pair, run with
+`"onClash": "keepNew"`, which deletes the old account's 18.
+
+## 4. Students who left the Aal Imran course (decided 2026-11-23)
+
+The maintainer listed the 133 students who stay in the course (160 after
+section 3). Every name matched one student exactly. Of the other 27:
+
+**One is a hand-registered duplicate**, merged rather than removed: userId -3
+("جيداء محمد الحسي", last letter missing), whose one turn is the 2026-11-04
+exam (score 19). Her Telegram account, 7587188784 (@My_jaida), has no score for
+that exam. Run after section 3, dry run first:
+
+```
+CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY_PROD_WRITE_CAUTION bunx convex run migrations/mergeManualStudent:mergeManualStudent '{"manualUserId": -3, "telegramUserId": 7587188784, "dryRun": true}'
+```
+
+**26 left the course** and come off its roster with
+`migrations/removeStudentsFromCourse`. Their halaqa data stays. Dry run first;
+it should list 26 under `removing` and nothing under `skipped`:
+
+```
+CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY_PROD_WRITE_CAUTION bunx convex run migrations/removeStudentsFromCourse:removeStudentsFromCourse '{"chatId": -1003931211469, "dryRun": true, "userIds": [589484546, 681927795, 722692085, 748377833, 943513232, 993383297, 1002137815, 1026646775, 1066970229, 1144063520, 1182451667, 1216548779, 1256141016, 1402710479, 1450370981, 1715553934, 1787404332, 2054819377, 2112371728, 6086239776, 6348674619, 6702265361, 7215388345, 7744069129, 7808883066, 8038491566]}'
+```
+
+Afterwards the course roster should hold exactly 133 students.
