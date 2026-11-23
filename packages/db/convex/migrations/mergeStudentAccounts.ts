@@ -12,7 +12,9 @@ import { enrollStudent, getEnrollment } from "../enrollment";
  * in other courses: it really was hers there.
  *
  * A turn the new account already holds (same halaqa, same type) is not moved
- * and is listed under `clashes`, with both scores, for someone to decide.
+ * and is listed under `clashes`, with both scores, for someone to decide. Once
+ * decided that the new account's turn stands, pass onClash: "keepNew" to delete
+ * the old account's clashing turns.
  * Pass dryRun: true first to see what would move.
  *
  * Decided 2026-11-23 for the Aal Imran course (chat -1003931211469), where the
@@ -20,7 +22,15 @@ import { enrollStudent, getEnrollment } from "../enrollment";
  * docs/student-rosters-rollout.md for the four account pairs.
  */
 export const mergeStudentAccounts = internalMutation({
-  args: { chatId: v.number(), fromUserId: v.number(), toUserId: v.number(), dryRun: v.boolean() },
+  args: {
+    chatId: v.number(),
+    fromUserId: v.number(),
+    toUserId: v.number(),
+    dryRun: v.boolean(),
+    // "leave" (default): clashing turns stay on the old account.
+    // "keepNew": they are deleted; the new account's turn stands.
+    onClash: v.optional(v.union(v.literal("leave"), v.literal("keepNew"))),
+  },
   handler: async (ctx, args) => {
     if (args.fromUserId === args.toUserId) throw new ConvexError("fromUserId and toUserId are the same");
     for (const userId of [args.fromUserId, args.toUserId]) {
@@ -51,12 +61,14 @@ export const mergeStudentAccounts = internalMutation({
     const clashes = [...from.queue, ...from.history]
       .filter((r) => held.has(slot(r)))
       .map((r) => ({ old: describe("old")(r), new: describe("new")(held.get(slot(r))!) }));
-    const plan = { chatId: args.chatId, fromUserId: args.fromUserId, toUserId: args.toUserId, moving, clashes };
+    const onClash = args.onClash ?? "leave";
+    const plan = { chatId: args.chatId, fromUserId: args.fromUserId, toUserId: args.toUserId, moving, clashes, onClash };
     if (args.dryRun) return { dryRun: true, ...plan };
 
     const movingIds = new Set(moving.map((m) => m._id));
     for (const row of [...from.queue, ...from.history]) {
       if (movingIds.has(row._id)) await ctx.db.patch(row._id, { userId: args.toUserId });
+      else if (onClash === "keepNew") await ctx.db.delete(row._id);
     }
     await enrollStudent(ctx, args.chatId, args.toUserId, "activity");
     const old = await getEnrollment(ctx, args.chatId, args.fromUserId);

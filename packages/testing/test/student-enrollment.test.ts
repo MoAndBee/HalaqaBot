@@ -291,4 +291,15 @@ describe("merging an old Telegram account into a student's new one, within a cou
     // Both accounts are still people on record
     expect(await t.run((ctx) => ctx.db.query("users").collect())).toHaveLength(2);
   });
+
+  test("with keepNew, deletes the old account's clashing turn and keeps the new one's score", async () => {
+    const t = await withAccounts();
+    await t.mutation(merge, { ...args, dryRun: false, onClash: "keepNew" });
+    expect(await owners(t)).toEqual([
+      `${CHAT_A}/1:${NEW}`, `${CHAT_A}/2:${NEW}`, `${CHAT_A}/4:${NEW}`, `${CHAT_B}/3:${OLD}`,
+    ].sort());
+    const exams = await t.run((ctx) => ctx.db.query("participationHistory")
+      .withIndex("by_user_chat", (q) => q.eq("userId", NEW).eq("chatId", CHAT_A)).collect());
+    expect(exams.find((r) => r.postId === 2)?.score).toBe(17);
+  });
 });

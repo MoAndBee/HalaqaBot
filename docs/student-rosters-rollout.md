@@ -73,5 +73,7 @@ CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY_PROD_WRITE_CAUTION bunx convex run migratio
 ```
 
 A turn the new account already has (same halaqa and type) is not moved; the dry
-run lists it under `clashes` with both scores. Expected: one for @mumina000,
-an exam in post 33058, session 8. Someone has to decide which score stands.
+run lists it under `clashes` with both scores. Expected: one for @mumina000, the
+exam of 2026-11-04 (post 33058, session 8): 18 on the old account, 19 on the new.
+Decided 2026-11-23: 19 is her real score. For this pair, run with
+`"onClash": "keepNew"`, which deletes the old account's 18.
