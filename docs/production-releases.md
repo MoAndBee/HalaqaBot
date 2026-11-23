@@ -38,19 +38,18 @@ configures Workers Builds.
 | Non-production branch builds | enabled | enabled |
 | Non-production branch deploy command | `bun packages/bot/scripts/build-preview.ts` | `cd packages/testing && npx wrangler preview` |
 
-Set these build variables on `halaqabot`:
+Each Worker has two build triggers: **Production** (branch `main`) and
+**Preview branches** (every branch except `main`). Build variables belong to a
+trigger, so each key is set only where it's used:
 
-| Variable | Type | Value |
+| Trigger on `halaqabot` | Variable | Value |
 | --- | --- | --- |
-| `CONVEX_DEPLOY_KEY` | secret | Convex **preview** deploy key, for PR previews |
-| `PRODUCTION_CONVEX_DEPLOY_KEY` | secret | `prod:incredible-lyrebird-981\|…` deployment-scoped write key |
+| Production (`main`) | `PRODUCTION_CONVEX_DEPLOY_KEY` (secret) | `prod:incredible-lyrebird-981\|…` deployment-scoped write key |
+| Preview branches | `CONVEX_DEPLOY_KEY` (secret) | Convex **preview** deploy key, for PR previews |
 
-The production key uses a different variable name from `CONVEX_DEPLOY_KEY`.
-Preview builds then cannot push a branch to production Convex by mistake, and
-`build-preview.ts` also rejects anything other than a preview key. Build
-variables are shared by all branch builds of the Worker. Anyone who can push a
-branch to this repository can therefore read the production key from a build.
-Only give push access to people you would trust with production.
+Branch builds never receive the production key, and `build-preview.ts` also
+rejects anything other than a preview key. Keep the production key on the
+`main` trigger only.
 
 ## What the Wrangler config controls
 
