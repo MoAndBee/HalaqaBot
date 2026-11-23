@@ -233,3 +233,62 @@ describe("merging a hand-registered student into her Telegram account", () => {
     expect(await t.run((ctx) => ctx.db.query("users").collect())).toHaveLength(2);
   });
 });
+
+describe("merging an old Telegram account into a student's new one, within a course", () => {
+  const OLD = 700;
+  const NEW = 701;
+  async function withAccounts() {
+    const { t } = await createConvexEmulator();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { userId: OLD, telegramName: "Old", realName: "مؤمنة", updatedAt: 1 });
+      await ctx.db.insert("users", { userId: NEW, telegramName: "New", realName: "مؤمنة", updatedAt: 1 });
+      const turn = (userId: number, chatId: number, postId: number, sessionType: string, score?: number) =>
+        ctx.db.insert("participationHistory", {
+          chatId, postId, sessionNumber: 1, userId, sessionType, score, createdAt: 1, completedAt: 2,
+        });
+      await turn(OLD, CHAT_A, 1, "اختبار", 14); // moves
+      await turn(OLD, CHAT_A, 2, "اختبار", 18); // clashes with NEW's exam in post 2
+      await turn(NEW, CHAT_A, 2, "اختبار", 17);
+      await turn(OLD, CHAT_B, 3, "تلاوة"); // another course: stays hers
+      await ctx.db.insert("turnQueue", {
+        chatId: CHAT_A, postId: 4, sessionNumber: 1, userId: OLD, position: 1, createdAt: 1, sessionType: "تعويض",
+      });
+      for (const userId of [OLD, NEW]) {
+        await ctx.db.insert("channelStudents", { chatId: CHAT_A, userId, source: "activity", addedAt: 1 });
+      }
+      await ctx.db.insert("channelStudents", { chatId: CHAT_B, userId: OLD, source: "activity", addedAt: 1 });
+    });
+    return t;
+  }
+  const args = { chatId: CHAT_A, fromUserId: OLD, toUserId: NEW };
+  const merge = internal.migrations.mergeStudentAccounts.mergeStudentAccounts;
+  const owners = (t: Awaited<ReturnType<typeof withAccounts>>) => t.run(async (ctx) => [
+    ...(await ctx.db.query("participationHistory").collect()),
+    ...(await ctx.db.query("turnQueue").collect()),
+  ].map((r) => `${r.chatId}/${r.postId}:${r.userId}`).sort());
+
+  test("a dry run lists what moves and the clash, and changes nothing", async () => {
+    const t = await withAccounts();
+    const before = await owners(t);
+    const plan = await t.mutation(merge, { ...args, dryRun: true });
+    expect(plan.moving.map((m: { postId: number }) => m.postId).sort()).toEqual([1, 4]);
+    expect(plan.clashes).toMatchObject([{ old: { postId: 2, score: 18 }, new: { postId: 2, score: 17 } }]);
+    expect(await owners(t)).toEqual(before);
+  });
+
+  test("moves this course's turns only, leaves the clash, and swaps the roster", async () => {
+    const t = await withAccounts();
+    await t.mutation(merge, { ...args, dryRun: false });
+    expect(await owners(t)).toEqual([
+      `${CHAT_A}/1:${NEW}`, `${CHAT_A}/2:${NEW}`, `${CHAT_A}/2:${OLD}`, `${CHAT_A}/4:${NEW}`, `${CHAT_B}/3:${OLD}`,
+    ].sort());
+    const roster = await t.run((ctx) => ctx.db.query("channelStudents").collect());
+    const state = (chatId: number, userId: number) => {
+      const row = roster.find((r) => r.chatId === chatId && r.userId === userId)!;
+      return row.removedAt === undefined ? "on" : "removed";
+    };
+    expect([state(CHAT_A, NEW), state(CHAT_A, OLD), state(CHAT_B, OLD)]).toEqual(["on", "removed", "on"]);
+    // Both accounts are still people on record
+    expect(await t.run((ctx) => ctx.db.query("users").collect())).toHaveLength(2);
+  });
+});

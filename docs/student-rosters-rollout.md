@@ -48,3 +48,30 @@ No data step. From this release, an admin Telegram no longer lists keeps her
 `channelAdmins` row with `removedAt` set: no access, not offered as a
 supervisor, name still shown on past halaqas. Admins removed before this release
 were deleted and stay deleted.
+
+## 3. Old Telegram accounts in the Aal Imran course (decided 2026-11-23)
+
+Four students in "دورة أصحاب سورة آل عمران" (chat -1003931211469) moved to a new
+Telegram account. Their old accounts posted nothing in this course, but admins
+kept picking them by their identical names, so 11 turns, including 5 exam
+scores, landed on the old accounts. A rename does not cause this: students are
+keyed by Telegram user ID, which never changes.
+
+`migrations/mergeStudentAccounts` moves the old account's turns in this course
+to the new account and takes the old account off this course's roster. Other
+courses are untouched. Dry-run each pair first, then rerun with `"dryRun": false`:
+
+| Old account | New account |
+|---|---|
+| 5663778282 | 1706430170 (@Doaakotp) |
+| 6394724516 | 8910263729 (@Haifa_2022) |
+| 758360644 (@mumina000) | 5005254081 (@Design000Corner) |
+| 1076437838 (@Hoda_Ramdan) | 8999542475 (@Hoda_R_Morsy) |
+
+```
+CONVEX_DEPLOY_KEY=$CONVEX_DEPLOY_KEY_PROD_WRITE_CAUTION bunx convex run migrations/mergeStudentAccounts:mergeStudentAccounts '{"chatId": -1003931211469, "fromUserId": 5663778282, "toUserId": 1706430170, "dryRun": true}'
+```
+
+A turn the new account already has (same halaqa and type) is not moved; the dry
+run lists it under `clashes` with both scores. Expected: one for @mumina000,
+an exam in post 33058, session 8. Someone has to decide which score stands.
