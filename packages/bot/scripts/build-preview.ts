@@ -48,6 +48,8 @@ export function previewDeploymentForKey(deployKey: string, allowLocalDev = false
   );
 }
 
+// Call installed binaries directly, not through `bunx`: in Workers Builds,
+// `bunx` re-splits arguments on spaces, which breaks `convex deploy --cmd "…"`.
 async function run(cmd: string[], cwd: string, env: Record<string, string | undefined> = {}): Promise<string> {
   const proc = Bun.spawn(cmd, { cwd, env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe" });
   const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
@@ -70,14 +72,14 @@ export async function deployConvexAndBuildWebApp(
   const deployment = previewDeploymentForKey(deployKey, options.local);
   mkdirSync(OUT_DIR, { recursive: true });
   const urlFile = path.join(OUT_DIR, "convex-url");
-  const webBuild = `cd ${WEB_DIR} && bunx vite build && printenv VITE_CONVEX_URL > ${urlFile}`;
+  const webBuild = `cd ${WEB_DIR} && ./node_modules/.bin/vite build && printenv VITE_CONVEX_URL > ${urlFile}`;
   const env = { CONVEX_DEPLOY_KEY: deployKey, VITE_BOT_API_URL: "" };
 
   if (deployment.kind === "preview") {
     // Its own deployment, created on first push. CONVEX_AUTH_JWKS comes from
     // the Convex project's default environment variables for previews.
     await run(
-      ["bunx", "convex", "deploy", "--preview-create", previewName, "--typecheck", "disable",
+      [path.join(DB_DIR, "node_modules/.bin/convex"), "deploy", "--preview-create", previewName, "--typecheck", "disable",
         "--cmd-url-env-var-name", "VITE_CONVEX_URL", "--cmd", webBuild],
       DB_DIR,
       env,
@@ -86,7 +88,7 @@ export async function deployConvexAndBuildWebApp(
   }
   // Only the explicit local command opts into a personal dev deployment.
   const convexUrl = `https://${deployment.name}.convex.cloud`;
-  await run(["bunx", "convex", "dev", "--once", "--typecheck", "disable"], DB_DIR, env);
+  await run([path.join(DB_DIR, "node_modules/.bin/convex"), "dev", "--once", "--typecheck", "disable"], DB_DIR, env);
   await run(["sh", "-c", webBuild], ROOT, { VITE_CONVEX_URL: convexUrl, VITE_BOT_API_URL: "" });
   return convexUrl;
 }
@@ -133,7 +135,7 @@ if (import.meta.main) {
   writeFileSync(configFile, JSON.stringify(previewConfig(), null, 2));
   console.log(`Uploading the Preview…`);
   const out = await run(
-    ["bunx", "wrangler", "preview", "--config", configFile, "--var", `CONVEX_URL:${convexUrl}`],
+    [path.join(BOT_DIR, "node_modules/.bin/wrangler"), "preview", "--config", configFile, "--var", `CONVEX_URL:${convexUrl}`],
     BOT_DIR,
   );
   console.log(out);
