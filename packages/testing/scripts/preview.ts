@@ -4,8 +4,8 @@
  * (see "Previews" in the README and bot/scripts/build-preview.ts).
  *
  *   bun scripts/preview.ts check <bot-url> <simulator-url>
- *       Smoke-tests a running preview the way a reviewer would use it; CI runs
- *       it once Cloudflare has posted the Preview URLs. Needs
+ *       Smoke-tests a running preview the way a reviewer would use it, run by
+ *       hand with the Preview URLs Cloudflare posts on the PR. Needs
  *       PREVIEW_CONTROL_TOKEN (the simulator's SIM_CONTROL_TOKEN).
  *
  *   bun scripts/preview.ts local
@@ -15,7 +15,7 @@
  *       CONVEX_AUTH_JWKS here). Ctrl+C to stop.
  */
 import path from "node:path";
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { api, ConvexHttpClient } from "@halakabot/db";
 import { jwksForPrivateKey } from "../../bot/src/convex-auth";
 import { deployConvexAndBuildWebApp, previewConfig, previewDeploymentForKey } from "../../bot/scripts/build-preview";
@@ -197,7 +197,6 @@ if (import.meta.main) {
     const [bot, sim] = args.map((u) => u!.replace(/\/$/, ""));
     const checks = await check({ bot: bot!, sim: sim! }, env("PREVIEW_CONTROL_TOKEN"));
     for (const line of checks) console.log(`✓ ${line}`);
-    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `checks=${checks.join("; ")}\n`);
   } else if (command === "local") {
     await local();
   } else {

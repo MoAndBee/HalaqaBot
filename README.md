@@ -238,8 +238,8 @@ no Telegram account. It includes:
 - the PR's own Convex deployment.
 
 Cloudflare builds it as [Worker Previews](https://developers.cloudflare.com/workers/previews/)
-and posts the links on the PR. A GitHub workflow then smoke-tests it and
-comments with the link to open.
+and posts the links on the PR. Open the simulator link (`…-halaqabot-sim…`);
+it asks once for the control token (the simulator's `SIM_CONTROL_TOKEN`).
 
 The link works on a phone as well as a computer. The Mini App fills the screen,
 as in Telegram, and a 🤖 bubble floats over it; drag it to either side. Tapping
@@ -265,9 +265,9 @@ each update inside the webhook request. The simulator delivers one update at a
 time, which keeps them in order. Production keeps the queue; the test suite
 covers it.
 
-`.github/workflows/preview-check.yml` runs once Cloudflare's comment with both
-URLs appears. It runs `packages/testing/scripts/preview.ts check` against the
-live preview:
+To smoke-test a preview by hand, run `bun run preview check <bot-url> <simulator-url>`
+in `packages/testing` with `PREVIEW_CONTROL_TOKEN` set to the simulator's
+`SIM_CONTROL_TOKEN`. It checks that:
 - the bot registered the simulated channel;
 - a sign-up reaches the list;
 - the Mini App signs in;
@@ -275,7 +275,7 @@ live preview:
 
 Every check creates a fresh example halaqa and proves a new signup reaches its
 list, even if reviewers have already used the preview. Existing halaqas and
-turns stay intact. Then it comments with the link. "Reset world" starts over
+turns stay intact. "Reset world" starts over
 with new IDs and keeps the bot connected.
 
 **One-time setup**
@@ -303,7 +303,7 @@ with new IDs and keeps the bot connected.
    | Build variables | `CONVEX_DEPLOY_KEY` (the preview deploy key), plus `PRODUCTION_CONVEX_DEPLOY_KEY` (see [production releases](docs/production-releases.md)) | |
 
    Workers Builds deploys production on every merge to `main`, and nothing else
-   does. GitHub Actions only runs tests and the preview smoke check. See
+   does. GitHub Actions only runs tests. See
    [production releases](docs/production-releases.md) for the build variable and what each release runs.
 3. **Preview secrets**, on each Worker's Preview base config:
    - Bot (in `packages/bot`), via `bunx wrangler preview base-config secret put <NAME>`:
@@ -312,8 +312,8 @@ with new IDs and keeps the bot connected.
    - Simulator (in `packages/testing`): `SIM_BOT_TOKEN` and `SIM_WEBHOOK_SECRET`,
      the same values as the bot's `BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET`, and
      `SIM_CONTROL_TOKEN` (any long random string).
-4. **GitHub:** the repository secret `PREVIEW_CONTROL_TOKEN`, the same value as
-   `SIM_CONTROL_TOKEN`.
+   Keep `SIM_CONTROL_TOKEN` somewhere safe (a password manager): you enter it
+   when you open a simulator preview.
 
 **To run a preview locally:** the same two Workers in the same preview mode,
 under `wrangler dev`, followed by the same check. Use your own dedicated dev
