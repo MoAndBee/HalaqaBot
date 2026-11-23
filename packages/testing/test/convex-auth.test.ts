@@ -13,6 +13,7 @@ import { REGISTRATION_POST, publishHalaqa, turnQueue } from "./helpers";
 
 const NOT_SIGNED_IN = "يجب تسجيل الدخول من خلال تيليجرام";
 const DENIED = "غير مصرح";
+const NOT_A_CHANNEL_ADMIN = "يمكن إضافة المشرفات من إداريات القناة فقط";
 
 let stack: Stack;
 let postId: number;
@@ -155,17 +156,15 @@ describe("an admin of another channel", () => {
     expect(await admin.query(api.queries.getAdminDisplayName, {
       channelId: world.channelId, userId: other.ownerId,
     })).toBeNull();
-    await admin.mutation(api.mutations.takeOverSession, {
+    // Not an admin of this channel, so she can't be put on one of its halaqas
+    expect(await failure(admin.mutation(api.mutations.takeOverSession, {
       chatId: world.groupId, postId: probePostId, sessionNumber: 1,
       newSupervisorUserId: other.ownerId,
-    });
+    }))).toBe(NOT_A_CHANNEL_ADMIN);
     const args = {
       channelId: world.channelId, chatId: world.groupId, postId: probePostId, sessionNumber: 1,
     };
     expect(await admin.query(api.queries.getSessionSupervisorName, args)).toBeNull();
-    expect(await admin.query(api.queries.getSessionSupervisors, args)).toEqual([
-      { userId: other.ownerId, name: `#${other.ownerId}` },
-    ]);
   });
 
   test("can't probe a student through a local assignment or manufacture membership", async () => {
@@ -175,13 +174,11 @@ describe("an admin of another channel", () => {
     const args = {
       channelId: other.channelId, chatId: other.groupId, postId: 999_992, sessionNumber: 1,
     };
-    await outsider.mutation(api.mutations.takeOverSession, {
+    // A student is no admin of the outsider's channel: she can't be made a supervisor there
+    expect(await failure(outsider.mutation(api.mutations.takeOverSession, {
       chatId: args.chatId, postId: args.postId, sessionNumber: 1, newSupervisorUserId: userId,
-    });
+    }))).toBe(NOT_A_CHANNEL_ADMIN);
     expect(await outsider.query(api.queries.getSessionSupervisorName, args)).toBeNull();
-    expect(await outsider.query(api.queries.getSessionSupervisors, args)).toEqual([
-      { userId, name: `#${userId}` },
-    ]);
     const entryArgs = { chatId: args.chatId, postId: args.postId, sessionNumber: 1, userId };
     expect(await failure(outsider.mutation(api.mutations.addUserToList, entryArgs))).toBe(DENIED);
     expect(await failure(outsider.mutation(api.mutations.addUserAtPosition, {
@@ -283,10 +280,13 @@ describe("the Worker's token endpoint", () => {
 test("every public Convex function starts with an access check", async () => {
   const dir = path.resolve(import.meta.dir, "../../db/convex");
   // A check, possibly per item or per branch: `for (...) await requireEntryAccess(...)`.
-  const checks = /^((if|for) \(.*?\) )?(await )?require\w*\(|getCaller\(|internal\.auth\.|ctx\.db\.get\(args\.importId\)/;
+  // Or keeping the caller it returns: `const caller = await requireChatAccess(...)`.
+  const checks = /^((if|for) \(.*?\) )?((const|let) \w+ = )?(await )?require\w*\(|getCaller\(|internal\.auth\.|ctx\.db\.get\(args\.importId\)/;
   const checked = new Set<string>();
   const unchecked: string[] = [];
-  for (const file of ["queries.ts", "mutations.ts", "actions.ts"]) {
+  // Every module that defines public functions; a new one must be added here.
+  const modules = ["queries", "mutations", "actions", "students"];
+  for (const file of modules.map((m) => `${m}.ts`)) {
     // Each definition on its own, so one function's check can't count for another.
     const source = readFileSync(path.join(dir, file), "utf8");
     for (const chunk of source.split(/^(?=export const )/m)) {
@@ -304,7 +304,7 @@ test("every public Convex function starts with an access check", async () => {
 
   // And the parse saw every function Convex registers as public.
   const registered: string[] = [];
-  for (const file of ["queries", "mutations", "actions"]) {
+  for (const file of modules) {
     const module = await import(path.join(dir, `${file}.ts`));
     for (const [name, fn] of Object.entries(module)) {
       if ((fn as { isPublic?: boolean })?.isPublic) registered.push(`${file}:${name}`);

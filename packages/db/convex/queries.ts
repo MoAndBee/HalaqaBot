@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator, type GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc } from "./_generated/dataModel";
 import {
+  findActiveAdmin,
   getCaller,
   hasStudentActivityInChat,
   requireBot,
@@ -13,6 +14,7 @@ import {
   requireSelf,
   requireStudentAccess,
 } from "./auth";
+import { activeRosterUserIds, normalizeName } from "./enrollment";
 
 export const getMessageAuthor = query({
   args: {
@@ -800,67 +802,14 @@ export const getMessagesByUserId = query({
 });
 
 /**
- * Every user who belongs to a channel's discussion group, so one channel's
- * admins don't see another channel's roster.
- *
- * Membership is mostly inferred from turns taken, but that alone makes a
- * manually registered user invisible: she is created with no participation at
- * all, so she could never be found to be added to a halaqa in the first place.
- * Her `homeChatId` covers that gap.
+ * Students on a course's roster: its active channelStudents rows. Kept under
+ * this name for the callers that scope by chat.
  */
 export async function collectChatUserIds(
   ctx: { db: GenericDatabaseReader<DataModel> },
   chatId: number
 ): Promise<Set<number>> {
-  const queueUsers = await ctx.db
-    .query("turnQueue")
-    .filter((q) => q.eq(q.field("chatId"), chatId))
-    .collect();
-  const historyUsers = await ctx.db
-    .query("participationHistory")
-    .filter((q) => q.eq(q.field("chatId"), chatId))
-    .collect();
-  const registered = await ctx.db
-    .query("users")
-    .withIndex("by_home_chat", (q) => q.eq("homeChatId", chatId))
-    .collect();
-
-  return new Set([
-    ...queueUsers.map((u) => u.userId),
-    ...historyUsers.map((u) => u.userId),
-    ...registered.map((u) => u.userId),
-  ]);
-}
-
-/**
- * Users registered by hand before `homeChatId` existed have no channel on
- * record and no turns to infer one from, so scoping them to any single channel
- * is impossible — they are shown everywhere rather than nowhere. Manual
- * registration mints negative ids, which is what identifies them. Drop this
- * once such rows have been given a `homeChatId`.
- */
-function isUnaffiliatedLegacyUser(user: Doc<"users">): boolean {
-  return user.userId < 0 && user.homeChatId === undefined;
-}
-
-/**
- * Fold the Arabic spelling variants that make a literal search miss: hamza
- * forms (أإآ → ا), ة → ه, ى → ي, ؤ/ئ, tatweel and tashkeel, plus case for
- * Latin usernames. Names reach the database however whoever typed them spelled
- * them — hand-registered ones especially — so searching "فاطمه" has to find
- * "فاطمة". Mirrors normalizeArabic in the web app's StudentPickerModal.
- */
-function normalizeName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[ً-ْـ]/g, "")
-    .replace(/[أإآ]/g, "ا")
-    .replace(/ة/g, "ه")
-    .replace(/ى/g, "ي")
-    .replace(/ؤ/g, "و")
-    .replace(/ئ/g, "ي")
-    .replace(/\s+/g, " ")
-    .trim();
+  return await activeRosterUserIds(ctx, chatId);
 }
 
 export const searchUsers = query({
@@ -895,12 +844,7 @@ export const searchUsers = query({
     }
 
     return users
-      .filter(
-        (user) =>
-          allowedUserIds === null ||
-          allowedUserIds.has(user.userId) ||
-          isUnaffiliatedLegacyUser(user)
-      )
+      .filter((user) => allowedUserIds === null || allowedUserIds.has(user.userId))
       .filter((user) => {
         const realName = normalizeName(user.realName ?? "");
         const telegramName = normalizeName(user.telegramName);
@@ -1173,17 +1117,9 @@ export const getChannelStudents = query({
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
     const allUsers = await ctx.db.query("users").collect();
-    const chatUserIds = await collectChatUserIds(ctx, args.chatId);
-
-    // A hand-registered student is exactly the kind of person this list exists
-    // for — scored on paper, never having taken a turn — so the legacy
-    // allowance applies here too.
-    const userIds = [
-      ...new Set([
-        ...chatUserIds,
-        ...allUsers.filter(isUnaffiliatedLegacyUser).map((u) => u.userId),
-      ]),
-    ];
+    // The course roster, hand-registered students included: they are exactly
+    // who this list exists for — scored on paper, never having taken a turn.
+    const userIds = [...(await collectChatUserIds(ctx, args.chatId))];
 
     const usersById = new Map(allUsers.map((u) => [u.userId, u]));
 
@@ -1255,10 +1191,13 @@ export const getMyChannels = query({
   handler: async (ctx, args) => {
     requireSelf(await getCaller(ctx), args.userId);
     // Find every channel this user is an admin of.
-    const adminRows = await ctx.db.query("channelAdmins").collect();
+    const adminRows = await ctx.db
+      .query("channelAdmins")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
     const myChannelIds = new Set(
       adminRows
-        .filter((row) => row.userId === args.userId)
+        .filter((row) => row.removedAt === undefined)
         .map((row) => row.channelId)
     );
 
@@ -1326,15 +1265,8 @@ export const isUserAuthorized = query({
   },
   handler: async (ctx, args) => {
     await requireBot(ctx);
-    // Check if user is in channelAdmins table
-    const admin = await ctx.db
-      .query("channelAdmins")
-      .withIndex("by_channel_user", (q) =>
-        q.eq("channelId", args.channelId).eq("userId", args.userId)
-      )
-      .first();
-
-    const isAuthorized = admin !== null;
+    // An admin of this channel who is still an admin in Telegram
+    const isAuthorized = (await findActiveAdmin(ctx, args.channelId, args.userId)) !== null;
 
     console.log(`Authorization check for user ${args.userId} on channel ${args.channelId}: ${isAuthorized ? "✅ AUTHORIZED" : "❌ UNAUTHORIZED"}`);
 
@@ -1345,6 +1277,7 @@ export const isUserAuthorized = query({
 /**
  * Admin names, including preferred names, belong to the selected channel.
  * A missing record must not fall back to another channel's private profile.
+ * Removed admins are included on purpose: past halaqas keep their names.
  */
 async function findAdminRecord(
   ctx: { db: GenericDatabaseReader<DataModel> },
@@ -1513,6 +1446,8 @@ export const getAddableSupervisors = query({
       .collect();
 
     return admins
+      // No longer an admin in Telegram: kept for past halaqas' names only
+      .filter((admin) => admin.removedAt === undefined)
       .filter((admin) => !current.has(admin.userId))
       .map((admin) => ({
         userId: admin.userId,

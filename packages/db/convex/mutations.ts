@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "./_generated/dataModel";
 import {
+  findActiveAdmin,
   getCaller,
   requireAnyAdmin,
   requireBot,
@@ -12,12 +13,14 @@ import {
   requireChatAccess,
   requireEntryAccess,
   requireStudentAccess,
+  requireSupervisorCandidate,
 } from "./auth";
 import { EXTERNAL_SESSION_ORIGIN, pickCurrentSession } from "../src/sessionOrigin";
+import { enrollStudent, normalizeName, requireAddableStudent } from "./enrollment";
 
 // Passcode for admin-only actions (unlocking a halaqa, registering a user,
 // deleting a halaqa). Checked server-side so the web app can't bypass it.
-const ADMIN_PASSCODE = "adminunlock311225";
+export const ADMIN_PASSCODE = "adminunlock311225";
 
 /**
  * Parsing for Telegram message links (t.me/...).
@@ -295,7 +298,7 @@ export const addUserToList = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
-    await requireStudentAccess(ctx, args.userId, args.chatId);
+    await requireAddableStudent(ctx, args.userId, args.chatId);
     // Determine the session number to use
     let sessionNumber = args.sessionNumber;
 
@@ -357,6 +360,9 @@ export const addUserToList = mutation({
 
     // Track this post for efficient pagination
     await upsertPost(ctx, args.chatId, args.postId, addedAt);
+    // Her first turn here puts her on the course roster (and back on it if she
+    // was removed and signed up herself through the bot)
+    await enrollStudent(ctx, args.chatId, args.userId, "activity");
 
     // Ensure the session exists in the sessions table
     const existingSession = await ctx.db
@@ -395,7 +401,7 @@ export const addUserAtPosition = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
-    await requireStudentAccess(ctx, args.userId, args.chatId);
+    await requireAddableStudent(ctx, args.userId, args.chatId);
     // Determine the session number
     let sessionNumber = args.sessionNumber;
     if (sessionNumber === undefined) {
@@ -471,6 +477,8 @@ export const addUserAtPosition = mutation({
       isCompensation: args.isCompensation,
       compensatingForDates: args.compensatingForDates,
     });
+
+    await enrollStudent(ctx, args.chatId, args.userId, "activity");
 
     // Get the newly inserted entry
     const insertedEntry = await ctx.db.get(newEntry);
@@ -1353,7 +1361,7 @@ export const bulkUpdateParticipationScores = mutation({
       let consumedFromQueue = false;
 
       for (const entry of addition.entries) {
-        await requireStudentAccess(ctx, entry.userId, chatId);
+        await requireAddableStudent(ctx, entry.userId, chatId);
         if (alreadyExamined.has(entry.userId)) {
           skipped++;
           continue;
@@ -1380,6 +1388,7 @@ export const bulkUpdateParticipationScores = mutation({
           consumedFromQueue = true;
         }
 
+        await enrollStudent(ctx, chatId, entry.userId, "activity");
         await ctx.db.insert("participationHistory", {
           chatId,
           postId,
@@ -1526,6 +1535,7 @@ export const startNewSession = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireSupervisorCandidate(ctx, args.chatId, args.supervisorUserId);
     // Get all existing sessions for this post
     const allSessions = await ctx.db
       .query("sessions")
@@ -1965,10 +1975,11 @@ export const syncChannelAdmins = mutation({
     // Create a set of new admin user IDs
     const newAdminUserIds = new Set(args.admins.map((admin) => admin.userId));
 
-    // Remove admins that are no longer in the list
+    // Soft-remove admins that are no longer in the list: their row stays so
+    // their name still shows on the halaqas they supervised.
     for (const existingAdmin of existingAdmins) {
-      if (!newAdminUserIds.has(existingAdmin.userId)) {
-        await ctx.db.delete(existingAdmin._id);
+      if (!newAdminUserIds.has(existingAdmin.userId) && existingAdmin.removedAt === undefined) {
+        await ctx.db.patch(existingAdmin._id, { removedAt: now, updatedAt: now });
         console.log(`Removed admin ${existingAdmin.userId} from channel ${args.channelId}`);
       }
     }
@@ -1984,6 +1995,7 @@ export const syncChannelAdmins = mutation({
           firstName: admin.firstName,
           lastName: admin.lastName,
           username: admin.username,
+          removedAt: undefined, // an admin again: restore her access
           updatedAt: now,
         });
       } else {
@@ -2075,13 +2087,8 @@ export const updateAdminPreferredName = mutation({
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
-    // Find the admin in channelAdmins table
-    const admin = await ctx.db
-      .query("channelAdmins")
-      .withIndex("by_channel_user", (q) =>
-        q.eq("channelId", args.channelId).eq("userId", args.userId)
-      )
-      .first();
+    // Only a current admin of this channel can be renamed
+    const admin = await findActiveAdmin(ctx, args.channelId, args.userId);
 
     if (!admin) {
       throw new Error(`Admin with userId ${args.userId} not found for channel ${args.channelId}`);
@@ -2118,6 +2125,7 @@ export const assignSessionSupervisor = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireSupervisorCandidate(ctx, args.chatId, args.supervisorUserId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2231,6 +2239,7 @@ export const addSessionSupervisor = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireSupervisorCandidate(ctx, args.chatId, args.supervisorUserId);
     return appendSessionSupervisor(ctx, args);
   },
 });
@@ -2255,12 +2264,7 @@ export const addSessionSupervisorWithPasscode = mutation({
       throw new ConvexError("رمز الحماية غير صحيح");
     }
 
-    const target = await ctx.db
-      .query("channelAdmins")
-      .withIndex("by_channel_user", (q) =>
-        q.eq("channelId", args.channelId).eq("userId", args.supervisorUserId)
-      )
-      .first();
+    const target = await findActiveAdmin(ctx, args.channelId, args.supervisorUserId);
     if (!target) {
       throw new ConvexError("يمكن إضافة المشرفات من إداريات القناة فقط");
     }
@@ -2322,6 +2326,7 @@ export const takeOverSession = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
+    await requireSupervisorCandidate(ctx, args.chatId, args.newSupervisorUserId);
     // Check if session is locked before any modifications
     await checkSessionLock(ctx, args.chatId, args.postId, args.sessionNumber);
 
@@ -2389,25 +2394,39 @@ export const registerUser = mutation({
       throw new Error("Name cannot be empty");
     }
 
-    // Check if a user with this exact name already exists (case-insensitive)
-    const existingUser = await ctx.db
-      .query("users")
-      .collect()
-      .then((users) =>
-        users.find(
-          (u) =>
-            u.realName?.toLowerCase() === trimmedName.toLowerCase() ||
-            u.telegramName.toLowerCase() === trimmedName.toLowerCase()
-        )
-      );
+    const allUsers = await ctx.db.query("users").collect();
 
-    if (existingUser) {
+    // The same name may exist in another course: that is a different roster.
+    // Within this course (removed students included, who should be added back
+    // rather than registered twice) the name must be new.
+    const sameName = (u: (typeof allUsers)[number]) => {
+      const wanted = normalizeName(trimmedName);
+      return normalizeName(u.realName ?? "") === wanted || normalizeName(u.telegramName) === wanted;
+    };
+    if (args.chatId !== undefined) {
+      const chatId = args.chatId;
+      const enrolled = await ctx.db
+        .query("channelStudents")
+        .withIndex("by_chat", (q) => q.eq("chatId", chatId))
+        .collect();
+      const usersById = new Map(allUsers.map((u) => [u.userId, u]));
+      const clash = enrolled.find((e) => {
+        const u = usersById.get(e.userId);
+        return u !== undefined && sameName(u);
+      });
+      if (clash) {
+        throw new ConvexError(
+          clash.removedAt === undefined
+            ? "طالبة بهذا الاسم موجودة بالفعل في هذه الدورة"
+            : "طالبة بهذا الاسم محذوفة من هذه الدورة، أعيدي إضافتها من صفحة الطالبات"
+        );
+      }
+    } else if (allUsers.some(sameName)) {
       throw new ConvexError("مستخدم بهذا الاسم موجود بالفعل");
     }
 
     // Generate a unique negative userId for manually registered users
     // Start from -1 and go down to avoid conflicts with Telegram user IDs
-    const allUsers = await ctx.db.query("users").collect();
     const manualUserIds = allUsers
       .map((u) => u.userId)
       .filter((id) => id < 0);
@@ -2425,6 +2444,10 @@ export const registerUser = mutation({
       homeChatId: args.chatId,
       updatedAt: Date.now(),
     });
+    if (args.chatId !== undefined) {
+      const caller = await getCaller(ctx);
+      await enrollStudent(ctx, args.chatId, newUserId, "manual", caller.kind === "user" ? caller.userId : undefined);
+    }
 
     console.log(`Manually registered user: ${trimmedName} with userId ${newUserId}`);
     return { userId: newUserId, name: trimmedName };
@@ -2665,7 +2688,7 @@ export const applyManualList = mutation({
 
     // Validate every entry before writing anything
     for (const entry of args.entries) {
-      await requireStudentAccess(ctx, entry.userId, chatId);
+      await requireAddableStudent(ctx, entry.userId, chatId);
       if (entry.done && !entry.sessionType) {
         throw new ConvexError("يجب تحديد نوع المشاركة لكل دور مكتمل");
       }
@@ -2788,6 +2811,7 @@ export const applyManualList = mutation({
       const isCompensation = entry.sessionType === "تعويض";
       const compensatingForDates = isCompensation ? entry.compensatingForDates : undefined;
       const notes = entry.notes?.trim() || undefined;
+      await enrollStudent(ctx, chatId, entry.userId, "activity");
 
       if (entry.done) {
         await ctx.db.insert("participationHistory", {

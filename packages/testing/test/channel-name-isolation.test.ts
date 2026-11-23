@@ -72,19 +72,44 @@ describe("channel-scoped admin and supervisor names", () => {
     })).toBe("Local supervisor");
   });
 
-  test("assigning an unrelated supervisor ID does not expose their private admin or student name", async () => {
+  test("an unrelated ID can't be assigned as a supervisor to probe their private name", async () => {
     const { admin } = await fixture();
     for (const userId of [ADMIN_B, STUDENT]) {
       const args = { ...sessionArgs, postId: userId };
-      // Use the same public mutation an admin could use to probe an arbitrary ID.
-      await admin.mutation(api.mutations.takeOverSession, {
-        chatId: args.chatId, postId: args.postId, sessionNumber: 1, newSupervisorUserId: userId,
-      });
+      // Every public path that sets a supervisor rejects someone who isn't an admin here
+      const attempts = [
+        () => admin.mutation(api.mutations.takeOverSession, {
+          chatId: args.chatId, postId: args.postId, sessionNumber: 1, newSupervisorUserId: userId,
+        }),
+        () => admin.mutation(api.mutations.assignSessionSupervisor, {
+          chatId: args.chatId, postId: args.postId, sessionNumber: 1, supervisorUserId: userId,
+        }),
+        () => admin.mutation(api.mutations.addSessionSupervisor, {
+          chatId: args.chatId, postId: args.postId, sessionNumber: 1, supervisorUserId: userId,
+        }),
+        () => admin.mutation(api.mutations.startNewSession, {
+          chatId: args.chatId, postId: args.postId, teacherName: "T", supervisorUserId: userId,
+        }),
+      ];
+      for (const attempt of attempts) {
+        await expect(attempt()).rejects.toThrow("يمكن إضافة المشرفات من إداريات القناة فقط");
+      }
       expect(await admin.query(api.queries.getSessionSupervisorName, args)).toBeNull();
-      expect(await admin.query(api.queries.getSessionSupervisors, args)).toEqual([
-        { userId, name: `#${userId}` },
-      ]);
+      expect(await admin.query(api.queries.getSessionSupervisors, args)).toEqual([]);
     }
+  });
+
+  test("an admin of this channel can still be assigned through every path", async () => {
+    const { admin } = await fixture();
+    await admin.mutation(api.mutations.startNewSession, {
+      chatId: CHAT_A, postId: POST, teacherName: "T", supervisorUserId: ADMIN_A,
+    });
+    await admin.mutation(api.mutations.takeOverSession, {
+      chatId: CHAT_A, postId: POST, sessionNumber: 1, newSupervisorUserId: ADMIN_A,
+    });
+    expect(await admin.query(api.queries.getSessionSupervisors, sessionArgs)).toEqual([
+      { userId: ADMIN_A, name: "Local admin" },
+    ]);
   });
 
   test("legacy single-supervisor IDs cannot expose another channel's preferred name", async () => {
