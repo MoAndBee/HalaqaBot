@@ -1,90 +1,86 @@
 # Production releases
 
-The `Production release` GitHub Actions workflow owns routine releases after the
-2026-11-20 cutover. It targets Bosla Worker `halaqabot`,
-`https://halaqabot.bosla.to`, and Convex production `incredible-lyrebird-981`.
-Keep the old Coolify bot stopped and its automatic deployments disabled. Keep
-Cloudflare Workers Builds' production command as its existing manual/no-op;
-GitHub Actions is the release path.
+Cloudflare Workers Builds deploys production. GitHub Actions no longer deploys
+anything; the former `Production release` workflow was removed. Workers Builds
+targets Bosla Worker `halaqabot`, `https://halaqabot.bosla.to`, and Convex
+production `incredible-lyrebird-981`. Keep the old Coolify bot stopped.
 
-## Release switch and first release
+On every push to `main`, the `halaqabot` Worker's production deploy command
+runs `bun scripts/cloudflare-production.ts`. It does the following:
 
-Repository Actions variable `PRODUCTION_RELEASE_ENABLED` must equal `true` for
-any production deployment. It is initially `false` while the operator reviews
-the setup. Merging the workflow with this switch off runs preparation only.
-Neither a successful test run nor a manual dispatch bypasses the switch.
+1. Builds DB/bot, builds the Mini App against production Convex and dry-runs
+   `packages/bot/wrangler.production.bosla.toml`, using
+   `scripts/prepare-production.ts`.
+2. Stops there unless the build variable `PRODUCTION_RELEASE_ENABLED` is `true`.
+3. If `PRODUCTION_CONVEX_AUTH_PRIVATE_KEY` is set, runs read-only preflight checks.
+4. Deploys production Convex first, then the Worker with the built assets and
+   the production cron. It tags the Worker version with the commit SHA.
+5. If `PRODUCTION_CONVEX_AUTH_PRIVATE_KEY` is set, runs read-only post-release
+   checks. They cover HTTPS, unsigned request denial, authenticated reads, the
+   frontend's backend URL and the asset commit.
 
-After the operator explicitly approves releasing the latest changes:
+Routine releases leave the following as they are: Worker runtime secrets, the
+webhook and menu, the queues, and the Convex environment values.
 
-1. Merge the workflow PR with the release switch still off. Let its `Test` and
-   production preparation runs finish successfully.
-2. Set `PRODUCTION_RELEASE_ENABLED=true` in repository Actions variables.
-3. Run `Production release` from **main**, entering the full current main SHA
-   in `release_sha`. This runs tests, builds and dry-runs before deployment.
-4. Inspect the release summary and perform the phone checks below.
+## Dashboard settings (Workers & Pages → Worker → Settings → Build)
 
-Subsequent successful `Test` runs triggered by pushes to main automatically
-start production preparation and release while the switch remains enabled.
-PR test runs never deploy. A missing switch or any value other than `true`
-disables releases. Turning it off prevents new deployment jobs; it does not
-cancel an already-running deployment. Do not cancel a release between its two
-deployment steps without checking the resulting production state.
+These settings exist only in the dashboard. No file in the repository
+configures Workers Builds.
 
-## Credentials and GitHub protection
+| | `halaqabot` (bot) | `halaqabot-sim` (simulator) |
+| --- | --- | --- |
+| Git repository | `MoAndBee/HalaqaBot` | `MoAndBee/HalaqaBot` |
+| Root directory | `/` (repository root) | `/` (repository root) |
+| Production branch | `main` | `main` |
+| Build command | `bun install --frozen-lockfile` | `bun install --frozen-lockfile` |
+| Deploy command | `bun scripts/cloudflare-production.ts` | `cd packages/testing && npx wrangler deploy` |
+| Non-production branch builds | enabled | enabled |
+| Non-production branch deploy command | `bun packages/bot/scripts/build-preview.ts` | `cd packages/testing && npx wrangler preview` |
 
-The workflow reads these GitHub Actions secrets only in the deployment job:
+Set these build variables on `halaqabot`:
 
-| Secret | Purpose |
-| --- | --- |
-| `PRODUCTION_CLOUDFLARE_API_TOKEN` | Dedicated Cloudflare deployment API token restricted to Bosla / bosla.to; Edit Cloudflare Workers permissions plus Queues Edit |
-| `PRODUCTION_CONVEX_DEPLOY_KEY` | Deployment-scoped write key beginning `prod:incredible-lyrebird-981\|` |
-| `PRODUCTION_CONVEX_AUTH_PRIVATE_KEY` | Existing production signing JWK, for read-only authenticated smoke checks |
+| Variable | Type | Value |
+| --- | --- | --- |
+| `CONVEX_DEPLOY_KEY` | secret | Convex **preview** deploy key, for PR previews |
+| `PRODUCTION_CONVEX_DEPLOY_KEY` | secret | `prod:incredible-lyrebird-981\|…` deployment-scoped write key |
+| `PRODUCTION_CONVEX_AUTH_PRIVATE_KEY` | secret (optional) | Production signing JWK, for the read-only checks |
+| `PRODUCTION_RELEASE_ENABLED` | text | `true` to deploy. Any other value, or leaving it unset, builds only |
 
-The production Worker already holds its runtime secrets. Routine releases
-preserve them and do not upload the full env file, change signing keys, set
-the Telegram webhook/menu, create queues, disable cron, or repeat the cutover.
-Convex environment values, including JWKS and Groq, are also retained.
+The production key uses a different variable name from `CONVEX_DEPLOY_KEY`.
+Preview builds then cannot push a branch to production Convex by mistake, and
+`build-preview.ts` also rejects anything other than a preview key. Build
+variables are shared by all branch builds of the Worker. Anyone who can push a
+branch to this repository can therefore read the production key from a build.
+Only give push access to people you would trust with production.
 
-The deployment job names the `production` GitHub environment. A repository
-administrator can pre-create it, restrict deployment branches to `main`, and
-move the three secrets there. A required reviewer can also be configured if
-releases should require approval every time. Without those settings, GitHub
-can create the environment when the first deployment runs and the workflow uses
-repository secrets. Maintain access can configure repository Actions secrets
-and variables, but cannot configure environment protection.
+## What the Wrangler config controls
 
-## What runs
+`wrangler deploy --config wrangler.production.bosla.toml` treats the file as
+the source of truth for the Worker. On every release it sets the following
+from the file, replacing dashboard edits: name, account, entry point,
+compatibility settings, custom domain route, assets, queue bindings and
+consumers, cron, and observability. The production config has no `[vars]`,
+so plain-text variables added in the dashboard are removed by a release. Keep
+runtime values as **secrets**, which are never touched. The deleted workflow
+used this same command and config, so the Worker's settings stay as they are.
 
-Preparation selects one exact commit, rejects stale main candidates, installs
-the lockfile with Bun 1.3.14, builds/types-checks DB and bot, builds the frontend
-with the production Convex URL, and dry-runs the account-pinned Worker config.
-Manual releases and workflow PRs also run the full local test suite; automatic
-releases require an already successful push-to-main `Test` run for that SHA.
-Prepared frontend assets are retained for seven days as a GitHub artifact, with
-`release.json` recording their commit.
+Workers Builds' own settings (the commands, the branch and the build variables)
+are not in any config file. Changing a Wrangler config cannot overwrite them.
 
-The deployment job performs read-only credential, Worker binding, auth and HTTPS
-checks, then checks that main still matches the candidate. It deploys Convex
-first, then the Worker with the prepared assets and the normal production cron.
-Production releases are serialized and never automatically cancelled. If main
-advances after the final check, the following tested release runs afterward.
+## Tests before release
 
-Post-deploy checks verify HTTPS routes, unsigned auth/webhook rejection,
-authenticated existing-channel reads, anonymous Convex denial, the production
-frontend backend URL, and the expected asset commit. The job summary records the
-source commit and active Worker version IDs, and checks the Worker's version tag
-matches the released commit. These checks do not send Telegram
-messages or modify app data.
+Workers Builds deploys every push to `main`, whether or not tests have run.
+The GitHub `Test` workflow still runs on every PR and on `main`. Make it a
+required status check in `main`'s branch protection, so that untested code
+cannot reach `main`.
 
 ## Failure and phone checks
 
-A failed deployment stops the workflow. If Convex succeeded and the Worker
-failed, inspect compatibility and fix forward; the workflow does not blindly
-roll back the backend or restore a data snapshot. Follow the existing
+A failed step stops the build. If Convex deployed and the Worker failed,
+inspect compatibility and fix forward. Do not roll back the backend or restore
+a data snapshot without checking first. Follow the existing
 [recovery procedure](production-cutover.md#5-rollback) when recovery is needed.
+Worker versions can be rolled back from the dashboard (Deployments).
 
-After releasing PR #178, use an existing production admin's phone to open a
-halaqa, open **أضف مشرفة**, check the eligible supervisor list, verify an incorrect
-passcode is rejected, then add an intended supervisor using the correct passcode.
-Also repeat the pending fresh `/admin` command and returned panel-button check.
-Use only an agreed test halaqa or a supervisor change the operator intends.
+After a release that changes admin flows, open a halaqa on an existing
+production admin's phone. Use only an agreed test halaqa.

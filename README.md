@@ -298,15 +298,14 @@ with new IDs and keeps the bot connected.
    | | `halaqabot` (bot) | `halaqabot-sim` (simulator) |
    | --- | --- | --- |
    | Build command | `bun install --frozen-lockfile` | `bun install --frozen-lockfile` |
-   | Deploy command (production branch) | `echo "Production deploys are manual"` | `cd packages/testing && npx wrangler deploy` |
+   | Deploy command (production branch) | `bun scripts/cloudflare-production.ts` | `cd packages/testing && npx wrangler deploy` |
    | Non-production branch deploy command | `bun packages/bot/scripts/build-preview.ts` | `cd packages/testing && npx wrangler preview` |
-   | Build variables | `CONVEX_DEPLOY_KEY` (the preview deploy key) | |
+   | Build variables | `CONVEX_DEPLOY_KEY` (the preview deploy key), plus the production variables in [production releases](docs/production-releases.md) | |
 
-   The bot's production deploy command is a no-op on purpose. Connecting the
-   repository builds the production branch on every merge, and production
-   releases now use the [GitHub Actions production workflow](docs/production-releases.md)
-   when its explicit release switch is enabled. Keep this Workers Builds command
-   as a no-op to avoid a second deployment path.
+   Workers Builds deploys production on every merge to `main`, and nothing else
+   does. GitHub Actions only runs tests and the preview smoke check. See
+   [production releases](docs/production-releases.md) for the build variables
+   and the `PRODUCTION_RELEASE_ENABLED` switch.
 3. **Preview secrets**, on each Worker's Preview base config:
    - Bot (in `packages/bot`), via `bunx wrangler preview base-config secret put <NAME>`:
      `BOT_TOKEN` (any `<digits>:<text>`), `TELEGRAM_WEBHOOK_SECRET` and
