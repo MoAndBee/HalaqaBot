@@ -185,6 +185,42 @@ export const getUserList = query({
   },
 });
 
+/**
+ * How many participants startNewSession would carry over: the unfinished,
+ * not-skipped turns of the post's current Telegram session. Mirrors the
+ * mutation rather than the session being viewed, which may be an external
+ * (Zoom) or older one.
+ */
+export const getCarryOverCount = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
+    const allSessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_chat_post", (q) =>
+        q.eq("chatId", args.chatId).eq("postId", args.postId)
+      )
+      .collect();
+
+    const previousSession = pickCurrentSession(allSessions);
+    if (!previousSession) return 0;
+
+    const queueEntries = await ctx.db
+      .query("turnQueue")
+      .withIndex("by_chat_post_session", (q) =>
+        q.eq("chatId", args.chatId)
+          .eq("postId", args.postId)
+          .eq("sessionNumber", previousSession.sessionNumber)
+      )
+      .collect();
+
+    return queueEntries.filter((entry) => !entry.wasSkipped).length;
+  },
+});
+
 export const getAvailableSessions = query({
   args: {
     chatId: v.number(),

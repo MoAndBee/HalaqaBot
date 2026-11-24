@@ -145,6 +145,29 @@ describe("sending the participant list", () => {
     expect(listMessages(postId)[0]?.text).not.toContain("Zoom teacher");
   });
 
+  test("the carry-over count follows the Telegram halaqa, not an external one", async () => {
+    const postId = await halaqaWithStudents();
+    const chatId = stack.world.groupId;
+    expect(await stack.query(api.queries.getCarryOverCount, { chatId, postId })).toBe(2);
+
+    // An external halaqa whose list is all done must not change the count.
+    const external = await stack.mutation(api.mutations.applyManualList, {
+      chatId, channelId: stack.world.channelId, postId,
+      mode: "create", appliedBy: stack.world.admin.id, rawText: "manual carry-over test",
+      newSession: { teacherName: "Zoom teacher", platform: "Zoom" },
+      entries: [{ userId: stack.world.students[0]!.id, done: true, skipped: false, sessionType: "تسميع" }],
+    });
+    const externalList = await stack.query(api.queries.getUserList, { chatId, postId, sessionNumber: external.sessionNumber });
+    expect(externalList.activeUsers).toHaveLength(0);
+    expect(await stack.query(api.queries.getCarryOverCount, { chatId, postId })).toBe(2);
+
+    const started = await stack.mutation(api.mutations.startNewSession, {
+      chatId, postId, teacherName: "T2", supervisorUserId: stack.world.admin.id, carryOverIncomplete: true,
+    });
+    const next = await stack.query(api.queries.getUserList, { chatId, postId, sessionNumber: started.newSessionNumber });
+    expect(next.activeUsers).toHaveLength(2);
+  });
+
   test("a locked halaqa's list can't be sent", async () => {
     const postId = await halaqaWithStudents();
     await stack.mutation(api.mutations.lockSession, { chatId: stack.world.groupId, postId, sessionNumber: 1 });
