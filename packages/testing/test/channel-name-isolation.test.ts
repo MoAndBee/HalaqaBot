@@ -491,6 +491,20 @@ describe("locking and supervisor removal", () => {
     expect(session?.isLocked).toBe(true);
   });
 
+  test("exam scores can still be saved from the exams page once the halaqa is locked", async () => {
+    const { t, admin } = await seeded();
+    await admin.mutation(api.mutations.lockSession, { ...args, lockedBy: "manual" });
+    const [record] = await admin.query(api.queries.getExamRecords, { chatId: CHAT_A });
+
+    await admin.mutation(api.mutations.bulkUpdateParticipationScores, {
+      updates: [{ entryId: record.entryId, score: 15 }],
+    });
+    const [after] = await admin.query(api.queries.getExamRecords, { chatId: CHAT_A });
+    expect(after.score).toBe(15);
+    const session = await t.run((ctx) => ctx.db.query("sessions").first());
+    expect(session?.isLocked).toBe(true);
+  });
+
   test("removing the last supervisor explains why", async () => {
     const { admin } = await seeded();
     const error = await refusal(admin.mutation(api.mutations.removeSessionSupervisor, { ...args, supervisorUserId: ADMIN_A }));

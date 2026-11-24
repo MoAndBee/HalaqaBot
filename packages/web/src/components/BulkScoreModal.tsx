@@ -90,6 +90,12 @@ interface AnalyzeError {
   detail: string
 }
 
+/** The server's own reason when it gives one */
+function saveErrorMessage(error: unknown): string {
+  if (error instanceof ConvexError && typeof error.data === 'string') return error.data
+  return 'فشل حفظ الدرجات'
+}
+
 /**
  * The action reports failures as ConvexError data — a plain Error would reach
  * the browser as "Server Error", which is what made every failure here look
@@ -249,8 +255,15 @@ export function BulkScoreModal({
     return [{ candidate, score }]
   })
 
+  // A pasted score equal to the saved one needs no write — re-pasting a list
+  // that was already entered is common, and those rows are simply done
+  const alreadySaved = resolved.filter(
+    ({ candidate, score }) => candidate.entryId !== null && candidate.score === score
+  ).length
+
   const updates = resolved.flatMap(({ candidate, score }) => {
     if (candidate.entryId === null) return []
+    if (candidate.score === score) return []
     if (candidate.score != null && !overwrite) return []
     return [{ entryId: candidate.entryId, score }]
   })
@@ -261,8 +274,13 @@ export function BulkScoreModal({
 
   const totalToSave = updates.length + additions.length
 
+  // Only scores that differ from the saved one need the overwrite option
   const skippedExisting = resolved.filter(
-    ({ candidate }) => candidate.entryId !== null && candidate.score != null && !overwrite
+    ({ candidate, score }) =>
+      candidate.entryId !== null &&
+      candidate.score != null &&
+      candidate.score !== score &&
+      !overwrite
   ).length
 
   const matchedKeys = new Set(usedKeys)
@@ -295,7 +313,7 @@ export function BulkScoreModal({
       resetAndClose()
     } catch (error) {
       console.error('Bulk score save failed:', error)
-      toast.error('فشل حفظ الدرجات')
+      toast.error(saveErrorMessage(error))
     } finally {
       setIsSaving(false)
     }
@@ -460,7 +478,14 @@ export function BulkScoreModal({
               </label>
               {skippedExisting > 0 && !overwrite && (
                 <p className="text-xs text-muted-foreground">
-                  سيتم تخطي {skippedExisting.toLocaleString('ar-EG')} طالبة لديها درجة مسبقاً
+                  سيتم تخطي {skippedExisting.toLocaleString('ar-EG')} طالبة لديها درجة مختلفة مسبقاً.
+                  لاستبدالها فعّلي «استبدال الدرجات الموجودة مسبقاً».
+                </p>
+              )}
+              {alreadySaved > 0 && (
+                <p className="flex items-center gap-1 text-xs text-green-700 dark:text-green-500">
+                  <CheckCircle2 className="h-3 w-3 shrink-0" />
+                  {alreadySaved.toLocaleString('ar-EG')} درجة محفوظة مسبقاً بنفس القيمة، لا تحتاج حفظاً
                 </p>
               )}
               {additions.length > 0 && (
@@ -510,6 +535,8 @@ export function BulkScoreModal({
                     <Loader2 className="h-4 w-4 animate-spin" />
                     جاري الحفظ...
                   </>
+                ) : totalToSave === 0 && alreadySaved > 0 && skippedExisting === 0 ? (
+                  'كل الدرجات محفوظة'
                 ) : (
                   `حفظ ${totalToSave.toLocaleString('ar-EG')} درجة`
                 )}

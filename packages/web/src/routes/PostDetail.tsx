@@ -852,13 +852,13 @@ export default function PostDetail() {
 
     const currentSession = selectedSession ?? data.currentSession
 
-    // Locking is allowed with unscored exams, but scores can't be added once
-    // locked, so mention them in the confirmation.
+    // Locking is allowed with unscored exams; their scores can still be
+    // entered from the exams page afterwards, so point there.
     const unscoredExams = data.completedUsers.filter(
       (user) => user.sessionType === 'اختبار' && user.score == null
     ).length
     const unscoredWarning = unscoredExams > 0
-      ? `\n\nتنبيه: يوجد ${unscoredExams.toLocaleString('ar-EG')} اختبار بدون درجة.`
+      ? `\n\nتنبيه: يوجد ${unscoredExams.toLocaleString('ar-EG')} اختبار بدون درجة. يمكن إدخال الدرجات لاحقاً من صفحة الاختبارات.`
       : ''
 
     // Ask for confirmation before locking

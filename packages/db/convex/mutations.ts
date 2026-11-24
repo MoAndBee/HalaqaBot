@@ -1317,7 +1317,9 @@ export const bulkUpdateParticipationScores = mutation({
         throw new Error(`Entry not found`);
       }
 
-      await checkSessionLock(ctx, entry.chatId, entry.postId, entry.sessionNumber);
+      // No session lock check: exam scores stay editable from the exams page
+      // after a halaqa is locked, since they usually arrive after it ends.
+      // The lock still guards every other halaqa edit.
 
       if (entry.sessionType !== 'اختبار') {
         throw new ConvexError("الدرجة متاحة فقط لمشاركات الاختبار");
@@ -1332,8 +1334,6 @@ export const bulkUpdateParticipationScores = mutation({
 
     if (addition && addition.entries.length > 0) {
       const { chatId, postId, sessionNumber, channelId, completedAt } = addition;
-
-      await checkSessionLock(ctx, chatId, postId, sessionNumber);
 
       const sessionHistory = await ctx.db
         .query("participationHistory")
