@@ -391,6 +391,15 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                 <p className="text-center font-medium">
                   غابت {absence.absent.toLocaleString('ar-EG')} من {absence.required.toLocaleString('ar-EG')}
                 </p>
+                {absence.compensationRate !== null && (
+                  <div className="rounded-lg border p-4 text-center">
+                    <div className="text-3xl font-black text-yellow-600">{percent(absence.compensationRate)}</div>
+                    <div className="text-sm text-muted-foreground">نسبة التعويض</div>
+                    <div className="text-sm mt-1">
+                      عوّضت {absence.compensatedDays.toLocaleString('ar-EG')} من {absence.days.toLocaleString('ar-EG')} يومًا (غير أيام الاختبارات)
+                    </div>
+                  </div>
+                )}
                 {missedUnits.length > 0 && (
                   <div>
                     <h3 className="font-bold mb-2">الغياب</h3>
@@ -409,7 +418,7 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  كل يوم قبل اليوم يُحسب. يحضر اليوم بتسميع أو اختبار أو تعويض عنه. الاختبار يُحسب مرة واحدة ولو امتد عدة أيام، ويكفي أن تختبر في أحد أيامه، ولا يُحسب إلا بعد انتهاء آخر أيامه.
+                  كل يوم قبل اليوم يُحسب. يحضر اليوم بتسميع أو اختبار أو تعويض عنه. الاختبار يُحسب مرة واحدة ولو امتد عدة أيام، ويكفي أن تختبر في أحد أيامه، ولا يُحسب إلا بعد انتهاء آخر أيامه. نسبة التعويض: الأيام التي حضرتها بالتعويض فقط مقسومة على الأيام المحسوبة غير أيام الاختبارات.
                 </p>
               </div>
             )}

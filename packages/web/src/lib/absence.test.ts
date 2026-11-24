@@ -194,3 +194,49 @@ describe('exam across two months', () => {
     expect(oct.units).toHaveLength(0)
   })
 })
+
+describe('نسبة التعويض', () => {
+  test('days made up ÷ ordinary days; one تعويض covering two days counts twice', () => {
+    const r = computeMonthlyAbsence(
+      base({ participations: [...everyDay(1, 10, [2, 3, 6]), makeUp(11, 5, [11, 2], [11, 3])] })
+    )
+    expect(r.days).toBe(10)
+    expect(r.compensatedDays).toBe(2)
+    expect(r.compensationRate).toBeCloseTo(0.2)
+    expect(r.units.filter((u) => u.compensated).map((u) => u.days[0])).toEqual([
+      '2026-11-02',
+      '2026-11-03',
+    ])
+  })
+
+  test('exam days are left out of both sides', () => {
+    const markedExams = [{ name: 'اختبار', days: ['2026-11-07', '2026-11-08'] }]
+    const r = computeMonthlyAbsence(
+      base({
+        participations: [...everyDay(1, 10, [4, 7, 8]), makeUp(11, 9, [11, 4], [11, 7])],
+        markedExams,
+        courseExamTimes: [at(11, 7)],
+      })
+    )
+    // 8 ordinary days; the make-up for the exam day isn't counted
+    expect(r.days).toBe(8)
+    expect(r.compensatedDays).toBe(1)
+    expect(r.compensationRate).toBeCloseTo(1 / 8)
+  })
+
+  test('a day she also did تسميع on is not a تعويض day', () => {
+    const r = computeMonthlyAbsence(
+      base({ participations: [...everyDay(1, 10), makeUp(11, 6, [11, 3])] })
+    )
+    expect(r.compensatedDays).toBe(0)
+    expect(r.compensationRate).toBe(0)
+  })
+
+  test('a تعويض done this month for last month counts in last month', () => {
+    const participations = [tasmee(10, 30), ...everyDay(1, 10), makeUp(11, 2, [10, 31])]
+    expect(computeMonthlyAbsence(base({ participations })).compensatedDays).toBe(0)
+    const oct = computeMonthlyAbsence(base({ month: 9, participations }))
+    expect(oct.days).toBe(2)
+    expect(oct.compensatedDays).toBe(1)
+  })
+})
