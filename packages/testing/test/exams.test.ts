@@ -118,3 +118,28 @@ describe("absence inputs", () => {
     expect((await at(0, 2000)).examTimes).toEqual([]); // to is exclusive
   });
 });
+
+describe("exams list", () => {
+  test("summaries are this chat's exams only, without names", async () => {
+    const { admin } = await fixture();
+    expect(await admin.query(api.queries.getExamSummaries, { chatId: CHAT })).toEqual([
+      { completedAt: 2000, scored: false },
+    ]);
+  });
+
+  test("records of an opened exam are limited to its days", async () => {
+    const { admin } = await fixture();
+    const records = (ranges?: { from: number; to: number }[]) =>
+      admin.query(api.queries.getExamRecords, { chatId: CHAT, ranges });
+    expect((await records()).map((r) => r.completedAt)).toEqual([2000]);
+    expect((await records([{ from: 1500, to: 2500 }]))[0]).toMatchObject({
+      userId: STUDENT + 1, completedAt: 2000, score: null,
+    });
+    expect(await records([{ from: 0, to: 2000 }, { from: 2001, to: 9999 }])).toEqual([]);
+  });
+
+  test("an outsider can't list the exams", async () => {
+    const { outsider } = await fixture();
+    await expect(outsider.query(api.queries.getExamSummaries, { chatId: CHAT })).rejects.toThrow();
+  });
+});

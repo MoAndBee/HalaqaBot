@@ -42,13 +42,23 @@ interface MarkedExam {
   days: string[]
 }
 
+/** One completed اختبار, without the student: enough to list and count exams. */
+interface ExamSummary {
+  completedAt: number
+  scored: boolean
+}
+
 /** A calendar day with at least one اختبار. */
 interface ExamDay {
   /** "YYYY-MM-DD", local */
   key: string
   timestamp: number
-  records: ExamRecord[]
+  count: number
+  unscored: number
 }
+
+/** Exams shown per page of the list */
+const PAGE_SIZE = 5
 
 /**
  * One exam as admins score it: a marked exam with all its days, or an exam
@@ -61,7 +71,8 @@ interface ExamGroup {
   days: ExamDay[]
   /** Every calendar day of the exam, oldest first */
   dayKeys: string[]
-  records: ExamRecord[]
+  count: number
+  unscored: number
 }
 
 /** Which days are being grouped into one exam, and under what name. */
@@ -102,6 +113,20 @@ function bulkTargetFor(records: ExamRecord[], chatId: number) {
 function parseDayKey(key: string): Date {
   const [y, m, d] = key.split('-').map(Number)
   return new Date(y, m - 1, d)
+}
+
+/** The [from, to) time window of a local calendar day */
+function dayRange(key: string) {
+  const start = parseDayKey(key)
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1)
+  return { from: start.getTime(), to: end.getTime() }
+}
+
+/** The days of the exam a list key points at: "exam:<id>" or "day:<YYYY-MM-DD>" */
+function groupDayKeys(groupKey: string, exams: MarkedExam[] | undefined): string[] | null {
+  if (groupKey.startsWith('day:')) return [groupKey.slice(4)]
+  const exam = exams?.find((e) => `exam:${e.examId}` === groupKey)
+  return exam ? exam.days : null
 }
 
 function formatDate(timestamp: number): string {
@@ -156,7 +181,8 @@ const errorText = (error: unknown, fallback: string) =>
 
 export default function ExamRecords() {
   const { chatId } = useSelectedChannel()
-  const records = useQuery(api.queries.getExamRecords, { chatId })
+  // Only times and whether each is scored: names are fetched per opened exam
+  const summaries = useQuery(api.queries.getExamSummaries, { chatId })
   const exams = useQuery(api.exams.getExams, { chatId })
   const saveExam = useMutation(api.exams.saveExam)
   const deleteExam = useMutation(api.exams.deleteExam)
@@ -165,6 +191,12 @@ export default function ExamRecords() {
   const [draft, setDraft] = useState<ExamDraft | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const selectedDayKeys = selectedGroupKey ? groupDayKeys(selectedGroupKey, exams) : null
+  const selectedRecords = useQuery(
+    api.queries.getExamRecords,
+    selectedDayKeys ? { chatId, ranges: selectedDayKeys.map(dayRange) } : 'skip'
+  )
   // Only needed once the paste modal is open, and it walks the channel's whole
   // participation history — don't pay for it on the exams list
   const channelStudents = useQuery(
@@ -172,7 +204,7 @@ export default function ExamRecords() {
     isBulkScoreOpen ? { chatId } : 'skip'
   )
 
-  if (records === undefined || exams === undefined) {
+  if (summaries === undefined || exams === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader />
@@ -182,14 +214,15 @@ export default function ExamRecords() {
 
   // Group exam participations by calendar day
   const days = new Map<string, ExamDay>()
-  records.forEach((r: ExamRecord) => {
+  summaries.forEach((r: ExamSummary) => {
     const key = dayKey(r.completedAt)
     let day = days.get(key)
     if (!day) {
-      day = { key, timestamp: parseDayKey(key).getTime(), records: [] }
+      day = { key, timestamp: parseDayKey(key).getTime(), count: 0, unscored: 0 }
       days.set(key, day)
     }
-    day.records.push(r)
+    day.count++
+    if (!r.scored) day.unscored++
   })
   const sortedDays = [...days.values()].sort((a, b) => b.timestamp - a.timestamp)
 
@@ -203,12 +236,20 @@ export default function ExamRecords() {
       exam: e,
       days: examDays,
       dayKeys: e.days,
-      records: examDays.flatMap((d) => d.records),
+      count: examDays.reduce((n, d) => n + d.count, 0),
+      unscored: examDays.reduce((n, d) => n + d.unscored, 0),
     }
   })
   sortedDays.forEach((day) => {
     if (!examByDay.has(day.key)) {
-      groups.push({ key: `day:${day.key}`, exam: null, days: [day], dayKeys: [day.key], records: day.records })
+      groups.push({
+        key: `day:${day.key}`,
+        exam: null,
+        days: [day],
+        dayKeys: [day.key],
+        count: day.count,
+        unscored: day.unscored,
+      })
     }
   })
   // Newest exam first, by its last day
@@ -274,7 +315,14 @@ export default function ExamRecords() {
 
   // Exam detail view: students and their scores, across all its days
   if (selectedGroup) {
-    const students = [...selectedGroup.records].sort((a, b) => compareArabicNames(a.name, b.name))
+    if (selectedRecords === undefined) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <Loader />
+        </div>
+      )
+    }
+    const students = [...(selectedRecords as ExamRecord[])].sort((a, b) => compareArabicNames(a.name, b.name))
     const unscoredCount = students.filter((s) => s.score == null).length
     const multiDay = selectedGroup.dayKeys.length > 1
 
@@ -378,7 +426,7 @@ export default function ExamRecords() {
               score: s.score,
             }))}
             otherStudents={channelStudents ?? []}
-            target={bulkTargetFor(selectedGroup.records, chatId)}
+            target={bulkTargetFor(students, chatId)}
           />
         )}
       </div>
@@ -461,7 +509,7 @@ export default function ExamRecords() {
           </div>
         ) : draft ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sortedDays.map((day) => {
+            {sortedDays.slice(0, visibleCount).map((day) => {
               const exam = examByDay.get(day.key)
               // A day already in another exam can't be picked
               const takenElsewhere = !!exam && exam.examId !== draft.examId
@@ -485,7 +533,7 @@ export default function ExamRecords() {
                     <div className="min-w-0">
                       <p className="font-bold truncate">{formatDate(day.timestamp)}</p>
                       <p className="text-sm text-muted-foreground truncate">
-                        {day.records.length.toLocaleString('ar-EG')} طالبات اختبرن
+                        {day.count.toLocaleString('ar-EG')} طالبات اختبرن
                         {takenElsewhere && ` · ضمن «${exam!.name}»`}
                       </p>
                     </div>
@@ -496,8 +544,8 @@ export default function ExamRecords() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groups.map((group) => {
-              const unscoredCount = group.records.filter((r) => r.score == null).length
+            {groups.slice(0, visibleCount).map((group) => {
+              const unscoredCount = group.unscored
               const first = parseDayKey(group.dayKeys[0])
               return (
                 <Card
@@ -546,7 +594,7 @@ export default function ExamRecords() {
                     <div className="flex flex-wrap gap-3 text-sm">
                       <span className="flex items-center gap-1 text-orange-600 font-medium">
                         <Users className="h-4 w-4" />
-                        {group.records.length.toLocaleString('ar-EG')} طالبات اختبرن
+                        {group.count.toLocaleString('ar-EG')} طالبات اختبرن
                       </span>
                       {unscoredCount > 0 && (
                         <span className="flex items-center gap-1 text-destructive font-medium">
@@ -559,6 +607,13 @@ export default function ExamRecords() {
                 </Card>
               )
             })}
+          </div>
+        )}
+        {(draft ? sortedDays.length : groups.length) > visibleCount && (
+          <div className="flex justify-center mt-4">
+            <Button variant="outline" onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}>
+              عرض المزيد
+            </Button>
           </div>
         )}
       </div>

@@ -1088,22 +1088,56 @@ export const getTasmeeAttendance = query({
   },
 });
 
-export const getExamRecords = query({
+/**
+ * One row per completed اختبار in the chat: just its time and whether it has a
+ * score. The exams list groups these into days and exams in the viewer's local
+ * time and only fetches names (getExamRecords) for the exam that is opened.
+ */
+export const getExamSummaries = query({
   args: {
     chatId: v.number(),
   },
   handler: async (ctx, args) => {
     await requireChatAccess(ctx, args.chatId);
-    // All completed اختبار participations for this chat
-    const examEntries = await ctx.db
+    const rows = await ctx.db
       .query("participationHistory")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("chatId"), args.chatId),
-          q.eq(q.field("sessionType"), "اختبار")
-        )
+      .withIndex("by_chat_type_completed", (q) =>
+        q.eq("chatId", args.chatId).eq("sessionType", "اختبار")
       )
       .collect();
+    return rows.map((e) => ({ completedAt: e.completedAt, scored: e.score != null }));
+  },
+});
+
+/**
+ * Completed اختبار participations for this chat, with the student's name.
+ * `ranges` limits them to [from, to) time windows — the local days of the
+ * exam being viewed; without it, every exam in the chat.
+ */
+export const getExamRecords = query({
+  args: {
+    chatId: v.number(),
+    ranges: v.optional(v.array(v.object({ from: v.number(), to: v.number() }))),
+  },
+  handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
+    const windows = args.ranges ?? [{ from: -Infinity, to: Infinity }];
+    const examEntries = (
+      await Promise.all(
+        windows.map(({ from, to }) =>
+          ctx.db
+            .query("participationHistory")
+            .withIndex("by_chat_type_completed", (q) =>
+              q
+                .eq("chatId", args.chatId)
+                .eq("sessionType", "اختبار")
+                .gte("completedAt", from)
+                .lt("completedAt", to)
+            )
+            .collect()
+        )
+      )
+    ).flat();
 
     const userIds = [...new Set(examEntries.map((e) => e.userId))];
 
