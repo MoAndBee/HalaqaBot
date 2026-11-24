@@ -154,6 +154,17 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   const missedUnits = absence?.units.filter((u) => !u.present) ?? []
   const percent = (fraction: number) =>
     `${Math.round(fraction * 100).toLocaleString('ar-EG')}٪`
+  // The month split three ways. Rounded so the parts add up to the big
+  // numbers: on time + تعويض = نسبة الحضور, and that + غياب = 100٪
+  const split =
+    absence && absence.rate !== null
+      ? (() => {
+          const absent = Math.round(absence.rate * 100)
+          const compensated = Math.round((absence.compensatedDays / absence.required) * 100)
+          return { onTime: 100 - absent - compensated, compensated, absent }
+        })()
+      : null
+  const pct = (n: number) => `${n.toLocaleString('ar-EG')}٪`
   const shortDate = (key: string) => {
     const [y, m, d] = key.split('-').map(Number)
     return new Date(y, m - 1, d).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -380,25 +391,49 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg border p-4 text-center">
-                    <div className="text-3xl font-black text-destructive">{percent(absence.rate)}</div>
+                    <div className="text-3xl font-black text-destructive">{pct(split!.absent)}</div>
                     <div className="text-sm text-muted-foreground">نسبة الغياب</div>
                   </div>
                   <div className="rounded-lg border p-4 text-center">
-                    <div className="text-3xl font-black text-green-600">{percent(1 - absence.rate)}</div>
+                    <div className="text-3xl font-black text-green-600">{pct(split!.onTime + split!.compensated)}</div>
                     <div className="text-sm text-muted-foreground">نسبة الحضور</div>
+                  </div>
+                </div>
+                {/* في الوقت + تعويض + غياب = 100٪ */}
+                <div>
+                  <div
+                    className="flex h-3 w-full overflow-hidden rounded-full bg-muted"
+                    role="img"
+                    aria-label={`في الوقت ${pct(split!.onTime)}، تعويض ${pct(split!.compensated)}، غياب ${pct(split!.absent)}`}
+                  >
+                    <div className="bg-green-600" style={{ width: `${split!.onTime}%` }} />
+                    <div className="bg-yellow-500" style={{ width: `${split!.compensated}%` }} />
+                    <div className="bg-destructive/70" style={{ width: `${split!.absent}%` }} />
+                  </div>
+                  <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-green-600" />
+                      في الوقت {pct(split!.onTime)}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+                      تعويض {pct(split!.compensated)}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
+                      غياب {pct(split!.absent)}
+                    </span>
                   </div>
                 </div>
                 <p className="text-center font-medium">
                   غابت {absence.absent.toLocaleString('ar-EG')} من {absence.required.toLocaleString('ar-EG')}
                 </p>
                 {absence.compensationRate !== null && (
-                  <div className="rounded-lg border p-4 text-center">
-                    <div className="text-3xl font-black text-yellow-600">{percent(absence.compensationRate)}</div>
-                    <div className="text-sm text-muted-foreground">نسبة التعويض</div>
-                    <div className="text-sm mt-1">
-                      عوّضت {absence.compensatedDays.toLocaleString('ar-EG')} من {absence.days.toLocaleString('ar-EG')} يومًا (غير أيام الاختبارات)
-                    </div>
-                  </div>
+                  <p className="text-center text-sm">
+                    <span className="font-bold text-yellow-600">{percent(absence.compensationRate)}</span>{' '}
+                    من حضورها كان بالتعويض ({absence.compensatedDays.toLocaleString('ar-EG')} من{' '}
+                    {absence.present.toLocaleString('ar-EG')})
+                  </p>
                 )}
                 {missedUnits.length > 0 && (
                   <div>
@@ -418,7 +453,7 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  كل يوم قبل اليوم يُحسب. يحضر اليوم بتسميع أو اختبار أو تعويض عنه. الاختبار يُحسب مرة واحدة ولو امتد عدة أيام، ويكفي أن تختبر في أحد أيامه، ولا يُحسب إلا بعد انتهاء آخر أيامه. نسبة التعويض: الأيام التي حضرتها بالتعويض فقط مقسومة على الأيام المحسوبة غير أيام الاختبارات.
+                  كل يوم قبل اليوم يُحسب. يحضر اليوم بتسميع أو اختبار أو تعويض عنه. الاختبار يُحسب مرة واحدة ولو امتد عدة أيام، ويكفي أن تختبر في أحد أيامه، ولا يُحسب إلا بعد انتهاء آخر أيامه. نسبة التعويض: الأيام التي حضرتها بالتعويض فقط مقسومة على كل ما حضرته، والاختبار الذي اختبرته يُحسب حضورًا في الوقت.
                 </p>
               </div>
             )}

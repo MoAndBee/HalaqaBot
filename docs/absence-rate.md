@@ -28,15 +28,19 @@ exam.
 نسبة الغياب = missed units ÷ counted units. The card also shows نسبة الحضور,
 "غابت X من Y" and the list of missed days and exams.
 
-نسبة التعويض = ordinary days she attended **only** through a تعويض ÷ counted
-ordinary days (exams left out). Shown as "عوّضت X من Y يومًا".
+نسبة التعويض = days she attended **only** through a تعويض ÷ units she
+attended. It is the share of her attendance that she made up later, shown as
+"X٪ من حضورها كان بالتعويض". Under the two big numbers, a bar splits the month
+into في الوقت, تعويض and غياب, each a share of all counted units, so the three
+add up to 100%.
 
+- Exams are in the denominator: an exam she sat counts as attending on time.
+  An exam can't be made up, so a تعويض for an exam day doesn't count.
 - A تعويض covering several days counts once per day it covers.
 - A day she also did تسميع or اختبار on isn't a تعويض day.
-- A تعويض for an exam day doesn't count, same as for نسبة الغياب.
 - It counts in the month of the day it makes up, not the day it was done.
 - It uses the same counted days as نسبة الغياب (not today, not before her
-  first participation, not after removal), so حضور = on time + تعويض.
+  first participation, not after removal).
 
 ## What isn't counted
 

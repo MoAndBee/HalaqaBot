@@ -196,32 +196,33 @@ describe('exam across two months', () => {
 })
 
 describe('نسبة التعويض', () => {
-  test('days made up ÷ ordinary days; one تعويض covering two days counts twice', () => {
+  test('days made up ÷ days attended; one تعويض covering two days counts twice', () => {
     const r = computeMonthlyAbsence(
       base({ participations: [...everyDay(1, 10, [2, 3, 6]), makeUp(11, 5, [11, 2], [11, 3])] })
     )
-    expect(r.days).toBe(10)
+    // Attended 9 of 10 (Nov 6 missed), 2 of them through تعويض
+    expect(r.present).toBe(9)
     expect(r.compensatedDays).toBe(2)
-    expect(r.compensationRate).toBeCloseTo(0.2)
+    expect(r.compensationRate).toBeCloseTo(2 / 9)
     expect(r.units.filter((u) => u.compensated).map((u) => u.days[0])).toEqual([
       '2026-11-02',
       '2026-11-03',
     ])
   })
 
-  test('exam days are left out of both sides', () => {
+  test('a sat exam counts as attended on time; a تعويض for an exam day does not count', () => {
     const markedExams = [{ name: 'اختبار', days: ['2026-11-07', '2026-11-08'] }]
     const r = computeMonthlyAbsence(
       base({
-        participations: [...everyDay(1, 10, [4, 7, 8]), makeUp(11, 9, [11, 4], [11, 7])],
+        participations: [...everyDay(1, 10, [4, 7, 8]), exam(11, 8), makeUp(11, 9, [11, 4], [11, 7])],
         markedExams,
-        courseExamTimes: [at(11, 7)],
+        courseExamTimes: [at(11, 8)],
       })
     )
-    // 8 ordinary days; the make-up for the exam day isn't counted
-    expect(r.days).toBe(8)
+    // 8 ordinary days + 1 exam, all attended; only Nov 4 through تعويض
+    expect(r.present).toBe(9)
     expect(r.compensatedDays).toBe(1)
-    expect(r.compensationRate).toBeCloseTo(1 / 8)
+    expect(r.compensationRate).toBeCloseTo(1 / 9)
   })
 
   test('a day she also did تسميع on is not a تعويض day', () => {
@@ -232,11 +233,20 @@ describe('نسبة التعويض', () => {
     expect(r.compensationRate).toBe(0)
   })
 
+  test('nothing attended: no rate', () => {
+    const r = computeMonthlyAbsence(
+      base({ participations: [{ completedAt: at(11, 1), sessionType: 'تلاوة' }] })
+    )
+    expect(r.present).toBe(0)
+    expect(r.compensationRate).toBeNull()
+  })
+
   test('a تعويض done this month for last month counts in last month', () => {
     const participations = [tasmee(10, 30), ...everyDay(1, 10), makeUp(11, 2, [10, 31])]
     expect(computeMonthlyAbsence(base({ participations })).compensatedDays).toBe(0)
     const oct = computeMonthlyAbsence(base({ month: 9, participations }))
-    expect(oct.days).toBe(2)
+    expect(oct.present).toBe(2)
     expect(oct.compensatedDays).toBe(1)
+    expect(oct.compensationRate).toBeCloseTo(0.5)
   })
 })
