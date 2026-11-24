@@ -491,6 +491,21 @@ describe("locking and supervisor removal", () => {
     expect(session?.isLocked).toBe(true);
   });
 
+  test("exam records say their halaqa is locked, so the exams page can explain a refused score", async () => {
+    const { admin } = await seeded();
+    const [before] = await admin.query(api.queries.getExamRecords, { chatId: CHAT_A });
+    expect(before).toMatchObject({ isLocked: false, teacherName: "Teacher", score: null });
+
+    await admin.mutation(api.mutations.lockSession, { ...args, lockedBy: "manual" });
+    const [after] = await admin.query(api.queries.getExamRecords, { chatId: CHAT_A });
+    expect(after.isLocked).toBe(true);
+
+    const error = await refusal(admin.mutation(api.mutations.bulkUpdateParticipationScores, {
+      updates: [{ entryId: after.entryId, score: 15 }],
+    }));
+    expect((error as ConvexError<string>).data).toContain("الحلقة مغلقة");
+  });
+
   test("removing the last supervisor explains why", async () => {
     const { admin } = await seeded();
     const error = await refusal(admin.mutation(api.mutations.removeSessionSupervisor, { ...args, supervisorUserId: ADMIN_A }));

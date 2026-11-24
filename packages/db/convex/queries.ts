@@ -1118,9 +1118,25 @@ export const getExamRecords = query({
 
     const usersById = new Map(userIds.map((userId, i) => [userId, users[i]]));
 
+    // Each record's halaqa, so the exams page can say which halaqa is locked:
+    // a score can't be saved into a locked one until it is unlocked.
+    const sessionKey = (postId: number, sessionNumber: number) => `${postId}:${sessionNumber}`;
+    const postIds = [...new Set(examEntries.map((e) => e.postId))];
+    const sessionsByKey = new Map<string, Doc<"sessions">>();
+    for (const postId of postIds) {
+      const sessions = await ctx.db
+        .query("sessions")
+        .withIndex("by_chat_post", (q) => q.eq("chatId", args.chatId).eq("postId", postId))
+        .collect();
+      for (const s of sessions) sessionsByKey.set(sessionKey(s.postId, s.sessionNumber), s);
+    }
+
     return examEntries.map((e) => {
       const user = usersById.get(e.userId);
+      const session = sessionsByKey.get(sessionKey(e.postId, e.sessionNumber));
       return {
+        isLocked: session?.isLocked === true,
+        teacherName: session?.teacherName || null,
         entryId: e._id,
         userId: e.userId,
         name:
