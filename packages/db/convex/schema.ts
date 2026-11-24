@@ -153,6 +153,18 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_chat_user", ["chatId", "userId"]),
 
+  // An exam that admins marked as one exam held over one or more days.
+  // A student only needs to sit it (اختبار) on one of its days. Exam days
+  // nobody marked count as one-day exams. See docs/absence-rate.md.
+  exams: defineTable({
+    chatId: v.number(), // Discussion group of the course, like participationHistory.chatId
+    name: v.string(),
+    days: v.array(v.string()), // "YYYY-MM-DD" calendar days, sorted ascending
+    createdBy: v.optional(v.number()), // Telegram user ID of the admin
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_chat", ["chatId"]),
+
   sessions: defineTable({
     chatId: v.number(),
     postId: v.number(),

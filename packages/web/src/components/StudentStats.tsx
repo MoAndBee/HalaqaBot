@@ -14,6 +14,7 @@ import {
   SESSION_TYPE_COLORS,
   SESSION_TYPE_ORDER,
 } from '@/lib/session-types'
+import { computeMonthlyAbsence, dayKey } from '@/lib/absence'
 
 const fullDate = (timestamp: number) =>
   new Date(timestamp).toLocaleDateString('ar-EG', {
@@ -44,6 +45,7 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   const { chatId } = useSelectedChannel()
   const user = useQuery(api.queries.getUser, { userId, chatId })
   const participations = useQuery(api.queries.getUserParticipations, { userId, chatId })
+  const absenceInputs = useQuery(api.exams.getAbsenceInputs, { userId, chatId })
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
@@ -130,6 +132,25 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
 
   const goToCurrentMonth = () => {
     setCurrentDate(new Date())
+  }
+
+  const absence = absenceInputs
+    ? computeMonthlyAbsence({
+        year,
+        month,
+        today: dayKey(Date.now()),
+        participations,
+        courseExamTimes: absenceInputs.examTimes,
+        markedExams: absenceInputs.exams,
+        removedAt: absenceInputs.removedAt,
+      })
+    : null
+  const missedUnits = absence?.units.filter((u) => !u.present) ?? []
+  const percent = (fraction: number) =>
+    `${Math.round(fraction * 100).toLocaleString('ar-EG')}٪`
+  const shortDate = (key: string) => {
+    const [y, m, d] = key.split('-').map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })
   }
 
   // Arabic month names
@@ -338,13 +359,54 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
           </DialogContent>
         </Dialog>
 
-        {/* Stats Section - Placeholder */}
+        {/* Absence rate for the month shown above. Rules: lib/absence.ts */}
         <Card>
           <CardContent className="p-6">
-            <h2 className="text-2xl font-bold text-foreground mb-4">📊 الإحصائيات</h2>
-            <div className="text-center py-8 text-muted-foreground">
-              <p>قريباً - سيتم إضافة إحصائيات إضافية</p>
-            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-1">📊 نسبة الغياب</h2>
+            <p className="text-sm text-muted-foreground mb-4">{monthName}</p>
+            {absence === null ? (
+              <div className="flex justify-center py-6">
+                <Loader />
+              </div>
+            ) : absence.rate === null ? (
+              <p className="text-center py-6 text-muted-foreground">لا توجد أيام محسوبة في هذا الشهر</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border p-4 text-center">
+                    <div className="text-3xl font-black text-destructive">{percent(absence.rate)}</div>
+                    <div className="text-sm text-muted-foreground">نسبة الغياب</div>
+                  </div>
+                  <div className="rounded-lg border p-4 text-center">
+                    <div className="text-3xl font-black text-green-600">{percent(1 - absence.rate)}</div>
+                    <div className="text-sm text-muted-foreground">نسبة الحضور</div>
+                  </div>
+                </div>
+                <p className="text-center font-medium">
+                  غابت {absence.absent.toLocaleString('ar-EG')} من {absence.required.toLocaleString('ar-EG')}
+                </p>
+                {missedUnits.length > 0 && (
+                  <div>
+                    <h3 className="font-bold mb-2">الغياب</h3>
+                    <ul className="space-y-1 text-sm">
+                      {missedUnits.map((u) => (
+                        <li key={u.days.join(',')} className="flex flex-wrap items-center gap-2">
+                          {u.kind === 'exam' && (
+                            <span className={`rounded px-1.5 text-xs leading-5 text-white font-medium ${SESSION_TYPE_COLORS['اختبار']}`}>
+                              {u.name ?? 'اختبار'}
+                            </span>
+                          )}
+                          <span>{u.days.map(shortDate).join(' أو ')}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  كل يوم قبل اليوم يُحسب. يحضر اليوم بتسميع أو اختبار أو تعويض عنه. الاختبار يُحسب مرة واحدة ولو امتد عدة أيام، ويكفي أن تختبر في أحد أيامه، ولا يُحسب إلا بعد انتهاء آخر أيامه.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
