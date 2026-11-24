@@ -14,6 +14,10 @@
 //   and in the month of its last day.
 // - Nothing before her first participation in the course counts, nor anything
 //   from the day she was removed from the roster.
+// - نسبة التعويض: the share of her attendance that came through a تعويض:
+//   days attended only through a تعويض ÷ units attended (exams included; an
+//   exam can't be made up, so a sat exam counts as on time). A day she also
+//   did تسميع or اختبار on isn't a تعويض day.
 //
 // Days are calendar days in the viewer's local time, like the rest of the web
 // app (the server runs in UTC).
@@ -59,6 +63,8 @@ export interface AbsenceUnit {
   name?: string
   days: DayKey[]
   present: boolean
+  /** Ordinary day attended only through a تعويض (no تسميع or اختبار that day) */
+  compensated?: true
 }
 
 export interface AbsenceResult {
@@ -68,6 +74,10 @@ export interface AbsenceResult {
   absent: number
   /** absent ÷ required, 0..1; null when nothing is required */
   rate: number | null
+  /** Units attended only through a تعويض (always ordinary days) */
+  compensatedDays: number
+  /** compensatedDays ÷ present, 0..1: the share of her attendance made up later; null when she attended nothing */
+  compensationRate: number | null
 }
 
 const TASMEE = 'تسميع'
@@ -76,7 +86,15 @@ const EXAM = 'اختبار'
 export function computeMonthlyAbsence(input: AbsenceInput): AbsenceResult {
   const { year, month, today, participations } = input
 
-  const empty: AbsenceResult = { units: [], required: 0, present: 0, absent: 0, rate: null }
+  const empty: AbsenceResult = {
+    units: [],
+    required: 0,
+    present: 0,
+    absent: 0,
+    rate: null,
+    compensatedDays: 0,
+    compensationRate: null,
+  }
   if (participations.length === 0) return empty
 
   const start = participations.map((p) => dayKey(p.completedAt)).sort()[0]
@@ -132,21 +150,26 @@ export function computeMonthlyAbsence(input: AbsenceInput): AbsenceResult {
   for (let d = 1; d <= daysInMonth; d++) {
     const day = `${monthPrefix}${String(d).padStart(2, '0')}`
     if (day >= today || examDays.has(day) || !counts(day)) continue
+    const onlyCompensated = !attended.has(day) && compensated.has(day)
     units.push({
       kind: 'day',
       days: [day],
       present: attended.has(day) || compensated.has(day),
+      ...(onlyCompensated && { compensated: true as const }),
     })
   }
 
   units.sort((a, b) => (a.days[a.days.length - 1] < b.days[b.days.length - 1] ? -1 : 1))
   const present = units.filter((u) => u.present).length
   const required = units.length
+  const compensatedDays = units.filter((u) => u.compensated).length
   return {
     units,
     required,
     present,
     absent: required - present,
     rate: required === 0 ? null : (required - present) / required,
+    compensatedDays,
+    compensationRate: present === 0 ? null : compensatedDays / present,
   }
 }
