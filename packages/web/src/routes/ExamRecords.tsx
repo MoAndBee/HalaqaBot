@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'wouter'
 import { useQuery } from 'convex/react'
 import { api } from '@halakabot/db'
-import { ArrowRight, GraduationCap, Copy, AlertTriangle, Users, ClipboardPaste, Lock } from 'lucide-react'
+import { ArrowRight, GraduationCap, Copy, AlertTriangle, Users, ClipboardPaste } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,8 +21,6 @@ interface ExamRecord {
   postId: number
   sessionNumber: number
   channelId: number | null
-  isLocked: boolean
-  teacherName: string | null
 }
 
 interface ExamDay {
@@ -34,8 +32,7 @@ interface ExamDay {
 /**
  * Which halaqa a student added through the bulk paste flow is filed against.
  * A day can span more than one post, so the busiest session wins — that is the
- * one an unrecorded student most likely sat in. A locked halaqa refuses new
- * records, so an unlocked one is preferred whenever the day has one.
+ * one an unrecorded student most likely sat in.
  */
 function bulkTargetFor(day: ExamDay, chatId: number) {
   const counts = new Map<string, { record: ExamRecord; count: number }>()
@@ -49,9 +46,7 @@ function bulkTargetFor(day: ExamDay, chatId: number) {
     }
   })
 
-  const busiest = [...counts.values()].sort(
-    (a, b) => Number(a.record.isLocked) - Number(b.record.isLocked) || b.count - a.count
-  )[0].record
+  const busiest = [...counts.values()].sort((a, b) => b.count - a.count)[0].record
 
   return {
     chatId,
@@ -59,15 +54,7 @@ function bulkTargetFor(day: ExamDay, chatId: number) {
     sessionNumber: busiest.sessionNumber,
     channelId: busiest.channelId,
     completedAt: busiest.completedAt,
-    isLocked: busiest.isLocked,
   }
-}
-
-/** Names a halaqa for the admin: its teacher, else its number */
-function halaqaLabelOf(record: ExamRecord): string {
-  return record.teacherName
-    ? `حلقة ${record.teacherName}`
-    : `الحلقة رقم ${record.sessionNumber.toLocaleString('ar-EG')}`
 }
 
 function dayKeyOf(timestamp: number): { key: string; dayStart: number } {
@@ -206,15 +193,7 @@ export default function ExamRecords() {
               <ul className="divide-y">
                 {students.map((s, idx) => (
                   <li key={`${s.userId}-${idx}`} className="flex items-center justify-between gap-3 py-3">
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span className="truncate">{s.name}</span>
-                      {s.isLocked && s.score == null && (
-                        <Lock
-                          className="h-3.5 w-3.5 text-muted-foreground shrink-0"
-                          aria-label={`${halaqaLabelOf(s)} مغلقة`}
-                        />
-                      )}
-                    </span>
+                    <span className="truncate">{s.name}</span>
                     {s.score != null ? (
                       <Badge className="bg-orange-500 hover:bg-orange-500 text-white shrink-0">
                         {s.score.toLocaleString('ar-EG')}
@@ -240,8 +219,6 @@ export default function ExamRecords() {
             userId: s.userId,
             name: s.name,
             score: s.score,
-            isLocked: s.isLocked,
-            halaqaLabel: halaqaLabelOf(s),
           }))}
           otherStudents={channelStudents ?? []}
           target={bulkTargetFor(selectedDay, chatId)}

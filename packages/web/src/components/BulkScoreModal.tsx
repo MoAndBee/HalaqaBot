@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAction, useMutation } from 'convex/react'
 import { ConvexError } from 'convex/values'
 import { api } from '@halakabot/db'
-import { Loader2, Sparkles, AlertTriangle, CheckCircle2, ChevronsUpDown, Copy, Lock, UserPlus } from 'lucide-react'
+import { Loader2, Sparkles, AlertTriangle, CheckCircle2, ChevronsUpDown, Copy, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -32,10 +32,6 @@ export interface RosterStudent {
   userId: number
   name: string
   score: number | null
-  /** Her halaqa is locked: no score can be saved until it is unlocked */
-  isLocked: boolean
-  /** Names her halaqa when telling the admin which one to unlock */
-  halaqaLabel: string
 }
 
 /** Anyone in the channel; scoring one of these adds her to the exam day */
@@ -51,8 +47,6 @@ export interface ExamTarget {
   sessionNumber: number
   channelId: number | null
   completedAt: number
-  /** Every halaqa that day is locked, so no student can be added */
-  isLocked: boolean
 }
 
 /**
@@ -67,8 +61,6 @@ interface Candidate {
   userId: number
   name: string
   score: number | null
-  isLocked: boolean
-  halaqaLabel: string | null
 }
 
 interface ReviewRow {
@@ -98,7 +90,7 @@ interface AnalyzeError {
   detail: string
 }
 
-/** The server's own reason when it gives one, e.g. "الحلقة مغلقة …" */
+/** The server's own reason when it gives one */
 function saveErrorMessage(error: unknown): string {
   if (error instanceof ConvexError && typeof error.data === 'string') return error.data
   return 'فشل حفظ الدرجات'
@@ -162,8 +154,6 @@ export function BulkScoreModal({
     userId: s.userId,
     name: s.name,
     score: s.score,
-    isLocked: s.isLocked,
-    halaqaLabel: s.halaqaLabel,
   }))
 
   const rosterUserIds = new Set(roster.map((s) => s.userId))
@@ -175,8 +165,6 @@ export function BulkScoreModal({
       userId: s.userId,
       name: s.name,
       score: null,
-      isLocked: target.isLocked,
-      halaqaLabel: null,
     }))
 
   const candidateByKey = new Map(
@@ -267,27 +255,19 @@ export function BulkScoreModal({
     return [{ candidate, score }]
   })
 
-  // A locked halaqa refuses every write, and one refused row would fail the
-  // whole save — so locked rows are left out and the rest still go through
-  const lockedRows = resolved.filter(({ candidate }) => candidate.isLocked)
-  const lockedHalaqas = [
-    ...new Set(lockedRows.map(({ candidate }) => candidate.halaqaLabel ?? 'حلقة الاختبار')),
-  ]
-  const saveable = resolved.filter(({ candidate }) => !candidate.isLocked)
-
-  const updates = saveable.flatMap(({ candidate, score }) => {
+  const updates = resolved.flatMap(({ candidate, score }) => {
     if (candidate.entryId === null) return []
     if (candidate.score != null && !overwrite) return []
     return [{ entryId: candidate.entryId, score }]
   })
 
-  const additions = saveable.flatMap(({ candidate, score }) =>
+  const additions = resolved.flatMap(({ candidate, score }) =>
     candidate.entryId === null ? [{ userId: candidate.userId, score }] : []
   )
 
   const totalToSave = updates.length + additions.length
 
-  const skippedExisting = saveable.filter(
+  const skippedExisting = resolved.filter(
     ({ candidate }) => candidate.entryId !== null && candidate.score != null && !overwrite
   ).length
 
@@ -385,16 +365,6 @@ export function BulkScoreModal({
             />
           ) : (
             <>
-              {lockedHalaqas.length > 0 && (
-                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 flex items-start gap-2">
-                  <Lock className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                  <p className="text-sm text-destructive">
-                    {lockedRows.length.toLocaleString('ar-EG')} درجة لن تُحفظ لأن الحلقة مغلقة (
-                    {lockedHalaqas.join('، ')}). افتحي الحلقة بكلمة المرور من صفحتها، ثم أعيدي
-                    إدخال هذه الدرجات.
-                  </p>
-                </div>
-              )}
               {othersSkipped && (
                 <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -457,13 +427,7 @@ export function BulkScoreModal({
                           disabled={isSaving}
                         />
                       </div>
-                      {candidate?.isLocked && (
-                        <span className="flex items-center gap-1 text-xs text-destructive shrink-0">
-                          <Lock className="h-3 w-3" />
-                          الحلقة مغلقة
-                        </span>
-                      )}
-                      {willBeAdded && !candidate.isLocked && (
+                      {willBeAdded && (
                         <span className="flex items-center gap-1 text-xs text-orange-600 shrink-0">
                           <UserPlus className="h-3 w-3" />
                           ستُضاف للاختبار
