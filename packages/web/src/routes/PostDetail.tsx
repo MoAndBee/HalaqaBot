@@ -169,6 +169,7 @@ export default function PostDetail() {
 
   const data = useQuery(api.queries.getUserList, { chatId, postId, sessionNumber: selectedSession })
   const availableSessions = useQuery(api.queries.getAvailableSessions, { chatId, postId })
+  const carryOverCount = useQuery(api.queries.getCarryOverCount, { chatId, postId }) ?? 0
   const postDetails = useQuery(api.queries.getPostDetails, { chatId, postId })
   const sessionInfo = useQuery(
     api.queries.getSessionInfo,
@@ -674,8 +675,6 @@ export default function PostDetail() {
 
     // Wait for keyboard to dismiss
     await new Promise(resolve => setTimeout(resolve, 300))
-
-    const carryOverCount = data.activeUsers.filter(user => !user.wasSkipped).length
 
     if (carryOverCount > 0) {
       const confirmed = await tgConfirm(
