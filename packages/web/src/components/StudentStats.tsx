@@ -165,16 +165,23 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
         })()
       : null
   const pct = (n: number) => `${n.toLocaleString('ar-EG')}٪`
-  const shortDate = (key: string) => {
+  // Arabic day names (starting from Saturday)
+  const dayNames = ['سبت', 'أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة']
+  // "خميس ٥": the card already names the month. An exam's days can fall in
+  // the previous month, so those keep their month.
+  const chipDate = (key: string) => {
     const [y, m, d] = key.split('-').map(Number)
-    return new Date(y, m - 1, d).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })
+    const date = new Date(y, m - 1, d)
+    const weekday = dayNames[(date.getDay() + 1) % 7]
+    const otherMonth = y !== year || m - 1 !== month
+    return `${weekday} ${d.toLocaleString('ar-EG')}${
+      otherMonth ? ` ${date.toLocaleDateString('ar-EG', { month: 'long' })}` : ''
+    }`
   }
 
   // Arabic month names
   const monthName = currentDate.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })
 
-  // Arabic day names (starting from Saturday)
-  const dayNames = ['سبت', 'أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة']
 
   // Build calendar grid
   const calendarDays = []
@@ -438,17 +445,21 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
                 {missedUnits.length > 0 && (
                   <div>
                     <h3 className="font-bold mb-2">الغياب</h3>
-                    <ul className="space-y-1 text-sm">
-                      {missedUnits.map((u) => (
-                        <li key={u.days.join(',')} className="flex flex-wrap items-center gap-2">
-                          {u.kind === 'exam' && (
-                            <span className={`rounded px-1.5 text-xs leading-5 text-white font-medium ${SESSION_TYPE_COLORS['اختبار']}`}>
-                              {u.name ?? 'اختبار'}
-                            </span>
-                          )}
-                          <span>{u.days.map(shortDate).join(' أو ')}</span>
-                        </li>
-                      ))}
+                    <ul className="flex flex-wrap gap-1.5 text-sm">
+                      {missedUnits.map((u) =>
+                        u.kind === 'exam' ? (
+                          <li
+                            key={u.days.join(',')}
+                            className={`rounded-md px-2 leading-7 text-white font-medium ${SESSION_TYPE_COLORS['اختبار']}`}
+                          >
+                            {u.name ?? 'اختبار'}: {u.days.map(chipDate).join(' أو ')}
+                          </li>
+                        ) : (
+                          <li key={u.days[0]} className="rounded-md border bg-muted/40 px-2 leading-7">
+                            {chipDate(u.days[0])}
+                          </li>
+                        )
+                      )}
                     </ul>
                   </div>
                 )}
