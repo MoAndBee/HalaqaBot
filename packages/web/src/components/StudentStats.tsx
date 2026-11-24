@@ -45,8 +45,14 @@ export function StudentStats({ userId, onBack }: StudentStatsProps) {
   const { chatId } = useSelectedChannel()
   const user = useQuery(api.queries.getUser, { userId, chatId })
   const participations = useQuery(api.queries.getUserParticipations, { userId, chatId })
-  const absenceInputs = useQuery(api.exams.getAbsenceInputs, { userId, chatId })
   const [currentDate, setCurrentDate] = useState(new Date())
+  // Only the shown month's exam days are needed, in local time
+  const absenceInputs = useQuery(api.exams.getAbsenceInputs, {
+    userId,
+    chatId,
+    from: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getTime(),
+    to: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1).getTime(),
+  })
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
   // Loading state - queries haven't returned yet

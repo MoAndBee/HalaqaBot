@@ -89,6 +89,8 @@ export default defineSchema({
     .index("by_chat_post", ["chatId", "postId"])
     .index("by_user", ["userId"])
     .index("by_user_chat", ["userId", "chatId"])
+    // One session type in a time range, e.g. a month's اختبار rows for نسبة الغياب
+    .index("by_chat_type_completed", ["chatId", "sessionType", "completedAt"])
     .index("by_channel_post", ["channelId", "postId"]),
 
   lastListMessages: defineTable({

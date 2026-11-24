@@ -95,20 +95,27 @@ export const deleteExam = mutation({
 });
 
 /**
- * Course-wide inputs for one student's نسبة الغياب: every اختبار time in the
- * course (the client groups them into days in local time, since the server
- * runs in UTC), the marked exams, and when she was removed from the roster.
+ * Course-wide inputs for one student's نسبة الغياب in one month: the times of
+ * every اختبار in the course within [from, to) (the client passes its local
+ * month and groups them into days, since the server runs in UTC), the marked
+ * exams, and when she was removed from the roster.
  */
 export const getAbsenceInputs = query({
-  args: { userId: v.number(), chatId: v.number() },
+  args: { userId: v.number(), chatId: v.number(), from: v.number(), to: v.number() },
   handler: async (ctx, args) => {
     // Also checks the admin runs this chat
     await requireStudentAccess(ctx, args.userId, args.chatId);
 
-    const [history, exams, rosterRows] = await Promise.all([
+    const [examRows, exams, rosterRows] = await Promise.all([
       ctx.db
         .query("participationHistory")
-        .withIndex("by_chat_post", (q) => q.eq("chatId", args.chatId))
+        .withIndex("by_chat_type_completed", (q) =>
+          q
+            .eq("chatId", args.chatId)
+            .eq("sessionType", "اختبار")
+            .gte("completedAt", args.from)
+            .lt("completedAt", args.to)
+        )
         .collect(),
       ctx.db
         .query("exams")
@@ -120,7 +127,7 @@ export const getAbsenceInputs = query({
         .collect(),
     ]);
 
-    const examTimes = history.filter((e) => e.sessionType === "اختبار").map((e) => e.completedAt);
+    const examTimes = examRows.map((e) => e.completedAt);
     const removed = rosterRows.filter((r) => r.removedAt !== undefined).map((r) => r.removedAt!);
     // Removed only if every roster row for her is removed
     const removedAt =

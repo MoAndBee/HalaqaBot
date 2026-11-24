@@ -46,7 +46,7 @@ export interface AbsenceInput {
   today: DayKey
   /** Her participations in this course */
   participations: AbsenceParticipation[]
-  /** Times of every اختبار anyone took in the course */
+  /** Times of every اختبار anyone in the course took this month (others are ignored) */
   courseExamTimes: number[]
   markedExams: MarkedExam[]
   /** When she was removed from the roster, if she still is */

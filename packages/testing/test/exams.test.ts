@@ -85,7 +85,7 @@ describe("marked exams", () => {
     const examId = await admin.mutation(api.exams.saveExam, { chatId: CHAT, name: "أ", days: ["2026-11-21"] });
     await expect(outsider.query(api.exams.getExams, { chatId: CHAT })).rejects.toThrow("غير مصرح");
     await expect(outsider.mutation(api.exams.deleteExam, { chatId: CHAT, examId })).rejects.toThrow("غير مصرح");
-    await expect(outsider.query(api.exams.getAbsenceInputs, { chatId: CHAT, userId: STUDENT }))
+    await expect(outsider.query(api.exams.getAbsenceInputs, { chatId: CHAT, userId: STUDENT, from: 0, to: 1e15 }))
       .rejects.toThrow("غير مصرح");
   });
 });
@@ -93,8 +93,9 @@ describe("marked exams", () => {
 describe("absence inputs", () => {
   test("course exam times from this chat only, marked exams, and removal", async () => {
     const { t, admin } = await fixture();
+    const all = { chatId: CHAT, userId: STUDENT, from: 0, to: 1e15 };
     await admin.mutation(api.exams.saveExam, { chatId: CHAT, name: "أ", days: ["2026-11-21"] });
-    expect(await admin.query(api.exams.getAbsenceInputs, { chatId: CHAT, userId: STUDENT })).toEqual({
+    expect(await admin.query(api.exams.getAbsenceInputs, all)).toEqual({
       examTimes: [2000],
       exams: [{ name: "أ", days: ["2026-11-21"] }],
       removedAt: null,
@@ -104,7 +105,16 @@ describe("absence inputs", () => {
       const row = await ctx.db.query("channelStudents").first();
       await ctx.db.patch(row!._id, { removedAt: 5000 });
     });
-    expect((await admin.query(api.exams.getAbsenceInputs, { chatId: CHAT, userId: STUDENT })).removedAt)
+    expect((await admin.query(api.exams.getAbsenceInputs, all)).removedAt)
       .toBe(5000);
+  });
+
+  test("only exam times within the requested range", async () => {
+    const { admin } = await fixture();
+    const at = (from: number, to: number) =>
+      admin.query(api.exams.getAbsenceInputs, { chatId: CHAT, userId: STUDENT, from, to });
+    expect((await at(1500, 2500)).examTimes).toEqual([2000]);
+    expect((await at(2000, 2001)).examTimes).toEqual([2000]); // from is inclusive
+    expect((await at(0, 2000)).examTimes).toEqual([]); // to is exclusive
   });
 });

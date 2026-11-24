@@ -56,3 +56,10 @@ its days (with the day, for multi-day exams). Copying results
 (نسخ نتائج الاختبار) and pasting scores (إدخال الدرجات دفعة واحدة) both work on
 the whole exam. A student the paste adds is filed under the exam's busiest
 halaqa.
+
+## Cost
+
+The student page reads her own history (`by_user` index), the course's marked
+exams, and only the shown month's اختبار rows through the
+`participationHistory.by_chat_type_completed` index. It doesn't scan the
+course's whole history.
