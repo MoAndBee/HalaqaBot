@@ -1694,3 +1694,29 @@ export const getUnregisteredPosts = query({
     };
   },
 });
+
+/**
+ * Every completed turn in a post's halaqas, reduced to who did what where.
+ * The manual-list screen uses it to warn before recording a student's turn a
+ * second time in another halaqa of the same post — the same list applied
+ * twice left 14 students with two اختبار records on one day, which the exam
+ * page lists twice and the score matcher could not tell apart.
+ */
+export const getPostCompletedTurns = query({
+  args: {
+    chatId: v.number(),
+    postId: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatAccess(ctx, args.chatId);
+    const history = await ctx.db
+      .query("participationHistory")
+      .withIndex("by_chat_post", (q) => q.eq("chatId", args.chatId).eq("postId", args.postId))
+      .collect();
+    return history.map((h) => ({
+      userId: h.userId,
+      sessionNumber: h.sessionNumber,
+      sessionType: h.sessionType,
+    }));
+  },
+});
