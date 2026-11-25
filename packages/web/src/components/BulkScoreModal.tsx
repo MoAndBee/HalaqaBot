@@ -148,7 +148,20 @@ export function BulkScoreModal({
   const matchBulkScores = useAction(api.actions.matchBulkScores)
   const bulkUpdateScores = useMutation(api.mutations.bulkUpdateParticipationScores)
 
-  const examCandidates: Candidate[] = roster.map((s) => ({
+  // One candidate per student, not per record. A student can hold several
+  // records in one exam (the same manual list imported twice, or a second
+  // sitting on another day), and listing her name twice made the matcher
+  // treat the two as equally plausible students and match neither. Her
+  // already-scored record is the one targeted, so re-pasting a list still
+  // compares against the saved score; otherwise the first record.
+  const rosterByUser = new Map<number, RosterStudent>()
+  for (const s of roster) {
+    const current = rosterByUser.get(s.userId)
+    if (current === undefined || (current.score == null && s.score != null)) {
+      rosterByUser.set(s.userId, s)
+    }
+  }
+  const examCandidates: Candidate[] = [...rosterByUser.values()].map((s) => ({
     key: `e:${s.entryId}`,
     entryId: s.entryId,
     userId: s.userId,
@@ -156,9 +169,8 @@ export function BulkScoreModal({
     score: s.score,
   }))
 
-  const rosterUserIds = new Set(roster.map((s) => s.userId))
   const addableCandidates: Candidate[] = otherStudents
-    .filter((s) => !rosterUserIds.has(s.userId))
+    .filter((s) => !rosterByUser.has(s.userId))
     .map((s) => ({
       key: `u:${s.userId}`,
       entryId: null,

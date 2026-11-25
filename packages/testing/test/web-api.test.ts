@@ -168,6 +168,27 @@ describe("sending the participant list", () => {
     expect(next.activeUsers).toHaveLength(2);
   });
 
+  test("a manual list applied twice shows each student's turn in both halaqas", async () => {
+    const postId = await halaqaWithStudents();
+    const chatId = stack.world.groupId;
+    const userId = stack.world.students[0]!.id;
+    const apply = () =>
+      stack.mutation(api.mutations.applyManualList, {
+        chatId, channelId: stack.world.channelId, postId,
+        mode: "create", appliedBy: stack.world.admin.id, rawText: "duplicate list test",
+        newSession: { teacherName: "Zoom teacher", platform: "Zoom" },
+        entries: [{ userId, done: true, skipped: false, sessionType: "اختبار" }],
+      });
+    const first = await apply();
+    const second = await apply();
+    // The screen warns from exactly this: one اختبار turn per halaqa
+    const turns = await stack.query(api.queries.getPostCompletedTurns, { chatId, postId });
+    const exams = turns.filter((t) => t.userId === userId && t.sessionType === "اختبار");
+    expect(exams.map((t) => t.sessionNumber).sort()).toEqual(
+      [first.sessionNumber, second.sessionNumber].sort()
+    );
+  });
+
   test("a locked halaqa's list can't be sent", async () => {
     const postId = await halaqaWithStudents();
     await stack.mutation(api.mutations.lockSession, { chatId: stack.world.groupId, postId, sessionNumber: 1 });

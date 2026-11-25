@@ -151,8 +151,14 @@ export function ManualListModal({
   // Names of students registered from this screen, until the roster query
   // catches up with them
   const [registeredNames, setRegisteredNames] = useState<Map<number, string>>(new Map())
+  // The admin has seen the already-recorded warning and saves anyway
+  const [confirmedRepeats, setConfirmedRepeats] = useState(false)
 
   const students = useQuery(api.queries.getChannelStudents, isOpen ? { chatId } : 'skip')
+  const postTurns = useQuery(
+    api.queries.getPostCompletedTurns,
+    isOpen ? { chatId, postId } : 'skip'
+  )
   const matchNames = useAction(api.actions.matchManualListNames)
   const applyManualList = useMutation(api.mutations.applyManualList)
   const registerUser = useMutation(api.mutations.registerUser)
@@ -180,6 +186,7 @@ export function ManualListModal({
     setPickerRowKey(null)
     setDatesRowKey(null)
     setRegisterRowKey(null)
+    setConfirmedRepeats(false)
   }
 
   const handleClose = () => {
@@ -192,6 +199,7 @@ export function ManualListModal({
     if (text.trim() === '' || students === undefined) return
     setAnalyzeError(null)
     setAiError(null)
+    setConfirmedRepeats(false)
 
     const parsed = parseManualList(text, halaqaDate)
     if (parsed.multipleLists) {
@@ -279,7 +287,33 @@ export function ManualListModal({
     teacherMissing && 'اسم المعلمة',
   ].filter((b): b is string => typeof b === 'string')
 
-  const canSave = rows !== null && rows.length > 0 && blockers.length === 0 && !isSaving
+  // Completed turns this list would record again: same student, same
+  // participation type, already done in another halaqa of this post. Almost
+  // always the same list applied twice — the halaqa being replaced is
+  // excluded, since its turns are deleted first.
+  const replacedSession = mode === 'replace' ? sessionNumber : undefined
+  const repeats = (rows ?? []).flatMap((r) => {
+    if (!r.done || r.userId === null || r.sessionType === null) return []
+    const sessions = (postTurns ?? [])
+      .filter(
+        (t: { userId: number; sessionNumber: number; sessionType: string }) =>
+          t.userId === r.userId &&
+          t.sessionType === r.sessionType &&
+          t.sessionNumber !== replacedSession
+      )
+      .map((t: { sessionNumber: number }): number => t.sessionNumber)
+    if (sessions.length === 0) return []
+    return [{ key: r.key, name: nameById.get(r.userId) ?? r.line.name, type: r.sessionType, sessions: sessions as number[] }]
+  })
+  const needsRepeatConfirm = repeats.length > 0 && !confirmedRepeats
+
+  const canSave =
+    rows !== null &&
+    rows.length > 0 &&
+    blockers.length === 0 &&
+    !needsRepeatConfirm &&
+    postTurns !== undefined &&
+    !isSaving
 
   const handleSave = async () => {
     if (!canSave || rows === null) return
@@ -558,6 +592,43 @@ export function ManualListModal({
                     )
                   })}
                 </div>
+
+                {repeats.length > 0 && (
+                  <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-sm text-amber-700 dark:text-amber-400 space-y-1">
+                        <p className="font-medium">
+                          {repeats.length === rows.length
+                            ? 'يبدو أن هذه القائمة أُضيفت من قبل: '
+                            : ''}
+                          {repeats.length.toLocaleString('ar-EG')} طالبة مسجّل لها نفس نوع المشاركة في
+                          حلقة أخرى من هذا المنشور، وحفظ القائمة سيسجّلها لها مرة ثانية:
+                        </p>
+                        <ul className="list-disc ps-5">
+                          {repeats.map((r) => (
+                            <li key={r.key}>
+                              {r.name} — {r.type} (الحلقة{' '}
+                              {[...new Set(r.sessions)]
+                                .map((n) => n.toLocaleString('ar-EG'))
+                                .join('، ')}
+                              )
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={confirmedRepeats}
+                        onChange={(e) => setConfirmedRepeats(e.target.checked)}
+                        disabled={isSaving}
+                      />
+                      ليست قائمة مكررة، احفظيها على أي حال
+                    </label>
+                  </div>
+                )}
 
                 {blockers.length > 0 && (
                   <p className="text-sm text-destructive">
