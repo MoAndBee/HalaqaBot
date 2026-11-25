@@ -67,11 +67,11 @@ export default function Halaqas() {
           </Button>
         </div>
       </div>
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto -mx-2 px-2 py-2">
         <PostsList posts={result.page} />
       </div>
       {(hasPrev || hasNext) && (
-        <div className="flex items-center justify-center gap-4 mt-6 pt-4 border-t">
+        <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t shrink-0">
           <Button variant="outline" size="sm" onClick={goPrev} disabled={!hasPrev}>
             السابق
           </Button>
